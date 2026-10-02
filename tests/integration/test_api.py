@@ -4,6 +4,7 @@ API → plan sellado → ejecutor → SSH al simulador → resultado guardado �
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import threading
 from collections.abc import Iterator
@@ -19,11 +20,12 @@ from sqlalchemy import select
 from olterra.admin import create_api_key, create_tenant
 from olterra.api.app import create_app
 from olterra.config import Settings
-from olterra.db.models import AuditLog, Credential
+from olterra.db.models import AuditLog, Credential, Olt, TenantKey
 from olterra.db.session import create_engine, session_factory
 from olterra.devtools.demo_recon import demo_input
 from olterra.devtools.vsol_sim import VsolSimulator
 from olterra.executor.bus import MemoryBus
+from olterra.executor.plan import Credential as SecretCredential
 from olterra.executor.plan import Plan
 from olterra.executor.runner import PlanRunner
 from olterra.executor.worker import Executor
@@ -503,3 +505,81 @@ def test_sstp_needs_the_concentrator_ca(env: Env) -> None:
         assert "OLTERRA_TUNNEL_SSTP_CA" in response.json()["detail"]
     finally:
         state.settings = original
+
+
+def test_update_olt_and_its_credentials(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.9", model="V1600G1B")
+    response = env.client.patch(
+        f"/v1/olts/{olt['id']}",
+        json={
+            "real_ip": "10.72.111.2",
+            "model": "V1600G0-B",
+            "firmware": "V1.4.8R",
+            "enable_password": "enable-lab",
+        },
+        headers=env.headers(),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["real_ip"], body["model"], body["firmware"]) == (
+        "10.72.111.2",
+        "V1600G0-B",
+        "V1.4.8R",
+    )
+
+    async def stored() -> tuple[SecretCredential, bytes, list[dict[str, Any]]]:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session:
+                row = await session.get(Olt, UUID(olt["id"]))
+                assert row is not None and row.credential_id is not None
+                secret = await session.get(Credential, row.credential_id)
+                assert secret is not None
+                wrapped = (
+                    await session.execute(
+                        select(TenantKey.wrapped_dek).where(TenantKey.tenant_id == env.tenant_a)
+                    )
+                ).scalar_one()
+                audits = (
+                    (
+                        await session.execute(
+                            select(AuditLog.after).where(
+                                AuditLog.tenant_id == env.tenant_a,
+                                AuditLog.action == "olt.update",
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            dek = Vault.single(env.master_key).unwrap_tenant_key(env.tenant_a, wrapped)
+            plain = Vault.decrypt(env.tenant_a, dek, f"credential:{secret.id}", secret.ciphertext)
+            return SecretCredential.model_validate_json(plain), secret.ciphertext, list(audits)
+        finally:
+            await engine.dispose()
+
+    credential, ciphertext, audits = asyncio.run(stored())
+    assert credential.enable_password is not None
+    assert credential.enable_password.get_secret_value() == "enable-lab"
+    assert credential.password is not None
+    assert credential.password.get_secret_value() == "olterra-sim"  # la que no vino, igual
+    assert b"enable-lab" not in ciphertext
+    [after] = audits
+    assert after["credenciales"] == ["enable_password"]
+    assert "enable-lab" not in json.dumps(after)  # la bitácora no guarda claves
+
+    # Una cadena vacía quita la clave de enable.
+    cleared = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"enable_password": ""}, headers=env.headers()
+    )
+    assert cleared.status_code == 200
+    assert asyncio.run(stored())[0].enable_password is None
+
+    tunnel_ip = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"real_ip": "198.18.1.1"}, headers=env.headers()
+    )
+    assert tunnel_ip.status_code == 400
+    other = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"model": "X"}, headers=env.headers(env.key_b)
+    )
+    assert other.status_code == 404

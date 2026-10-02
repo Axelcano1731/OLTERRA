@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LoaderCircle, Play, RefreshCw, Terminal } from '@lucide/vue'
+import { LoaderCircle, Pencil, Play, RefreshCw, Terminal } from '@lucide/vue'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -14,6 +14,7 @@ import { oltStatus, planStatus } from '@/lib/labels'
 import { parseOnus, parsePons, TargetError } from '@/lib/targets'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
+import { can } from '@/session'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
@@ -23,6 +24,7 @@ const commands = useAsync(() => listCommands(props.id))
 const history = useAsync(() => listPlans(props.id))
 
 const justCreated = computed(() => route.query.nueva === '1')
+const justEdited = computed(() => route.query.editada === '1')
 
 const GROUPS: { scope: CommandScope; title: string; text: string }[] = [
   { scope: 'olt', title: 'Equipo', text: 'Una vez por consulta.' },
@@ -137,7 +139,22 @@ watch(waiting, (now, before) => {
           <span v-if="olt.data.value.firmware">· {{ olt.data.value.firmware }}</span>
         </div>
       </template>
+      <template v-if="can('olt:write')" #actions>
+        <RouterLink :to="{ name: 'olt-edit', params: { id } }" class="btn-secondary">
+          <Pencil class="size-4" />
+          Editar
+        </RouterLink>
+      </template>
     </PageHeader>
+
+    <AlertBox v-if="justEdited" tone="success" title="OLT actualizada" class="mb-6">
+      Los cambios quedaron guardados.
+      <template v-if="olt.data.value.router_id">
+        Si cambiaste su IP, rota las llaves de su MikroTik en
+        <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>
+        para publicarla.
+      </template>
+    </AlertBox>
 
     <AlertBox v-if="justCreated" tone="success" title="OLT agregada" class="mb-6">
       Sus credenciales quedaron cifradas con la llave de tu ISP.

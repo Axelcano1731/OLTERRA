@@ -27,7 +27,12 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: { name: 'panel' }, label: 'Panel', icon: LayoutDashboard, routes: ['panel'] },
-  { to: { name: 'olts' }, label: 'OLT', icon: Server, routes: ['olts', 'olt-new', 'olt'] },
+  {
+    to: { name: 'olts' },
+    label: 'OLT',
+    icon: Server,
+    routes: ['olts', 'olt-new', 'olt', 'olt-edit'],
+  },
   { to: { name: 'tunnel' }, label: 'Túnel', icon: Waypoints, routes: ['tunnel'] },
   {
     to: { name: 'recons' },

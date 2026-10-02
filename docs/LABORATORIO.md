@@ -18,6 +18,10 @@ reales, para que la fase 1 se construya sobre hechos y no sobre el manual.
 
 ## 1. Preparar la OLT
 
+**Ojo: los usuarios de la web y los de la CLI son distintos** (comprobado en la V1600G0-B,
+V1.4.8R). Crear un usuario o cambiar una clave en la web no toca el SSH, que sigue con su
+usuario y clave de fábrica; y la clave de `enable` es otra más. Olterra entra por la CLI.
+
 Desde la consola o SSH, con el usuario de fábrica **solo esta vez** (después se cambia):
 
 ```
@@ -92,7 +96,8 @@ autorizar) y con una ONU con atenuador (potencia baja). Así quedan muestras de 
    de laboratorio y `hub_script` en el CHR.
 3. Verificar: `last-handshake` reciente en ambos lados; desde el ejecutor, `ssh` a la IP NAT de
    la OLT; correr el script dos veces y confirmar que no duplica reglas.
-4. Probar en un MikroTik **v6** que el script se detiene con el mensaje claro.
+4. MikroTik **v6**: va por SSTP (ARQUITECTURA §A.4). El script se sube como archivo y se corre
+   con `/import`; pegarlo en la consola lo corrompe.
 
 Si se comparte el CHR de ISPWatch: confirmar antes que nada use 198.18.0.0/15 y que las
 reglas nuevas de forward queden después de las de ISPWatch que deban seguir aplicando.
@@ -118,4 +123,8 @@ Llenar a medida que se avanza (modelo, firmware, fecha, quién):
 
 | Fecha | Modelo / firmware | Qué se probó | Resultado | Captura |
 |---|---|---|---|---|
-| | | | | |
+| 2026-10-02 | MikroTik CCR (RouterOS 6, última) | Script WireGuard | Se detiene antes de cambiar nada (v6 no conoce `/interface wireguard`) | — |
+| 2026-10-02 | MikroTik CCR (RouterOS 6) | Script SSTP | `port=` es de v7 y corta todo el script; con `connect-to=IP:puerto` conecta, verifica la CA de Olterra, ~80 ms a la plataforma | — |
+| 2026-10-02 | VSOL V1600G0-B · V1.4.8R (hw V3.1.4) | Túnel completo: plataforma → CHR → SSTP → MikroTik → NAT 1:1 → OLT | SSH de la OLT responde por su IP única (`SSH-2.0-OpenSSH_7.3`) | — |
+| 2026-10-02 | VSOL V1600G0-B · V1.4.8R | Login SSH | Usuario y clave de la web rechazados por SSH; el usuario CLI de fábrica entra. Saludo: `Hello, this is gpon olt platform (version 1.00)` … `Entering character mode`; prompt `gpon-olt_VIOTA>` | — |
+| 2026-10-02 | VSOL V1600G0-B · V1.4.8R | `enable` | Pide `Password:`; con una clave equivocada responde `Bad Password...` / `Please retry`. La clave de enable es distinta de la del login | — |
