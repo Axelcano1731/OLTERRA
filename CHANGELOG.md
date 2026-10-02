@@ -21,6 +21,12 @@
   servidor SSTP en el concentrador y aislamiento por lista de interfaces para los dos
   transportes. Al rotar, un router puede cambiar de versión y de transporte. Migración `0003`.
 
+- Editar OLT (`PATCH /v1/olts/{id}` y su pantalla): modelo, firmware, IP, puertos y
+  credenciales, incluida la clave de enable. Las claves se vuelven a cifrar; la bitácora anota
+  cuáles cambiaron, nunca su valor.
+- Alta de OLT: el modelo se escribe como sale en la web de la OLT (sugerencias con V1600G0-B)
+  y el driver lo compara sin guiones (V1600G1-B = V1600G1B).
+
 ### Corregido
 
 - El ejecutor y el consumidor de resultados de la API morían a los pocos segundos sin

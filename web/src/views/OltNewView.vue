@@ -8,8 +8,9 @@ import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { errorText, useAsync } from '@/lib/useAsync'
 
-// Modelos que el driver ya conoce (drivers/vsol_gpon/capabilities.py); se puede escribir otro.
-const KNOWN_MODELS = ['V1600G1', 'V1600G1B', 'V1600G2', 'V1600GS']
+// Sugerencias escritas como las muestra la web de la OLT; se puede escribir cualquier otro. El
+// driver compara sin guiones, así que V1600G1-B y V1600G1B son el mismo (drivers/base.py).
+const KNOWN_MODELS = ['V1600G0-B', 'V1600G1', 'V1600G1-B', 'V1600G2', 'V1600GS']
 
 const NAME = /^[A-Za-z0-9_.-]{1,32}$/
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
@@ -52,6 +53,10 @@ const problems = computed(() => {
     found.name = 'Hasta 32 caracteres: letras, números, punto, guion o guion bajo.'
   }
   if (!IPV4.test(form.realIp.trim())) found.realIp = 'Una IPv4, como 192.168.8.200.'
+  // 198.18.x y 198.19.x son del túnel: la del router o una IP NAT, nunca la de la OLT.
+  else if (/^198\.1[89]\./.test(form.realIp.trim())) {
+    found.realIp = 'Esa es una IP del túnel. Va la IP con la que abres la web de la OLT en tu red.'
+  }
   if (!port(form.sshPort)) found.sshPort = 'De 1 a 65535.'
   if (!port(form.snmpPort)) found.snmpPort = 'De 1 a 65535.'
   if (!form.username.trim()) found.username = 'Falta el usuario.'
@@ -137,16 +142,19 @@ async function submit(): Promise<void> {
             v-model="form.model"
             class="input"
             list="models"
-            placeholder="V1600G1"
+            placeholder="V1600G0-B"
           />
           <datalist id="models">
             <option v-for="model in KNOWN_MODELS" :key="model" :value="model" />
           </datalist>
-          <p class="hint">Cambia comandos y capacidades según el modelo.</p>
+          <p class="hint">
+            Escríbelo como sale en la web de la OLT (Device Model); puede ser cualquiera.
+          </p>
         </div>
         <div>
           <label for="firmware" class="label">Firmware</label>
-          <input id="firmware" v-model="form.firmware" class="input" placeholder="V1.4.4R" />
+          <input id="firmware" v-model="form.firmware" class="input" placeholder="V1.4.8R" />
+          <p class="hint">Software Version en la web de la OLT.</p>
         </div>
       </div>
     </section>
@@ -177,6 +185,9 @@ async function submit(): Promise<void> {
             :aria-invalid="!!show('realIp')"
           />
           <p v-if="show('realIp')" class="hint text-danger">{{ show('realIp') }}</p>
+          <p v-else class="hint">
+            La IP con la que abres la web de la OLT desde tu red. No es la del túnel.
+          </p>
         </div>
         <div>
           <label for="ssh-port" class="label">Puerto SSH</label>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from ipaddress import IPv4Network
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
@@ -15,6 +16,7 @@ from olterra.api.schemas import (
     CommandOut,
     OltCreate,
     OltOut,
+    OltUpdate,
     PlanOut,
     PlanSummary,
     QueryRequest,
@@ -30,6 +32,20 @@ from olterra.orchestrator import PARSERS, build_read_plan
 from olterra.security.vault import Vault
 
 router = APIRouter(prefix="/v1/olts", tags=["OLT"])
+
+
+def _check_real_ip(state: Any, real_ip: Any) -> None:
+    """Confusión real: poner la IP del router en el túnel (198.18.x) en vez de la de la OLT."""
+    pools = [
+        IPv4Network(state.settings.tunnel_peer_pool),
+        IPv4Network(state.settings.tunnel_nat_pool),
+    ]
+    if real_ip is not None and any(real_ip in pool for pool in pools):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{real_ip} es una IP del túnel. Va la IP que la OLT tiene en la red del ISP,"
+            " la misma con la que se abre su página web (por ejemplo 192.168.1.50).",
+        )
 
 
 def _lowest_free(used: set[int], start: int) -> int:
@@ -63,6 +79,7 @@ async def get_olt(olt_id: UUID, ctx: Tenant) -> Olt:
 @router.post("", response_model=OltOut, status_code=status.HTTP_201_CREATED)
 async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
     ctx.require("olt:write")
+    _check_real_ip(state, body.real_ip)
     credential = Credential(
         username=body.username,
         password=body.password,
@@ -141,6 +158,87 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Ya existe una OLT con ese nombre o esa IP"
         ) from exc
+
+
+@router.patch("/{olt_id}", response_model=OltOut)
+async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -> Olt:
+    """Corrige la OLT: modelo, firmware, IP, puertos o credenciales (se vuelven a cifrar).
+
+    Si cambia la IP de una OLT detrás de un router, hay que rotar el router: su script
+    publica la IP nueva.
+    """
+    ctx.require("olt:write")
+    changes = body.model_fields_set
+    _check_real_ip(state, body.real_ip)
+    async with ctx.session() as session:
+        olt = await _get_olt(session, olt_id)
+        before = {
+            "model": olt.model,
+            "firmware": olt.firmware,
+            "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
+            "ssh_port": olt.ssh_port,
+            "snmp_port": olt.snmp_port,
+        }
+        if "model" in changes:
+            olt.model = (body.model or "").strip() or None
+        if "firmware" in changes:
+            olt.firmware = (body.firmware or "").strip() or None
+        if "real_ip" in changes:
+            if body.real_ip is None and olt.router_id is not None:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST, "Una OLT detrás de un router necesita su IP"
+                )
+            olt.real_ip = str(body.real_ip) if body.real_ip else None
+        if body.ssh_port is not None:
+            olt.ssh_port = body.ssh_port
+        if body.snmp_port is not None:
+            olt.snmp_port = body.snmp_port
+        secrets = sorted(changes & {"username", "password", "enable_password", "snmp_community"})
+        if secrets:
+            if olt.credential_id is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "La OLT no tiene credencial")
+            row = await session.get(CredentialRow, olt.credential_id)
+            if row is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "La credencial de la OLT no existe")
+            dek = await state.tenant_dek(session, ctx.tenant_id)
+            aad = f"credential:{row.id}"
+            current = Credential.model_validate_json(
+                Vault.decrypt(ctx.tenant_id, dek, aad, row.ciphertext)
+            )
+            update: dict[str, Any] = {}
+            if body.username is not None:
+                update["username"] = body.username
+            if body.password is not None:
+                update["password"] = body.password
+            for name in ("enable_password", "snmp_community"):
+                if name in changes:
+                    value = getattr(body, name)
+                    update[name] = value if value and value.get_secret_value() else None
+            row.ciphertext = Vault.encrypt(
+                ctx.tenant_id, dek, aad, current.model_copy(update=update).reveal_json()
+            )
+        await session.flush()
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="olt.update",
+            target_type="olt",
+            target_id=str(olt.id),
+            before=before,
+            # De las credenciales solo se anota cuáles cambiaron, nunca su valor.
+            after={
+                "model": olt.model,
+                "firmware": olt.firmware,
+                "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
+                "ssh_port": olt.ssh_port,
+                "snmp_port": olt.snmp_port,
+                "credenciales": secrets,
+            },
+            source_ip=ctx.client_ip,
+        )
+        await session.refresh(olt)
+        return olt
 
 
 def query_scope(template: CommandTemplate) -> Literal["olt", "pon", "onu"] | None:

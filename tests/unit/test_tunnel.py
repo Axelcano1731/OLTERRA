@@ -220,10 +220,14 @@ def test_sstp_script_for_routeros_v6() -> None:
     assert script.isascii()
     assert "wireguard" not in script  # v6 no la tiene: el script no la nombra
     assert (
-        "/interface sstp-client add name=$ifn connect-to=203.0.113.10 port=4443"
+        "/interface sstp-client add name=$ifn connect-to=203.0.113.10:4443"
         f' user="olterra-isp-piloto-CORE_VIOTA" password="{tunnel.password}"'
     ) in script
     assert "verify-server-certificate=yes" in script
+    # RouterOS 6 no conoce estos parámetros de v7: uno solo corta todo el script.
+    [client] = [line for line in script.splitlines() if "sstp-client add" in line]
+    for v7_only in (" port=", "tls-version", "pfs=", "ciphers"):
+        assert v7_only not in client
     # La CA va en una sola línea del script, con los saltos como \n de RouterOS.
     [contents] = [line for line in script.splitlines() if "contents=" in line]
     assert contents.count("-----BEGIN CERTIFICATE-----\\n") == 1
@@ -303,6 +307,11 @@ def test_hub_bootstrap_with_sstp() -> None:
     assert "/interface sstp-server server set enabled=yes port=4443" in bootstrap
     assert "subject-alt-name=IP:203.0.113.10" in bootstrap
     assert "local-address=198.18.0.1 interface-list=olterra-tuneles" in bootstrap
+    # Correrlo de nuevo no corta el túnel: la dirección y las rutas solo cambian si están mal.
+    assert '/ip address remove [find where comment="olterra-hub" and address!="198.18.0.1/24"]' in (
+        bootstrap
+    )
+    assert '/ip route remove [find where comment="olterra-hub"]' not in bootstrap
     lines = bootstrap.splitlines()
     sstp = next(i for i, line in enumerate(lines) if "dst-port=4443 action=accept" in line)
     drop = next(i for i, line in enumerate(lines) if "sin ruteo entre ISP" in line)

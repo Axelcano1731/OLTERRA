@@ -281,7 +281,7 @@ class SstpTunnel:
 
 
 def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
-    """Script del router del ISP con RouterOS v6 (sirve igual en v7).
+    """Script del router del ISP con RouterOS v6 (en v7 se usa WireGuard).
 
     El certificado de la CA va dentro del script: v6 no deja importarlo desde texto, así que
     se escribe en un archivo (``/file print file=`` + ``/file set contents=``) y se importa.
@@ -320,11 +320,12 @@ def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
     s.add('/certificate set [find where name~"^olterra-ca"] name=olterra-ca trusted=yes')
     s.add("/interface sstp-client remove [find where name=$ifn]")
     s.add(
-        f"/interface sstp-client add name=$ifn connect-to={_host(tunnel.hub_host)}"
-        f' port={tunnel.hub_port} user="{tunnel.user}" password="{tunnel.password}"'
-        " profile=default-encryption authentication=mschap2 verify-server-certificate=yes"
-        " verify-server-address-from-certificate=no add-default-route=no keepalive-timeout=60"
-        f' comment="{tag}" disabled=no'
+        # En v6 el puerto va pegado a la dirección: el parámetro ``port`` es de v7 y v6 corta
+        # todo el script con "expected end of command". Solo lo esencial: el resto de
+        # parámetros (autenticación, keepalive, ruta por defecto) ya viene bien por defecto.
+        f"/interface sstp-client add name=$ifn connect-to={_host(tunnel.hub_host)}:{tunnel.hub_port}"
+        f' user="{tunnel.user}" password="{tunnel.password}" profile=default-encryption'
+        f' verify-server-certificate=yes comment="{tag}" disabled=no'
     )
     s.add('/ip route remove [find where comment~"^olterra"]')
     s.add(f'/ip route add dst-address={prefix} gateway=$ifn comment="{tag}"')
@@ -462,15 +463,29 @@ def render_hub_bootstrap(
     s.add(f':if ([:len [/interface list find where name="{tunnel_list}"]] = 0) do={{')
     s.add(f'  /interface list add name={tunnel_list} comment="{tag}"')
     s.add("}")
-    s.add(f'/interface list member remove [find where comment="{tag}"]')
-    s.add(f'/interface list member add list={tunnel_list} interface={interface} comment="{tag}"')
-    s.add(f'/ip address remove [find where comment="{tag}"]')
+    # Dirección, rutas y lista: se borra lo que sobra y se agrega lo que falta, sin tocar lo
+    # que ya está bien. Así correrlo de nuevo no corta el túnel (ni una sesión que entre por él).
+    member = f"list={tunnel_list} interface={interface}"
     s.add(
-        f'/ip address add address={hub_address}/{platform_prefix.prefixlen} interface={interface} comment="{tag}"'
+        f'/interface list member remove [find where comment="{tag}" and interface!="{interface}"]'
     )
-    s.add(f'/ip route remove [find where comment="{tag}"]')
-    s.add(f'/ip route add dst-address={peer_pool} gateway={interface} comment="{tag}"')
-    s.add(f'/ip route add dst-address={nat_pool} gateway={interface} comment="{tag}"')
+    s.add(f':if ([:len [/interface list member find where comment="{tag}"]] = 0) do={{')
+    s.add(f'  /interface list member add {member} comment="{tag}"')
+    s.add("}")
+    address = f"{hub_address}/{platform_prefix.prefixlen}"
+    s.add(f'/ip address remove [find where comment="{tag}" and address!="{address}"]')
+    s.add(f':if ([:len [/ip address find where comment="{tag}"]] = 0) do={{')
+    s.add(f'  /ip address add address={address} interface={interface} comment="{tag}"')
+    s.add("}")
+    s.add(
+        f'/ip route remove [find where comment="{tag}" and dst-address!={peer_pool}'
+        f" and dst-address!={nat_pool}]"
+    )
+    for pool in (peer_pool, nat_pool):
+        s.add(
+            f':if ([:len [/ip route find where comment="{tag}" and dst-address={pool}]] = 0) do={{'
+            f' /ip route add dst-address={pool} gateway={interface} comment="{tag}" }}'
+        )
     if sstp_port is not None and host is not None:
         san = f"IP:{host}" if _is_ip(host) else f"DNS:{host}"
         s.add(f':if ([:len [/ppp profile find where name="{sstp_profile}"]] = 0) do={{')
@@ -489,8 +504,8 @@ def render_hub_bootstrap(
         s.add("}")
         s.add(":local n 0")
         s.add(
-            ':while ([:len [/certificate find where name="olterra-ca" and trusted]] = 0 and $n < 30)'
-            " do={ :delay 1s; :set n ($n + 1) }"
+            ':while (([:len [/certificate find where name="olterra-ca" and trusted]] = 0)'
+            " and ($n < 30)) do={ :delay 1s; :set n ($n + 1) }"
         )
         s.add(':if ([:len [/certificate find where name="olterra-sstp"]] = 0) do={')
         s.add(
@@ -501,8 +516,8 @@ def render_hub_bootstrap(
         s.add("}")
         s.add(":set n 0")
         s.add(
-            ':while ([:len [/certificate find where name="olterra-sstp" and private-key]] = 0 and $n < 30)'
-            " do={ :delay 1s; :set n ($n + 1) }"
+            ':while (([:len [/certificate find where name="olterra-sstp" and private-key]] = 0)'
+            " and ($n < 30)) do={ :delay 1s; :set n ($n + 1) }"
         )
         s.add(
             f"/interface sstp-server server set enabled=yes port={sstp_port} certificate=olterra-sstp"

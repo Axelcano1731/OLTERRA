@@ -45,6 +45,19 @@ export interface OltCreate {
   longitude?: number
 }
 
+/** Solo lo que cambia. En enable y comunidad SNMP, una cadena vacía la quita. */
+export interface OltUpdate {
+  model?: string
+  firmware?: string
+  real_ip?: string
+  ssh_port?: number
+  snmp_port?: number
+  username?: string
+  password?: string
+  enable_password?: string
+  snmp_community?: string
+}
+
 export type CommandScope = 'olt' | 'pon' | 'onu'
 
 export interface Command {

@@ -31,6 +31,20 @@ class OltCreate(BaseModel):
     longitude: float | None = Field(None, ge=-180, le=180)
 
 
+class OltUpdate(BaseModel):
+    """Cambia solo lo que viene. En las claves de enable y SNMP, una cadena vacía la quita."""
+
+    model: str | None = None
+    firmware: str | None = None
+    real_ip: IPv4Address | None = Field(None, description="IP de la OLT en la red del ISP")
+    ssh_port: int | None = Field(None, ge=1, le=65535)
+    snmp_port: int | None = Field(None, ge=1, le=65535)
+    username: str | None = Field(None, min_length=1, max_length=64)
+    password: SecretStr | None = Field(None, min_length=1)
+    enable_password: SecretStr | None = None
+    snmp_community: SecretStr | None = None
+
+
 class OltOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

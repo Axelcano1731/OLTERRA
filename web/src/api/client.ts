@@ -22,7 +22,7 @@ export function configureClient(next: ClientHooks): void {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PATCH'
   json?: unknown
   form?: FormData
   signal?: AbortSignal
