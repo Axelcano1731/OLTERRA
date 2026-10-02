@@ -1,6 +1,6 @@
 # Base de datos
 
-> Última actualización: 2026-10-01 · Migración vigente: `0002`
+> Última actualización: 2026-10-02 · Migración vigente: `0003`
 
 PostgreSQL 17 + PostGIS. El esquema manda en `migrations/versions/`; `src/olterra/db/models.py`
 lo refleja para el ORM.
@@ -35,7 +35,7 @@ extensión PostGIS. En producción, con claves generadas.
 | `tenant_keys` | La DEK del tenant, envuelta por la llave maestra | leer |
 | `api_keys` | Llaves de API (solo el SHA-256 del secreto) | leer; actualizar `last_used_at` |
 | `credentials` | Credenciales cifradas con la DEK (AAD = tenant + `credential:<id>`) | leer, crear, cambiar, borrar |
-| `tunnel_routers` | MikroTik del ISP en el túnel: IP del overlay y llave pública WireGuard | leer, crear, cambiar, borrar |
+| `tunnel_routers` | MikroTik del ISP en el túnel: IP del overlay y su transporte, con la llave pública WireGuard (RouterOS 7) o el usuario SSTP (RouterOS 6). Las claves privadas no se guardan | leer, crear, cambiar, borrar |
 | `olts` | OLT: driver, modelo, firmware, IP real, IP NAT única, credencial, llave SSH fijada, capacidades, ubicación (PostGIS) | leer, crear, cambiar, borrar |
 | `onus` | ONU por OLT/PON/índice: serial, fase, potencias, distancia, cliente | leer, crear, cambiar, borrar |
 | `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas). Índice por OLT para el historial de consultas | leer, crear, cambiar, borrar |
@@ -58,6 +58,7 @@ extensión PostGIS. En producción, con claves generadas.
 |---|---|
 | `0001` | Esquema base con RLS en todas las tablas de tenant |
 | `0002` | Lo que pide la interfaz: índice de `plan_runs` por OLT y columnas `source` y `files` en `reconciliation_runs` |
+| `0003` | Túnel SSTP para RouterOS 6: `transport` y `ppp_user` en `tunnel_routers`; cada transporte exige su credencial |
 
 ## Correr las migraciones
 

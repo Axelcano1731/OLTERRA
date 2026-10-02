@@ -105,7 +105,10 @@ export interface TunnelRouter {
   name: string
   peer_index: number
   overlay_ip: string
-  wg_public_key: string
+  /** wireguard (RouterOS 7) o sstp (RouterOS 6) */
+  transport: 'wireguard' | 'sstp'
+  wg_public_key: string | null
+  ppp_user: string | null
   routeros_version: string | null
   created_at: string
 }

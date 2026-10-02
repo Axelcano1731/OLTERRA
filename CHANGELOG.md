@@ -17,6 +17,9 @@
 
 - Concentrador: regla que no deja a los ISP del túnel entrar a los servicios del CHR (Winbox,
   SSH, API) por la IP del túnel.
+- Túnel SSTP para RouterOS 6 (no tiene WireGuard): script del router con la CA de Olterra,
+  servidor SSTP en el concentrador y aislamiento por lista de interfaces para los dos
+  transportes. Al rotar, un router puede cambiar de versión y de transporte. Migración `0003`.
 
 ### Corregido
 

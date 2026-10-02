@@ -108,7 +108,9 @@ class TunnelRouter(Base):
     name: Mapped[str] = mapped_column(Text)
     peer_index: Mapped[int] = mapped_column(SmallInteger)
     overlay_ip: Mapped[str] = mapped_column(INET, unique=True)
-    wg_public_key: Mapped[str] = mapped_column(Text)
+    transport: Mapped[str] = mapped_column(Text, server_default="wireguard")  # wireguard | sstp
+    wg_public_key: Mapped[str | None] = mapped_column(Text)  # solo WireGuard
+    ppp_user: Mapped[str | None] = mapped_column(Text, unique=True)  # solo SSTP
     routeros_version: Mapped[str | None] = mapped_column(Text)
     last_handshake_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()

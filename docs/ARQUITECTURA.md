@@ -252,8 +252,18 @@ supone la IP**: la toma como dato de cada OLT.
 
 WireGuard existe desde RouterOS 7.1. El script verifica la versión primero, con sintaxis que
 también corre en v6, y se detiene con un mensaje claro. ISPWatch ya vivió esto (transporte
-dual: WireGuard en v7, L2TP/IPsec endurecido en v6). **Decisión pendiente:** para ISPs con v6,
-¿se exige actualizar, se adelanta el agente, o se ofrece L2TP/IPsec como en ISPWatch?
+dual: WireGuard en v7, L2TP/IPsec endurecido en v6).
+
+**Decidido (2026-10-02): RouterOS 6 va por SSTP.** Muchos ISP tienen routers v6 y no se les
+puede exigir actualizar. No se copia el L2TP/IPsec de ISPWatch porque el concentrador es el
+mismo CHR: un router v6 que ya tiene el L2TP de ISPWatch no puede abrir un segundo L2TP al
+mismo servidor (las políticas IPsec chocan), y Olterra tendría que repartir la clave IPsec
+de ISPWatch. SSTP es PPP sobre TLS por TCP (4443; el 443 del CHR ya está ocupado): es solo de
+Olterra, convive con el L2TP de ISPWatch, pasa NAT y CGNAT, y cada router tiene su usuario y
+clave. La CA de Olterra va dentro del script, así el router solo habla con el concentrador
+real. El aislamiento entre ISP se hace sobre una lista de interfaces que reúne WireGuard y
+cada túnel SSTP. Un router dado de alta con la versión equivocada cambia de transporte al
+rotar su credencial, sin perder su IP en el túnel.
 
 Otras lecciones de ISPWatch que el script ya aplica: el `listen-port` del router no se fija
 (13231 lo usa Back To Home), las llaves las genera la plataforma (no hay huevo y gallina), y

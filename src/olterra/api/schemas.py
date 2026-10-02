@@ -108,9 +108,24 @@ class PlanSummary(BaseModel):
     finished_at: datetime | None = None
 
 
+Transport = Literal["wireguard", "sstp"]
+ROUTEROS_VERSION = r"^[0-9]{1,2}(\.[0-9]{1,3}){0,2}$"
+
+
 class RouterCreate(BaseModel):
     name: str = Field(pattern=r"^[A-Za-z0-9_.\-]{1,32}$")
-    routeros_version: str | None = None
+    routeros_version: str | None = Field(None, pattern=ROUTEROS_VERSION)
+    transport: Transport | None = Field(
+        None,
+        description="Si no se indica: RouterOS 6 va por SSTP (no tiene WireGuard), el resto por WireGuard",
+    )
+
+
+class RouterUpdate(BaseModel):
+    """Al rotar: otra versión de RouterOS cambia el transporte (6 → SSTP, 7 → WireGuard)."""
+
+    routeros_version: str | None = Field(None, pattern=ROUTEROS_VERSION)
+    transport: Transport | None = None
 
 
 class RouterOut(BaseModel):
@@ -120,7 +135,9 @@ class RouterOut(BaseModel):
     name: str
     peer_index: int
     overlay_ip: str
-    wg_public_key: str
+    transport: Transport
+    wg_public_key: str | None = Field(description="Solo WireGuard")
+    ppp_user: str | None = Field(description="Solo SSTP: usuario del secreto PPP")
     routeros_version: str | None
     created_at: datetime
 
@@ -128,7 +145,7 @@ class RouterOut(BaseModel):
 class RouterScriptOut(BaseModel):
     router: RouterOut
     isp_script: str = Field(
-        description="Para pegar en el MikroTik del ISP. Contiene su llave privada."
+        description="Para el MikroTik del ISP. Contiene su llave privada o su clave SSTP."
     )
     hub_script: str = Field(description="Para el concentrador de la plataforma")
 
