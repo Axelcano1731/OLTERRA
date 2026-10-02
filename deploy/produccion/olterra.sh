@@ -71,7 +71,9 @@ arrancar() {
 
 instalar() {
     local dominio="${1:-}" correo="${2:-}"
-    [ -n "$dominio" ] && [ -n "$correo" ] || die "uso: ./olterra.sh instalar <dominio> <correo>"
+    if [ -z "$dominio" ] || [ -z "$correo" ]; then
+        die "uso: ./olterra.sh instalar <dominio> <correo>"
+    fi
     [[ "$dominio" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "dominio inválido: $dominio"
     [[ "$correo" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || die "correo inválido: $correo"
     [ ! -e .env ] || die ".env ya existe y no se pisan claves. Para actualizar: ./olterra.sh actualizar"
@@ -141,7 +143,9 @@ actualizar() {
 
 isp() {
     local slug="${1:-}" nombre="${2:-}"
-    [ -n "$slug" ] && [ -n "$nombre" ] || die 'uso: ./olterra.sh isp <slug> "<Nombre>"'
+    if [ -z "$slug" ] || [ -z "$nombre" ]; then
+        die 'uso: ./olterra.sh isp <slug> "<Nombre>"'
+    fi
     [[ "$slug" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]] ||
         die "el slug va en minúsculas, números y guiones (2 a 32): $slug"
     verificar_env
@@ -151,7 +155,9 @@ isp() {
 
 llave() {
     local slug="${1:-}" nombre="${2:-}"
-    [ -n "$slug" ] && [ -n "$nombre" ] || die "uso: ./olterra.sh llave <slug> <nombre>"
+    if [ -z "$slug" ] || [ -z "$nombre" ]; then
+        die "uso: ./olterra.sh llave <slug> <nombre>"
+    fi
     verificar_env
     compose run --rm -T migrate olterra-admin crear-llave --tenant "$slug" --nombre "$nombre"
 }
