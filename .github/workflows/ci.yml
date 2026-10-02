@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-retries 20
+    env:
+      OLTERRA_TEST_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      OLTERRA_TEST_NATS_URL: nats://localhost:4222
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      # Los servicios de Actions no aceptan argumentos; NATS necesita -js.
+      - name: NATS con JetStream
+        run: docker run -d --name nats -p 4222:4222 nats:2.11-alpine -js
+      - run: pip install -e ".[dev]"
+      - name: Estilo
+        run: |
+          ruff check src tests migrations
+          ruff format --check src tests migrations
+      - name: Tipos
+        run: mypy
+      - name: Pruebas (unitarias, SSH contra el simulador, PostgreSQL y NATS)
+        run: pytest -q
+
+  imagen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: La imagen construye y trae los comandos
+        run: |
+          docker build -t olterra:ci .
+          docker run --rm olterra:ci olterra-conciliar --help
+          docker run --rm olterra:ci olterra-executor --help

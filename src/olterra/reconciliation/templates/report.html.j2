@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e2dd;
+    --error: #b42318; --error-bg: #fdecea; --warn: #9a6700; --warn-bg: #fff4d6;
+    --info: #1f5fa8; --info-bg: #e8f1fb; --accent: #0f766e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --surface: #1f1f1d; --text: #ecebe6; --muted: #a3a29b; --line: #34332f;
+      --error: #f97066; --error-bg: #3a1714; --warn: #f0c14b; --warn-bg: #352a0e;
+      --info: #7cb4f0; --info-bg: #13263a; --accent: #5eead4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: 24px; margin: 0 0 4px; }
+  header p { color: var(--muted); margin: 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 24px 0; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 13px; }
+  .tile.error b { color: var(--error); } .tile.advertencia b { color: var(--warn); } .tile.info b { color: var(--info); }
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin: 12px 0; }
+  summary { cursor: pointer; padding: 14px 16px; display: flex; gap: 10px; align-items: center; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.error { color: var(--error); background: var(--error-bg); }
+  .badge.advertencia { color: var(--warn); background: var(--warn-bg); }
+  .badge.info { color: var(--info); background: var(--info-bg); }
+  .count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  ul { margin: 0; padding: 0 16px 12px; list-style: none; }
+  li { border-top: 1px solid var(--line); padding: 10px 0; }
+  li p { margin: 0; }
+  li .action { color: var(--accent); font-size: 14px; margin-top: 4px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 32px; }
+  .empty { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{ title }}</h1>
+    <p>{% if isp %}{{ isp }} · {% endif %}Generado {{ generated_at }}</p>
+  </header>
+
+  <section class="tiles" aria-label="Resumen">
+    <div class="tile"><b>{{ counts.onus }}</b><span>ONUs en las OLT</span></div>
+    <div class="tile"><b>{{ counts.secretos }}</b><span>Secretos PPPoE</span></div>
+    <div class="tile"><b>{{ counts.clientes }}</b><span>Clientes en el CRM</span></div>
+    <div class="tile"><b>{{ links }}</b><span>ONUs ligadas a cliente</span></div>
+    <div class="tile error"><b>{{ counts.error }}</b><span>Errores</span></div>
+    <div class="tile advertencia"><b>{{ counts.advertencia }}</b><span>Advertencias</span></div>
+    <div class="tile info"><b>{{ counts.info }}</b><span>Por documentar</span></div>
+  </section>
+
+  {% if not groups %}
+    <p class="empty">Sin descuadres: la OLT, el MikroTik y el CRM dicen lo mismo.</p>
+  {% endif %}
+  {% for kind, kind_title, findings in groups %}
+    <details {% if findings[0].severity.value == "error" %}open{% endif %}>
+      <summary>
+        <span class="badge {{ findings[0].severity.value }}">{{ findings[0].severity.value }}</span>
+        <strong>{{ kind_title }}</strong>
+        <span class="count">{{ findings | length }}</span>
+      </summary>
+      <ul>
+        {% for f in findings %}
+          <li>
+            <p>{{ f.detail }}</p>
+            <p class="action">→ {{ f.suggestion }}</p>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endfor %}
+
+  <footer>Olterra {{ version }} · Conciliación OLT ↔ MikroTik ↔ CRM. Las acciones son sugerencias: nada se cambió en los equipos.</footer>
+</main>
+</body>
+</html>
