@@ -48,8 +48,11 @@ services:
       OLTERRA_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://olterra_owner:${OLTERRA_OWNER_PASSWORD}@db:5432/olterra
       OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
       OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
-      # Para `olterra-admin concentrador`: el script del CHR sale con el puerto del .env.
+      # Para `olterra-admin concentrador`: el script del CHR sale con los puertos del .env y
+      # el certificado SSTP con la IP pública del concentrador.
+      OLTERRA_TUNNEL_HUB_HOST: ${OLTERRA_TUNNEL_HUB_HOST:-}
       OLTERRA_TUNNEL_HUB_PORT: ${OLTERRA_TUNNEL_HUB_PORT:-13231}
+      OLTERRA_TUNNEL_SSTP_PORT: ${OLTERRA_TUNNEL_SSTP_PORT:-4443}
     depends_on:
       db:
         condition: service_healthy
@@ -69,6 +72,9 @@ services:
       OLTERRA_TUNNEL_HUB_HOST: ${OLTERRA_TUNNEL_HUB_HOST:-}
       OLTERRA_TUNNEL_HUB_PORT: ${OLTERRA_TUNNEL_HUB_PORT:-13231}
       OLTERRA_TUNNEL_HUB_PUBLIC_KEY: ${OLTERRA_TUNNEL_HUB_PUBLIC_KEY:-}
+      # SSTP para RouterOS v6: la CA del concentrador (pública), en una línea.
+      OLTERRA_TUNNEL_SSTP_PORT: ${OLTERRA_TUNNEL_SSTP_PORT:-4443}
+      OLTERRA_TUNNEL_SSTP_CA: ${OLTERRA_TUNNEL_SSTP_CA:-}
       # Solo Caddy llega a la API (no publica puertos): se confía en su X-Forwarded-For
       # para que la bitácora guarde la IP real de quien hizo cada cambio.
       FORWARDED_ALLOW_IPS: "*"

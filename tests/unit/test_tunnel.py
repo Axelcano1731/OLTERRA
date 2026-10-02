@@ -8,14 +8,20 @@ import pytest
 from olterra.tunnel.addressing import AddressPlan, AddressPlanError
 from olterra.tunnel.routeros import (
     HubPeer,
+    HubSstpPeer,
     IspTunnel,
     OltMapping,
     ScriptError,
+    SstpTunnel,
     render_hub_bootstrap,
     render_hub_peer,
+    render_hub_sstp_peer,
     render_isp_script,
+    render_isp_sstp_script,
 )
+from olterra.tunnel.sstp import InvalidSstp, generate_password, normalize_ca, ppp_user
 from olterra.tunnel.wireguard import InvalidKey, generate_keypair, public_from_private, validate_key
+from tests.conftest import ca_pem
 
 PLAN = AddressPlan.from_strings()
 
@@ -173,8 +179,10 @@ def test_hub_scripts() -> None:
     assert accept_platform < drop  # el aislamiento va después de las excepciones
     # Los ISP no llegan a los servicios del concentrador por el túnel; la plataforma sí.
     assert (
-        "chain=input in-interface=olterra-hub src-address=!198.18.0.0/24 action=drop" in bootstrap
+        "chain=input in-interface-list=olterra-tuneles src-address=!198.18.0.0/24 action=drop"
+        in bootstrap
     )
+    assert "sstp" not in bootstrap  # sin puerto SSTP, solo WireGuard
     with pytest.raises(ScriptError):
         render_hub_bootstrap(
             listen_port=13231,
@@ -182,4 +190,138 @@ def test_hub_scripts() -> None:
             platform_prefix=IPv4Network("198.18.0.0/24"),
             peer_pool=IPv4Network("198.18.0.0/16"),
             nat_pool=IPv4Network("198.19.0.0/16"),
+        )
+
+
+# --- SSTP (RouterOS v6) ----------------------------------------------------------------
+
+PLATFORM = IPv4Network("198.18.0.0/24")
+
+
+def sstp_tunnel(**overrides: object) -> SstpTunnel:
+    values: dict[str, object] = {
+        "tenant": "isp-piloto",
+        "router": "CORE_VIOTA",
+        "user": ppp_user("isp-piloto", "CORE_VIOTA"),
+        "password": generate_password(),
+        "hub_host": "203.0.113.10",
+        "hub_port": 4443,
+        "ca_pem": ca_pem(),
+        "platform_prefix": PLATFORM,
+        "olts": [OltMapping("OLT-1", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0"))],
+        "trap_receiver": IPv4Address("198.18.0.2"),
+    }
+    return SstpTunnel(**(values | overrides))  # type: ignore[arg-type]
+
+
+def test_sstp_script_for_routeros_v6() -> None:
+    tunnel = sstp_tunnel()
+    script = render_isp_sstp_script(tunnel)
+    assert script.isascii()
+    assert "wireguard" not in script  # v6 no la tiene: el script no la nombra
+    assert (
+        "/interface sstp-client add name=$ifn connect-to=203.0.113.10:4443"
+        f' user="olterra-isp-piloto-CORE_VIOTA" password="{tunnel.password}"'
+    ) in script
+    assert "verify-server-certificate=yes" in script
+    # RouterOS 6 no conoce estos parámetros de v7: uno solo corta todo el script.
+    [client] = [line for line in script.splitlines() if "sstp-client add" in line]
+    for v7_only in (" port=", "tls-version", "pfs=", "ciphers"):
+        assert v7_only not in client
+    # La CA va en una sola línea del script, con los saltos como \n de RouterOS.
+    [contents] = [line for line in script.splitlines() if "contents=" in line]
+    assert contents.count("-----BEGIN CERTIFICATE-----\\n") == 1
+    assert "/certificate import file-name=olterra-ca.txt" in script
+    # Lo mismo que en v7 para cada OLT: NAT 1:1, SSH/SNMP y traps.
+    assert "dst-address=198.19.0.0 action=dst-nat to-addresses=192.168.8.200" in script
+    assert "dst-address=192.168.8.200 protocol=tcp dst-port=22 action=accept" in script
+    assert "to-addresses=198.19.0.0" in script  # los traps salen con la IP NAT de la OLT
+    assert "/ip route add dst-address=198.18.0.0/24 gateway=$ifn" in script
+
+
+def test_sstp_ca_from_env_line() -> None:
+    pem = ca_pem()
+    body = "".join(line for line in pem.splitlines() if "CERTIFICATE" not in line)
+    assert normalize_ca(body) == normalize_ca(pem)  # en .env cabe en una línea
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"password": "corta"},
+        {"password": "A" * 31 + '"'},  # una comilla rompería la cadena RouterOS
+        {"user": "olterra isp"},
+        {"ca_pem": "no es un certificado"},
+        {"ca_pem": ca_pem(ca=False)},  # tiene que ser una CA
+        {"hub_host": "concentrador;/system reset"},
+    ],
+)
+def test_sstp_script_rejects_bad_input(overrides: dict[str, object]) -> None:
+    with pytest.raises(ScriptError):
+        render_isp_sstp_script(sstp_tunnel(**overrides))
+
+
+def test_sstp_credentials() -> None:
+    assert ppp_user("isp-piloto", "BNG-1") == "olterra-isp-piloto-BNG-1"
+    assert len({generate_password() for _ in range(20)}) == 20
+    with pytest.raises(InvalidSstp):
+        ppp_user("isp piloto", "BNG")
+
+
+def test_hub_sstp_peer_and_switching_transport() -> None:
+    password = generate_password()
+    peer = render_hub_sstp_peer(
+        HubSstpPeer(
+            "isp-piloto",
+            "CORE_VIOTA",
+            "olterra-isp-piloto-CORE_VIOTA",
+            password,
+            IPv4Address("198.18.1.1"),
+            [IPv4Address("198.19.0.0"), IPv4Address("198.19.0.1")],
+        )
+    )
+    assert (
+        '/ppp secret add name="olterra-isp-piloto-CORE_VIOTA"'
+        f' password="{password}" service=sstp profile=olterra-sstp remote-address=198.18.1.1'
+        ' routes="198.19.0.0/32,198.19.0.1/32"'
+    ) in peer
+    tag = 'comment="olterra:isp-piloto:CORE_VIOTA"'
+    # Si venía por WireGuard, su peer se va; y al revés, el alta WireGuard borra el secreto.
+    assert f"/interface wireguard peers remove [find where {tag}]" in peer
+    public = generate_keypair()[1]
+    wg = render_hub_peer(HubPeer("isp-piloto", "CORE_VIOTA", public, IPv4Address("198.18.1.1")))
+    assert f"/ppp secret remove [find where {tag}]" in wg
+
+
+def test_hub_bootstrap_with_sstp() -> None:
+    bootstrap = render_hub_bootstrap(
+        listen_port=13232,
+        hub_address=IPv4Address("198.18.0.1"),
+        platform_prefix=PLATFORM,
+        peer_pool=IPv4Network("198.18.0.0/16"),
+        nat_pool=IPv4Network("198.19.0.0/16"),
+        sstp_port=4443,
+        sstp_host="203.0.113.10",
+    )
+    assert bootstrap.isascii()
+    assert "/interface sstp-server server set enabled=yes port=4443" in bootstrap
+    assert "subject-alt-name=IP:203.0.113.10" in bootstrap
+    assert "local-address=198.18.0.1 interface-list=olterra-tuneles" in bootstrap
+    # Correrlo de nuevo no corta el túnel: la dirección y las rutas solo cambian si están mal.
+    assert '/ip address remove [find where comment="olterra-hub" and address!="198.18.0.1/24"]' in (
+        bootstrap
+    )
+    assert '/ip route remove [find where comment="olterra-hub"]' not in bootstrap
+    lines = bootstrap.splitlines()
+    sstp = next(i for i, line in enumerate(lines) if "dst-port=4443 action=accept" in line)
+    drop = next(i for i, line in enumerate(lines) if "sin ruteo entre ISP" in line)
+    assert sstp < drop
+    with pytest.raises(ScriptError):  # el certificado necesita la IP o el nombre público
+        render_hub_bootstrap(
+            listen_port=13232,
+            hub_address=IPv4Address("198.18.0.1"),
+            platform_prefix=PLATFORM,
+            peer_pool=IPv4Network("198.18.0.0/16"),
+            nat_pool=IPv4Network("198.19.0.0/16"),
+            sstp_port=4443,
         )

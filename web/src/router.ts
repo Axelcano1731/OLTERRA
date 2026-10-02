@@ -43,6 +43,13 @@ export const router = createRouter({
           meta: { title: 'Nueva OLT' },
         },
         {
+          path: 'olts/:id/editar',
+          name: 'olt-edit',
+          component: () => import('@/views/OltEditView.vue'),
+          props: true,
+          meta: { title: 'Editar OLT' },
+        },
+        {
           path: 'olts/:id',
           name: 'olt',
           component: () => import('@/views/OltDetailView.vue'),

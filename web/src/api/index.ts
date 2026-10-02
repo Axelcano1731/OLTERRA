@@ -5,6 +5,7 @@ import type {
   Me,
   Olt,
   OltCreate,
+  OltUpdate,
   Plan,
   PlanSummary,
   QueryRequest,
@@ -23,6 +24,8 @@ export const getMe = (key?: string) => api<Me>('/v1/me', { key })
 export const listOlts = () => api<Olt[]>('/v1/olts')
 export const getOlt = (id: string) => api<Olt>(`/v1/olts/${encodeURIComponent(id)}`)
 export const createOlt = (body: OltCreate) => api<Olt>('/v1/olts', { json: body })
+export const updateOlt = (id: string, body: OltUpdate) =>
+  api<Olt>(`/v1/olts/${encodeURIComponent(id)}`, { method: 'PATCH', json: body })
 export const listCommands = (id: string) =>
   api<Command[]>(`/v1/olts/${encodeURIComponent(id)}/commands`)
 export const queryOlt = (id: string, body: QueryRequest) =>
@@ -37,8 +40,12 @@ export const createRouter = (name: string, routerosVersion?: string) =>
   api<RouterScripts>('/v1/tunnel/routers', {
     json: { name, routeros_version: routerosVersion || null },
   })
-export const rotateRouter = (id: string) =>
-  api<RouterScripts>(`/v1/tunnel/routers/${encodeURIComponent(id)}/script`, { method: 'POST' })
+/** Rota la credencial; con otra versión de RouterOS cambia el transporte (6 → SSTP). */
+export const rotateRouter = (id: string, routerosVersion?: string) =>
+  api<RouterScripts>(`/v1/tunnel/routers/${encodeURIComponent(id)}/script`, {
+    method: 'POST',
+    json: routerosVersion ? { routeros_version: routerosVersion } : undefined,
+  })
 
 export const listRecons = (limit = 20) => api<ReconSummary[]>(`/v1/reconciliations?limit=${limit}`)
 export const getRecon = (id: string) => api<Recon>(`/v1/reconciliations/${encodeURIComponent(id)}`)

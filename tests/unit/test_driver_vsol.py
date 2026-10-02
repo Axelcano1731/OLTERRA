@@ -143,6 +143,18 @@ def test_capabilities_per_model_and_firmware() -> None:
     assert unknown[Capability.CLI_AUTOFIND].support is Support.YES
 
 
+def test_model_matches_with_or_without_dash() -> None:
+    # Como sale en la web de la OLT ("Device Model": V1600G1-B) o como lo escriben otros.
+    for model in ("V1600G1-B", "v1600g1b", "V1600G1 B"):
+        facts = DRIVER.capabilities(model, "V1.4.4R")
+        assert facts[Capability.SNMP_ONU_OPTICAL].support is Support.NO, model
+    assert commands([CommandCall("config.save")], model="v1600gs") == ["write memory"]
+    # Un modelo sin reglas propias (V1600G0-B) recibe las generales de VSOL GPON.
+    g0b = DRIVER.capabilities("V1600G0-B", "V1.4.8R")
+    assert g0b[Capability.CLI_ONU_OPTICAL].support is Support.YES
+    assert g0b[Capability.SNMP_ONU_OPTICAL].support is Support.UNKNOWN
+
+
 # --- Parsers CLI (salidas sintéticas) -----------------------------------------------------
 
 ONU_INFO = """

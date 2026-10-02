@@ -4,6 +4,8 @@ API → plan sellado → ejecutor → SSH al simulador → resultado guardado �
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -18,11 +20,12 @@ from sqlalchemy import select
 from olterra.admin import create_api_key, create_tenant
 from olterra.api.app import create_app
 from olterra.config import Settings
-from olterra.db.models import AuditLog, Credential
+from olterra.db.models import AuditLog, Credential, Olt, TenantKey
 from olterra.db.session import create_engine, session_factory
 from olterra.devtools.demo_recon import demo_input
 from olterra.devtools.vsol_sim import VsolSimulator
 from olterra.executor.bus import MemoryBus
+from olterra.executor.plan import Credential as SecretCredential
 from olterra.executor.plan import Plan
 from olterra.executor.runner import PlanRunner
 from olterra.executor.worker import Executor
@@ -30,7 +33,7 @@ from olterra.security import apikeys
 from olterra.security.sealed import generate_keypair
 from olterra.security.vault import Vault
 from olterra.tunnel.wireguard import generate_keypair as wg_keypair
-from tests.conftest import PgDatabase, b64key
+from tests.conftest import PgDatabase, b64key, ca_pem
 
 pytestmark = pytest.mark.postgres
 
@@ -88,6 +91,7 @@ def env(pg: PgDatabase, master_key: bytes) -> Iterator[Env]:
         executor_public_key=public,
         tunnel_hub_host="hub.olterra.co",
         tunnel_hub_public_key=hub_public,
+        tunnel_sstp_ca=ca_pem(),
     )
     a, b, key_a, key_b = asyncio.run(_make_tenants(pg, master_key))
     publisher = RecordingPublisher()
@@ -252,6 +256,18 @@ def test_query_end_to_end(env: Env) -> None:
     assert env.client.get(f"/v1/plans/{plan_id}", headers=env.headers(env.key_b)).status_code == 404
 
 
+def test_olt_real_ip_cannot_be_a_tunnel_ip(env: Env) -> None:
+    # La IP del router en el túnel (198.18.x) o una IP NAT (198.19.x) no son la de la OLT.
+    for ip in ("198.18.1.1", "198.19.0.0"):
+        response = env.client.post(
+            "/v1/olts",
+            json={"name": f"OLT-{ip[-3:]}", "username": "a", "password": "b", "real_ip": ip},
+            headers=env.headers(),
+        )
+        assert response.status_code == 400
+        assert "es una IP del túnel" in response.json()["detail"]
+
+
 @pytest.mark.parametrize(
     ("body", "detail"),
     [
@@ -411,3 +427,159 @@ def test_scopes_are_enforced(env: Env) -> None:
         "/v1/olts", json={"name": "X", "username": "a", "password": "b"}, headers=env.headers(key)
     )
     assert response.status_code == 403
+
+
+# --- Túnel SSTP (RouterOS v6) ----------------------------------------------------------
+
+
+def test_sstp_router_for_routeros_v6(env: Env) -> None:
+    created = env.client.post(
+        "/v1/tunnel/routers",
+        json={"name": "CORE_V6", "routeros_version": "6.49.18"},
+        headers=env.headers(),
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    router = body["router"]
+    assert router["transport"] == "sstp" and router["wg_public_key"] is None
+    assert router["ppp_user"].startswith("olterra-api-a-") and router["ppp_user"].endswith(
+        "-CORE_V6"
+    )
+    assert "/interface sstp-client add" in body["isp_script"]
+    assert "wireguard" not in body["isp_script"]
+    match = re.search(r'password="([A-Za-z0-9]+)"', body["isp_script"])
+    assert match is not None
+    password = match.group(1)
+    assert f'password="{password}" service=sstp' in body["hub_script"]  # la misma en los dos
+
+    # Con una OLT detrás, el concentrador enruta su IP NAT por el túnel SSTP.
+    olt = create_olt(env, router_id=router["id"], real_ip="192.168.8.200")
+    rotated = env.client.post(
+        f"/v1/tunnel/routers/{router['id']}/script", headers=env.headers()
+    ).json()
+    assert rotated["router"]["transport"] == "sstp"
+    assert f'routes="{olt["nat_ip"]}/32"' in rotated["hub_script"]
+    assert password not in rotated["isp_script"]  # rotar cambia la clave
+    listed = env.client.get("/v1/tunnel/routers", headers=env.headers()).json()
+    assert [r["transport"] for r in listed] == ["sstp"]
+
+
+def test_router_changes_transport_when_rotating(env: Env) -> None:
+    """Un router v6 dado de alta como v7 pasa a SSTP sin borrarlo ni cambiar su IP."""
+    created = env.client.post(
+        "/v1/tunnel/routers",
+        json={"name": "CORE_VIOTA", "routeros_version": "7"},
+        headers=env.headers(),
+    ).json()
+    router_id = created["router"]["id"]
+    switched = env.client.post(
+        f"/v1/tunnel/routers/{router_id}/script",
+        json={"routeros_version": "6"},
+        headers=env.headers(),
+    )
+    assert switched.status_code == 200, switched.text
+    body = switched.json()
+    assert body["router"]["transport"] == "sstp" and body["router"]["wg_public_key"] is None
+    assert body["router"]["overlay_ip"] == created["router"]["overlay_ip"]
+    assert '/interface wireguard peers remove [find where comment="olterra:' in body["hub_script"]
+
+    back = env.client.post(
+        f"/v1/tunnel/routers/{router_id}/script",
+        json={"routeros_version": "7.16"},
+        headers=env.headers(),
+    ).json()
+    assert back["router"]["transport"] == "wireguard" and back["router"]["ppp_user"] is None
+
+
+def test_sstp_needs_the_concentrator_ca(env: Env) -> None:
+    state = env.client.app.state.olterra  # type: ignore[attr-defined]
+    original = state.settings
+    state.settings = original.model_copy(update={"tunnel_sstp_ca": None})
+    try:
+        response = env.client.post(
+            "/v1/tunnel/routers",
+            json={"name": "SIN-CA", "routeros_version": "6.49"},
+            headers=env.headers(),
+        )
+        assert response.status_code == 503
+        assert "OLTERRA_TUNNEL_SSTP_CA" in response.json()["detail"]
+    finally:
+        state.settings = original
+
+
+def test_update_olt_and_its_credentials(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.9", model="V1600G1B")
+    response = env.client.patch(
+        f"/v1/olts/{olt['id']}",
+        json={
+            "real_ip": "10.72.111.2",
+            "model": "V1600G0-B",
+            "firmware": "V1.4.8R",
+            "enable_password": "enable-lab",
+        },
+        headers=env.headers(),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["real_ip"], body["model"], body["firmware"]) == (
+        "10.72.111.2",
+        "V1600G0-B",
+        "V1.4.8R",
+    )
+
+    async def stored() -> tuple[SecretCredential, bytes, list[dict[str, Any]]]:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session:
+                row = await session.get(Olt, UUID(olt["id"]))
+                assert row is not None and row.credential_id is not None
+                secret = await session.get(Credential, row.credential_id)
+                assert secret is not None
+                wrapped = (
+                    await session.execute(
+                        select(TenantKey.wrapped_dek).where(TenantKey.tenant_id == env.tenant_a)
+                    )
+                ).scalar_one()
+                audits = (
+                    (
+                        await session.execute(
+                            select(AuditLog.after).where(
+                                AuditLog.tenant_id == env.tenant_a,
+                                AuditLog.action == "olt.update",
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            dek = Vault.single(env.master_key).unwrap_tenant_key(env.tenant_a, wrapped)
+            plain = Vault.decrypt(env.tenant_a, dek, f"credential:{secret.id}", secret.ciphertext)
+            return SecretCredential.model_validate_json(plain), secret.ciphertext, list(audits)
+        finally:
+            await engine.dispose()
+
+    credential, ciphertext, audits = asyncio.run(stored())
+    assert credential.enable_password is not None
+    assert credential.enable_password.get_secret_value() == "enable-lab"
+    assert credential.password is not None
+    assert credential.password.get_secret_value() == "olterra-sim"  # la que no vino, igual
+    assert b"enable-lab" not in ciphertext
+    [after] = audits
+    assert after["credenciales"] == ["enable_password"]
+    assert "enable-lab" not in json.dumps(after)  # la bitácora no guarda claves
+
+    # Una cadena vacía quita la clave de enable.
+    cleared = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"enable_password": ""}, headers=env.headers()
+    )
+    assert cleared.status_code == 200
+    assert asyncio.run(stored())[0].enable_password is None
+
+    tunnel_ip = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"real_ip": "198.18.1.1"}, headers=env.headers()
+    )
+    assert tunnel_ip.status_code == 400
+    other = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"model": "X"}, headers=env.headers(env.key_b)
+    )
+    assert other.status_code == 404
