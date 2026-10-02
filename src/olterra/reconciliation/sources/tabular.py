@@ -36,7 +36,11 @@ def norm_column(name: str) -> str:
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
-    raw = path.read_bytes()
+    return rows_from_bytes(path.read_bytes(), path.name)
+
+
+def rows_from_bytes(raw: bytes, name: str) -> list[dict[str, str]]:
+    """Filas de un CSV ya leído (del disco o de una subida a la API)."""
     for encoding in ("utf-8-sig", "cp1252"):
         try:
             text = raw.decode(encoding)
@@ -44,7 +48,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
         except UnicodeDecodeError:
             continue
     else:  # pragma: no cover - cp1252 decodifica casi todo
-        raise SourceError(f"{path.name}: codificación desconocida")
+        raise SourceError(f"{name}: codificación desconocida")
     sample = text[:4096]
     try:
         dialect: type[csv.Dialect] | csv.Dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
@@ -52,7 +56,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
         dialect = csv.excel
     reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     if not reader.fieldnames:
-        raise SourceError(f"{path.name}: el archivo no tiene encabezados")
+        raise SourceError(f"{name}: el archivo no tiene encabezados")
     rows = []
     for row in reader:
         rows.append({norm_column(k): (v or "") for k, v in row.items() if k is not None})

@@ -178,8 +178,9 @@ class NatsBus:
             headers={"Nats-Msg-Id": str(plan.plan_id)},
         )
 
-    async def deliveries(self, group: str, *, batch: int = 16) -> AsyncIterator[Delivery]:
-        from nats.errors import TimeoutError as NatsTimeout
+    async def deliveries(
+        self, group: str, *, batch: int = 16, idle_timeout: float = 5
+    ) -> AsyncIterator[Delivery]:
         from nats.js.api import AckPolicy, ConsumerConfig
 
         subscription = await self._js.pull_subscribe(
@@ -195,8 +196,10 @@ class NatsBus:
         )
         while True:
             try:
-                messages = await subscription.fetch(batch, timeout=5)
-            except NatsTimeout:
+                messages = await subscription.fetch(batch, timeout=idle_timeout)
+            except TimeoutError:
+                # Cola vacía. nats-py lanza su TimeoutError o el de asyncio según el caso;
+                # los dos heredan del de Python. Sin esto el ejecutor moría a los 5 s de ocio.
                 continue
             for msg in messages:
                 try:
@@ -215,18 +218,16 @@ class NatsBus:
         )
 
     async def results(
-        self, durable: str, *, batch: int = 64
+        self, durable: str, *, batch: int = 64, idle_timeout: float = 5
     ) -> AsyncIterator[tuple[PlanResult, Any]]:
         """Lado nube: resultados con su mensaje (para acusarlo tras guardarlo)."""
-        from nats.errors import TimeoutError as NatsTimeout
-
         subscription = await self._js.pull_subscribe(
             "olterra.result.>", durable=durable, stream=RESULT_STREAM
         )
         while True:
             try:
-                messages = await subscription.fetch(batch, timeout=5)
-            except NatsTimeout:
+                messages = await subscription.fetch(batch, timeout=idle_timeout)
+            except TimeoutError:  # sin resultados por ahora (ver deliveries)
                 continue
             for msg in messages:
                 try:

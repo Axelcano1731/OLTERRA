@@ -1,6 +1,6 @@
 # Base de datos
 
-> Última actualización: 2026-10-01 · Migración vigente: `0001`
+> Última actualización: 2026-10-01 · Migración vigente: `0002`
 
 PostgreSQL 17 + PostGIS. El esquema manda en `migrations/versions/`; `src/olterra/db/models.py`
 lo refleja para el ORM.
@@ -38,9 +38,9 @@ extensión PostGIS. En producción, con claves generadas.
 | `tunnel_routers` | MikroTik del ISP en el túnel: IP del overlay y llave pública WireGuard | leer, crear, cambiar, borrar |
 | `olts` | OLT: driver, modelo, firmware, IP real, IP NAT única, credencial, llave SSH fijada, capacidades, ubicación (PostGIS) | leer, crear, cambiar, borrar |
 | `onus` | ONU por OLT/PON/índice: serial, fase, potencias, distancia, cliente | leer, crear, cambiar, borrar |
-| `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas) | leer, crear, cambiar, borrar |
+| `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas). Índice por OLT para el historial de consultas | leer, crear, cambiar, borrar |
 | `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después | **solo leer y anexar** |
-| `reconciliation_runs` | Corridas de conciliación con sus hallazgos | leer, crear, cambiar, borrar |
+| `reconciliation_runs` | Corridas de conciliación con sus hallazgos, su origen (`api`, `upload` o `demo`) y, si vienen de archivos, nombre, tipo y registros de cada uno (el contenido no se guarda) | leer, crear, cambiar, borrar |
 
 ## Para sumar una tabla de tenant
 
@@ -51,6 +51,13 @@ extensión PostGIS. En producción, con claves generadas.
    `olterra_app` solo los permisos que necesita.
 4. Una prueba en `tests/integration/test_rls.py` que intente leerla y escribirla desde otro tenant.
 5. Actualizar esta página.
+
+## Migraciones
+
+| Migración | Qué hace |
+|---|---|
+| `0001` | Esquema base con RLS en todas las tablas de tenant |
+| `0002` | Lo que pide la interfaz: índice de `plan_runs` por OLT y columnas `source` y `files` en `reconciliation_runs` |
 
 ## Correr las migraciones
 

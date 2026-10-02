@@ -269,6 +269,18 @@ def test_query_validation(env: Env, body: dict[str, Any], detail: str) -> None:
     assert env.publisher.plans == []
 
 
+def test_query_size_is_capped(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.2")
+    onus = [f"1:{n}" for n in range(1, 66)]
+    response = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["onu.optical"], "onu": onus},
+        headers=env.headers(),
+    )
+    assert response.status_code == 422
+    assert env.publisher.plans == []
+
+
 def test_reconciliation_api(env: Env) -> None:
     data = demo_input()
     body = {
@@ -280,6 +292,7 @@ def test_reconciliation_api(env: Env) -> None:
     response = env.client.post("/v1/reconciliations", json=body, headers=env.headers())
     assert response.status_code == 201, response.text
     run = response.json()
+    assert run["source"] == "api" and run["files"] == []
     assert len({f["kind"] for f in run["findings"]}) == 13
     assert (
         env.client.get(f"/v1/reconciliations/{run['id']}", headers=env.headers()).status_code == 200
@@ -290,6 +303,96 @@ def test_reconciliation_api(env: Env) -> None:
         ).status_code
         == 404
     )
+
+
+def test_reconciliation_from_files(env: Env) -> None:
+    files = [
+        ("onus", ("onus.csv", "olt,onu,serial,pppoe\nOLT-1,1:1,VSOL0000A001,ana\n", "text/csv")),
+        (
+            "secrets",
+            (
+                "BNG-1.rsc",
+                "/ppp secret\nadd name=ana password=Secreta123 service=pppoe\n"
+                "add name=viejo password=x service=pppoe\n",
+                "text/plain",
+            ),
+        ),
+        (
+            "customers",
+            ("clientes.csv", "id;nombre;estado;usuario pppoe\nC1;Ana;activo;ana\n", "text/csv"),
+        ),
+    ]
+    response = env.client.post("/v1/reconciliations/files", files=files, headers=env.headers())
+    assert response.status_code == 201, response.text
+    run = response.json()
+    assert run["source"] == "upload"
+    assert run["files"] == [
+        {"kind": "onus", "name": "onus.csv", "records": 1},
+        {"kind": "secrets", "name": "BNG-1.rsc", "records": 2},
+        {"kind": "customers", "name": "clientes.csv", "records": 1},
+    ]
+    # El secreto sin cliente sale con el router tomado del nombre del archivo.
+    [orphan] = [f for f in run["findings"] if f["kind"] == "secreto_sin_cliente"]
+    assert orphan["refs"]["pppoe"] == "viejo" and orphan["refs"]["router"] == "BNG-1"
+    assert "Secreta123" not in response.text  # la clave del export no se guarda
+
+    missing = env.client.post(
+        "/v1/reconciliations/files",
+        files=[("onus", ("onus.csv", "olt,pon\nA,1\n", "text/csv"))],
+        headers=env.headers(),
+    )
+    assert missing.status_code == 400 and "serial" in missing.json()["detail"]
+    empty = env.client.post(
+        "/v1/reconciliations/files", data={"router_name": "BNG"}, headers=env.headers()
+    )
+    assert empty.status_code == 400
+
+
+def test_reconciliation_demo_and_history(env: Env) -> None:
+    demo = env.client.post("/v1/reconciliations/demo", headers=env.headers())
+    assert demo.status_code == 201, demo.text
+    assert demo.json()["source"] == "demo"
+    assert len({f["kind"] for f in demo.json()["findings"]}) == 13
+
+    history = env.client.get("/v1/reconciliations", headers=env.headers()).json()
+    assert [run["id"] for run in history] == [demo.json()["id"]]
+    assert "findings" not in history[0] and history[0]["counts"]["error"] > 0
+    assert env.client.get("/v1/reconciliations", headers=env.headers(env.key_b)).json() == []
+
+
+def test_me(env: Env) -> None:
+    body = env.client.get("/v1/me", headers=env.headers()).json()
+    assert body["tenant"]["id"] == str(env.tenant_a) and body["tenant"]["name"] == "ISP A"
+    assert body["key_name"] == "a" and body["scopes"] == ["*"]
+    assert env.client.get("/v1/me").status_code == 401
+
+
+def test_olt_commands_and_plan_history(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.1")
+    commands = env.client.get(f"/v1/olts/{olt['id']}/commands", headers=env.headers())
+    assert commands.status_code == 200
+    by_key = {c["key"]: c for c in commands.json()}
+    assert by_key["system.version"]["scope"] == "olt" and by_key["system.version"]["parsed"]
+    assert by_key["onu.list"]["scope"] == "pon"
+    assert by_key["onu.optical"]["scope"] == "onu"
+    assert "onu.authorize" not in by_key  # escribe en la OLT
+    assert "profile.list" not in by_key  # pide parámetros que /queries no admite
+
+    # Todo lo que ofrece el catálogo lo acepta /queries con sus parámetros.
+    queued = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": list(by_key), "pon": [1], "onu": ["1:1"]},
+        headers=env.headers(),
+    )
+    assert queued.status_code == 202, queued.text
+    history = env.client.get(f"/v1/olts/{olt['id']}/plans", headers=env.headers()).json()
+    assert [p["plan_id"] for p in history] == [queued.json()["plan_id"]]
+    assert history[0]["commands"] == list(by_key) and history[0]["status"] == "queued"
+    assert "result" not in history[0]
+
+    for path in ("commands", "plans"):
+        other = env.client.get(f"/v1/olts/{olt['id']}/{path}", headers=env.headers(env.key_b))
+        assert other.status_code == 404
 
 
 def test_scopes_are_enforced(env: Env) -> None:

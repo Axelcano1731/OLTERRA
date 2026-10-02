@@ -27,59 +27,29 @@ from olterra.reconciliation.model import (
 )
 from olterra.reconciliation.report import write_reports
 from olterra.reconciliation.sources import SourceError
-from olterra.reconciliation.sources.tabular import (
-    customers_from_rows,
-    onus_from_rows,
-    read_rows,
-    secrets_from_rows,
-    sessions_from_rows,
-    write_templates,
+from olterra.reconciliation.sources.files import (
+    SourceFile,
+    customers_from_files,
+    onus_from_files,
+    secrets_from_files,
+    sessions_from_files,
 )
+from olterra.reconciliation.sources.tabular import write_templates
 
 
-def _is_csv(path: Path) -> bool:
-    return path.suffix.lower() in (".csv", ".tsv")
-
-
-def _load_secrets(paths: list[Path], router: str) -> list[PppoeSecret]:
-    from olterra.reconciliation.sources.routeros_text import secrets_from_text
-
-    result: list[PppoeSecret] = []
-    for path in paths:
-        if _is_csv(path):
-            result += secrets_from_rows(read_rows(path), path.name)
-        else:
-            result += secrets_from_text(
-                path.read_text(encoding="utf-8", errors="replace"), router or path.stem
-            )
-    return result
-
-
-def _load_sessions(paths: list[Path], router: str) -> list[PppoeSession]:
-    from olterra.reconciliation.sources.routeros_text import sessions_from_text
-
-    result: list[PppoeSession] = []
-    for path in paths:
-        if _is_csv(path):
-            result += sessions_from_rows(read_rows(path), path.name)
-        else:
-            result += sessions_from_text(
-                path.read_text(encoding="utf-8", errors="replace"), router or path.stem
-            )
-    return result
+def _files(paths: list[Path]) -> list[SourceFile]:
+    return [SourceFile.read(path) for path in paths]
 
 
 def _load_input(args: argparse.Namespace) -> ReconInput:
-    onus: list[OnuRecord] = []
-    for path in args.onus:
-        onus += onus_from_rows(read_rows(path), path.name)
+    onus: list[OnuRecord] = onus_from_files(_files(args.onus))
     for directory in args.onus_captura:
         from olterra.reconciliation.sources.olt_capture import onus_from_capture
 
         onus += onus_from_capture(directory, args.olt_nombre or directory.name)
 
-    secrets = _load_secrets(args.secretos, args.router_nombre)
-    sessions = _load_sessions(args.sesiones, args.router_nombre)
+    secrets: list[PppoeSecret] = secrets_from_files(_files(args.secretos), args.router_nombre)
+    sessions: list[PppoeSession] = sessions_from_files(_files(args.sesiones), args.router_nombre)
     if args.routeros:
         from olterra.reconciliation.sources.routeros_api import RouterOsTarget, read_pppoe
 
@@ -100,9 +70,7 @@ def _load_input(args: argparse.Namespace) -> ReconInput:
         secrets += live_secrets
         sessions += live_sessions
 
-    customers: list[CrmCustomer] = []
-    for path in args.clientes:
-        customers += customers_from_rows(read_rows(path), path.name)
+    customers: list[CrmCustomer] = customers_from_files(_files(args.clientes))
     if args.ispwatch_url:
         from olterra.reconciliation.sources.ispwatch import fetch_customers
 

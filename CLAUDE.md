@@ -11,6 +11,7 @@ PostGIS con RLS, NATS JetStream.
 .venv\Scripts\ruff check src tests migrations; .venv\Scripts\ruff format src tests migrations
 .venv\Scripts\mypy
 .\scripts\servicios-locales.ps1 iniciar   # PostgreSQL+PostGIS y NATS sin Docker
+cd web; npm run lint; npm run typecheck; npm test; npm run build   # interfaz
 ```
 
 Pruebas de integración: `OLTERRA_TEST_ADMIN_URL=postgresql://postgres@127.0.0.1:55432/postgres`
@@ -30,6 +31,7 @@ y `OLTERRA_TEST_NATS_URL=nats://127.0.0.1:4223`. Sin ellas se saltan, no fallan.
 - **Ejecutor genérico:** no sabe de VSOL; todo lo específico va en el driver (nube).
 - **Scripts RouterOS:** validación estricta de todo lo que entra, ASCII, idempotentes (comentario
   `olterra`), sin `on-error` que trague errores.
+- **Interfaz:** sin `v-html`; `web/src/api/types.ts` cambia junto con `api/schemas.py`.
 - **Documentación** en el mismo cambio que el código (tabla en `README.md`).
 - **Git:** rama + PR, nunca push a `main`; `git add` con rutas explícitas.
 
