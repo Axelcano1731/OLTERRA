@@ -190,8 +190,13 @@ class CapabilityRule:
     facts: Mapping[Capability, CapabilityFact]
 
 
+def _model_key(text: str) -> str:
+    # VSOL escribe "V1600G1-B" en la web de la OLT y "V1600G1B" en otros lados: es el mismo.
+    return re.sub(r"[\s_-]", "", text).upper()
+
+
 def _matches(pattern: str, value: str | None) -> bool:
-    return fnmatchcase((value or "").upper(), pattern.upper())
+    return fnmatchcase(_model_key(value or ""), _model_key(pattern))
 
 
 @dataclass(frozen=True)

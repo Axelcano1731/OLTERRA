@@ -127,6 +127,11 @@ Los valores ópticos llegan como texto decimal (`"-10.47"`); `0.00` significa si
 Punto de partida, por modelo y firmware (`capabilities.py`); el alta de cada OLT debe sondear
 y guardar lo que de verdad responde.
 
+El modelo se compara sin guiones ni espacios y sin importar mayúsculas: la web de la OLT dice
+"V1600G1-B" (Device Model) y otras fuentes "V1600G1B", y son el mismo. Un modelo sin reglas
+propias, como la **V1600G0-B** (firmware V1.4.8R) del laboratorio, recibe las de la columna
+"Por defecto" hasta que sus capturas digan otra cosa.
+
 | Capacidad | Por defecto | V1600GS | V1600G1B (V1.4.4R) |
 |---|---|---|---|
 | Estado, serial, potencias y distancia por ONU vía SNMP | desconocido | sí | **no** |

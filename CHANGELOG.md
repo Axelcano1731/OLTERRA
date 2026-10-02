@@ -21,6 +21,9 @@
   servidor SSTP en el concentrador y aislamiento por lista de interfaces para los dos
   transportes. Al rotar, un router puede cambiar de versión y de transporte. Migración `0003`.
 
+- Alta de OLT: el modelo se escribe como sale en la web de la OLT (sugerencias con V1600G0-B)
+  y el driver lo compara sin guiones (V1600G1-B = V1600G1B).
+
 ### Corregido
 
 - El ejecutor y el consumidor de resultados de la API morían a los pocos segundos sin
