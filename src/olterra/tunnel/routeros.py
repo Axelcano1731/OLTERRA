@@ -462,15 +462,29 @@ def render_hub_bootstrap(
     s.add(f':if ([:len [/interface list find where name="{tunnel_list}"]] = 0) do={{')
     s.add(f'  /interface list add name={tunnel_list} comment="{tag}"')
     s.add("}")
-    s.add(f'/interface list member remove [find where comment="{tag}"]')
-    s.add(f'/interface list member add list={tunnel_list} interface={interface} comment="{tag}"')
-    s.add(f'/ip address remove [find where comment="{tag}"]')
+    # Dirección, rutas y lista: se borra lo que sobra y se agrega lo que falta, sin tocar lo
+    # que ya está bien. Así correrlo de nuevo no corta el túnel (ni una sesión que entre por él).
+    member = f"list={tunnel_list} interface={interface}"
     s.add(
-        f'/ip address add address={hub_address}/{platform_prefix.prefixlen} interface={interface} comment="{tag}"'
+        f'/interface list member remove [find where comment="{tag}" and interface!="{interface}"]'
     )
-    s.add(f'/ip route remove [find where comment="{tag}"]')
-    s.add(f'/ip route add dst-address={peer_pool} gateway={interface} comment="{tag}"')
-    s.add(f'/ip route add dst-address={nat_pool} gateway={interface} comment="{tag}"')
+    s.add(f':if ([:len [/interface list member find where comment="{tag}"]] = 0) do={{')
+    s.add(f'  /interface list member add {member} comment="{tag}"')
+    s.add("}")
+    address = f"{hub_address}/{platform_prefix.prefixlen}"
+    s.add(f'/ip address remove [find where comment="{tag}" and address!="{address}"]')
+    s.add(f':if ([:len [/ip address find where comment="{tag}"]] = 0) do={{')
+    s.add(f'  /ip address add address={address} interface={interface} comment="{tag}"')
+    s.add("}")
+    s.add(
+        f'/ip route remove [find where comment="{tag}" and dst-address!={peer_pool}'
+        f" and dst-address!={nat_pool}]"
+    )
+    for pool in (peer_pool, nat_pool):
+        s.add(
+            f':if ([:len [/ip route find where comment="{tag}" and dst-address={pool}]] = 0) do={{'
+            f' /ip route add dst-address={pool} gateway={interface} comment="{tag}" }}'
+        )
     if sstp_port is not None and host is not None:
         san = f"IP:{host}" if _is_ip(host) else f"DNS:{host}"
         s.add(f':if ([:len [/ppp profile find where name="{sstp_profile}"]] = 0) do={{')
@@ -489,8 +503,8 @@ def render_hub_bootstrap(
         s.add("}")
         s.add(":local n 0")
         s.add(
-            ':while ([:len [/certificate find where name="olterra-ca" and trusted]] = 0 and $n < 30)'
-            " do={ :delay 1s; :set n ($n + 1) }"
+            ':while (([:len [/certificate find where name="olterra-ca" and trusted]] = 0)'
+            " and ($n < 30)) do={ :delay 1s; :set n ($n + 1) }"
         )
         s.add(':if ([:len [/certificate find where name="olterra-sstp"]] = 0) do={')
         s.add(
@@ -501,8 +515,8 @@ def render_hub_bootstrap(
         s.add("}")
         s.add(":set n 0")
         s.add(
-            ':while ([:len [/certificate find where name="olterra-sstp" and private-key]] = 0 and $n < 30)'
-            " do={ :delay 1s; :set n ($n + 1) }"
+            ':while (([:len [/certificate find where name="olterra-sstp" and private-key]] = 0)'
+            " and ($n < 30)) do={ :delay 1s; :set n ($n + 1) }"
         )
         s.add(
             f"/interface sstp-server server set enabled=yes port={sstp_port} certificate=olterra-sstp"

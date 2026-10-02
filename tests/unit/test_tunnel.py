@@ -303,6 +303,11 @@ def test_hub_bootstrap_with_sstp() -> None:
     assert "/interface sstp-server server set enabled=yes port=4443" in bootstrap
     assert "subject-alt-name=IP:203.0.113.10" in bootstrap
     assert "local-address=198.18.0.1 interface-list=olterra-tuneles" in bootstrap
+    # Correrlo de nuevo no corta el túnel: la dirección y las rutas solo cambian si están mal.
+    assert '/ip address remove [find where comment="olterra-hub" and address!="198.18.0.1/24"]' in (
+        bootstrap
+    )
+    assert '/ip route remove [find where comment="olterra-hub"]' not in bootstrap
     lines = bootstrap.splitlines()
     sstp = next(i for i, line in enumerate(lines) if "dst-port=4443 action=accept" in line)
     drop = next(i for i, line in enumerate(lines) if "sin ruteo entre ISP" in line)
