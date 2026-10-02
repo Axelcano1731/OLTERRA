@@ -1,0 +1,30 @@
+# Entorno
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editores
+.vscode/
+.idea/
+
+# Binarios locales para pruebas de integración (nats-server, postgres portátil)
+.bin/
+
+# Capturas de laboratorio sin revisar: pueden traer seriales, nombres o claves.
+# Solo se versiona lo que pasó por `olterra-capture --redact` y se movió a tests/fixtures.
+lab-captures/
+
+# Reportes generados por olterra-conciliar
+reportes/
