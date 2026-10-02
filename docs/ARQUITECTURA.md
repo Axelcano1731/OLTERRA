@@ -350,4 +350,8 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
   stack de producción completo en cada PR: así un cambio que rompa el despliegue no llega a
   `main`.
 - El ejecutor de la nube llega a las OLT como un peer más del concentrador (`198.18.0.2`).
-  Falta probarlo contra el CHR real, como el resto del túnel.
+  Probado el 2026-10-02 contra el CHR de ISPWatch, que se comparte: Olterra usa su propia
+  interfaz y el puerto 13232 (ISPWatch tiene el 13231), y sus reglas solo actúan sobre ese
+  túnel. De ahí salió una regla nueva del concentrador: los ISP del túnel no entran a sus
+  servicios (el firewall de ese CHR solo descartaba lo que llega por la WAN). Falta el
+  primer MikroTik de un ISP.

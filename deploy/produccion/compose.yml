@@ -48,6 +48,8 @@ services:
       OLTERRA_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://olterra_owner:${OLTERRA_OWNER_PASSWORD}@db:5432/olterra
       OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
       OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
+      # Para `olterra-admin concentrador`: el script del CHR sale con el puerto del .env.
+      OLTERRA_TUNNEL_HUB_PORT: ${OLTERRA_TUNNEL_HUB_PORT:-13231}
     depends_on:
       db:
         condition: service_healthy

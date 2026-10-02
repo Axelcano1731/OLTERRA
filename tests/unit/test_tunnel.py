@@ -171,6 +171,10 @@ def test_hub_scripts() -> None:
     drop = next(i for i, line in enumerate(lines) if "sin ruteo entre ISP" in line)
     accept_platform = next(i for i, line in enumerate(lines) if "plataforma hacia los ISP" in line)
     assert accept_platform < drop  # el aislamiento va después de las excepciones
+    # Los ISP no llegan a los servicios del concentrador por el túnel; la plataforma sí.
+    assert (
+        "chain=input in-interface=olterra-hub src-address=!198.18.0.0/24 action=drop" in bootstrap
+    )
     with pytest.raises(ScriptError):
         render_hub_bootstrap(
             listen_port=13231,

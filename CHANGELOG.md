@@ -15,6 +15,9 @@
   para instalar, actualizar y crear ISP. Imágenes publicadas en GHCR. Ver
   `docs/DESPLIEGUE.md`.
 
+- Concentrador: regla que no deja a los ISP del túnel entrar a los servicios del CHR (Winbox,
+  SSH, API) por la IP del túnel.
+
 ### Corregido
 
 - El ejecutor y el consumidor de resultados de la API morían a los pocos segundos sin

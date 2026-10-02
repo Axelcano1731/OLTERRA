@@ -16,7 +16,7 @@ Estado: **fase 0** (esqueleto técnico, laboratorio y pilotos). Plan completo en
 | Captura de laboratorio (`olterra-capture`) | Lista: corre el catálogo de lectura y deja salidas listas para volverse pruebas |
 | Driver VSOL GPON | Catálogo de 51 comandos con su fuente, parsers tolerantes, OIDs del MIB, matriz de capacidades por modelo. **Sin verificar en laboratorio** |
 | Ejecutor genérico + NATS JetStream | Listo: colas por OLT con prioridad, una sesión por OLT, credenciales selladas, deduplicación |
-| Túnel WireGuard + NAT 1:1 para MikroTik | Generador listo y probado; falta correrlo contra el CHR real |
+| Túnel WireGuard + NAT 1:1 para MikroTik | Concentrador andando en el CHR (compartido con ISPWatch, puerto 13232) y la plataforma conectada; falta el primer MikroTik de un ISP |
 | API FastAPI + PostgreSQL/PostGIS con RLS | Esqueleto: OLT, consultas de lectura con su catálogo e historial, túnel, conciliación (JSON, archivos o demo), planes |
 | Despliegue (`deploy/produccion/`) | Listo para un droplet de DigitalOcean: Caddy con HTTPS, imágenes en GHCR, respaldos diarios que se prueban restaurando; todo con `./olterra.sh`. CI lo instala de punta a punta en cada PR |
 | Interfaz web (`web/`) | Lista para pilotos: panel, alta y consultas de OLT, túnel, conciliación desde archivos o con la demo. Entra con la llave de API (aún sin usuarios) |

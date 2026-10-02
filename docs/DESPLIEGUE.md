@@ -119,30 +119,40 @@ docker compose exec -T db pg_restore -U postgres -d olterra /respaldos/olterra-A
 
 El ejecutor llega a las OLT por el concentrador WireGuard (el CHR) usando la IP única de cada
 OLT (`198.19.x.x`). El servidor de Olterra es un peer más del concentrador, con la IP
-`198.18.0.2` de la plataforma (la misma que recibe las traps). **Sin probar todavía contra el
-CHR real** (pendiente de la fase 0).
+`198.18.0.2` de la plataforma (la misma que recibe las traps). **Probado el 2026-10-02** contra
+el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la misma región.
 
-1. En el CHR, la configuración inicial del concentrador, una sola vez:
+1. En el CHR, la configuración inicial del concentrador, una sola vez. Si el CHR ya tiene otro
+   WireGuard en el 13231 (el de ISPWatch), poner otro puerto en `.env`, por ejemplo
+   `OLTERRA_TUNNEL_HUB_PORT=13232`, antes de generar el script:
 
    ```bash
    docker compose run --rm migrate olterra-admin concentrador
    ```
 
-   Pegar el script en el CHR. Su llave pública (`/interface wireguard print`) va a
-   `OLTERRA_TUNNEL_HUB_PUBLIC_KEY` y su dirección pública a `OLTERRA_TUNNEL_HUB_HOST` en
-   `.env`; luego `./olterra.sh actualizar`.
+   Subir el script al CHR (Files) y correrlo con `/import`: pegar bloques largos en una consola
+   SSH de RouterOS los corrompe. Todo queda con el comentario `olterra-hub` y no toca lo demás:
+   una interfaz y un puerto propios, rutas a `198.18/16` y `198.19/16`, y reglas que solo
+   actúan sobre ese túnel (incluida una que no deja a los ISP entrar al concentrador).
+   La llave pública del concentrador (`/interface wireguard print`) va a
+   `OLTERRA_TUNNEL_HUB_PUBLIC_KEY` y su IP pública a `OLTERRA_TUNNEL_HUB_HOST` en `.env`; luego
+   `./olterra.sh actualizar`.
+
+   > Ojo con los firewalls que bloquean por intento: el del CHR de ISPWatch manda a
+   > `BLACKLIST` por 30 días a quien toque SSH o Winbox sin estar en `ALLOWED_MGMT`. No probar
+   > puertos del CHR desde el servidor de Olterra.
 
 2. En el servidor, WireGuard hacia el CHR (`sudo apt install wireguard`):
 
    ```ini
-   # /etc/wireguard/olterra.conf  (chmod 600; la llave privada se genera con `wg genkey`)
+   # /etc/wireguard/olterra.conf  (la privada en olterra.key: umask 077; wg genkey > olterra.key)
    [Interface]
    Address = 198.18.0.2/24
-   PrivateKey = <llave privada de ESTE servidor>
+   PostUp = wg set %i private-key /etc/wireguard/olterra.key
 
    [Peer]
    PublicKey = <OLTERRA_TUNNEL_HUB_PUBLIC_KEY>
-   Endpoint = <OLTERRA_TUNNEL_HUB_HOST>:13231
+   Endpoint = <OLTERRA_TUNNEL_HUB_HOST>:<OLTERRA_TUNNEL_HUB_PORT>
    AllowedIPs = 198.18.0.0/16, 198.19.0.0/16
    PersistentKeepalive = 25
    ```
@@ -156,6 +166,8 @@ CHR real** (pendiente de la fase 0).
    /interface wireguard peers add interface=olterra-hub public-key="<pública del servidor>" \
        allowed-address=198.18.0.2/32 comment="olterra: plataforma"
    ```
+
+   Prueba: desde el servidor, `ping 198.18.0.1` y `wg show olterra` (handshake reciente).
 
 4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik**, y pegar el script en su router.
 
