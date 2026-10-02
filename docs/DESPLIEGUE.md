@@ -80,6 +80,7 @@ Con esa llave se entra a `https://olterra.tuisp.co`.
 |---|---|
 | `./olterra.sh estado` | Contenedores y `/health` |
 | `./olterra.sh actualizar` | Respaldo, imágenes nuevas, migraciones y reinicio |
+| `./olterra.sh dominio <dominio>` | Cambia el dominio: el DNS tiene que apuntar al servidor; Caddy pide el certificado |
 | `./olterra.sh isp <slug> "<Nombre>"` | Un ISP nuevo con su llave |
 | `./olterra.sh llave <slug> <nombre>` | Otra llave para un ISP |
 | `./olterra.sh respaldo` | Un respaldo ahora (además del diario) |

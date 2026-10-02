@@ -4,6 +4,7 @@
 #   ./olterra.sh instalar <dominio>           primera vez: claves nuevas en .env, base,
 #                                             migraciones y todo arriba
 #   ./olterra.sh actualizar                   respaldo, imágenes nuevas, migraciones, reinicio
+#   ./olterra.sh dominio <dominio>            cambia el dominio (Caddy pide su certificado)
 #   ./olterra.sh isp <slug> "<Nombre>"        crea un ISP y su primera llave de API
 #   ./olterra.sh llave <slug> <nombre>        otra llave de API para un ISP
 #   ./olterra.sh respaldo                     un respaldo ahora (además del diario)
@@ -36,6 +37,10 @@ requisitos() {
 }
 
 leer() { sed -n "s/^$1=//p" .env | tail -n 1; }
+
+validar_dominio() {
+    [[ "$1" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "dominio inválido: $1"
+}
 
 # Pone el valor de una variable en .env. Los valores son hex o base64: nunca | ni & ni \.
 poner() {
@@ -75,7 +80,7 @@ arrancar() {
 instalar() {
     local dominio="${1:-}"
     [ -n "$dominio" ] || die "uso: ./olterra.sh instalar <dominio>"
-    [[ "$dominio" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "dominio inválido: $dominio"
+    validar_dominio "$dominio"
     [ ! -e .env ] || die ".env ya existe y no se pisan claves. Para actualizar: ./olterra.sh actualizar"
     requisitos
 
@@ -151,6 +156,16 @@ actualizar() {
     estado
 }
 
+dominio() {
+    local nuevo="${1:-}"
+    [ -n "$nuevo" ] || die "uso: ./olterra.sh dominio <dominio>"
+    validar_dominio "$nuevo"
+    verificar_env
+    poner OLTERRA_DOMINIO "$nuevo"
+    compose up -d --wait web
+    echo "Listo: https://$nuevo (el DNS tiene que apuntar a este servidor; Caddy ya pidió el certificado)."
+}
+
 isp() {
     local slug="${1:-}" nombre="${2:-}"
     if [ -z "$slug" ] || [ -z "$nombre" ]; then
@@ -208,6 +223,7 @@ accion="${1:-}"
 case "$accion" in
 instalar) instalar "$@" ;;
 actualizar) actualizar ;;
+dominio) dominio "$@" ;;
 isp) isp "$@" ;;
 llave) llave "$@" ;;
 respaldo) respaldo ;;
@@ -215,7 +231,7 @@ probar-respaldo) probar_respaldo ;;
 estado) estado ;;
 registros) compose logs --tail 200 "$@" ;;
 *)
-    sed -n '2,15p' "$0"
+    sed -n '2,16p' "$0"
     exit 1
     ;;
 esac

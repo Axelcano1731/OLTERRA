@@ -104,6 +104,10 @@ jobs:
           llave=$(./olterra.sh isp isp-ci "ISP CI" | grep -oE 'olt_[0-9a-f]{32}_[0-9a-f]{32}_[A-Za-z0-9_-]{43}')
           curl -fsSk -H "Authorization: Bearer $llave" "$base/v1/me" | grep -q '"slug":"isp-ci"'
           curl -fsSk -X POST -H "Authorization: Bearer $llave" "$base/v1/reconciliations/demo"             | grep -q '"source":"demo"'
+      - name: Cambiar el dominio
+        run: |
+          ./olterra.sh dominio localhost
+          curl -fsSk https://localhost/health | grep -q '"database":"ok"'
       - name: Respaldo y restauración
         run: |
           ./olterra.sh respaldo
