@@ -10,6 +10,10 @@
 - API: `GET /v1/me`, `GET /v1/olts/{id}/commands`, `GET /v1/olts/{id}/plans`,
   `GET /v1/reconciliations`, `POST /v1/reconciliations/files` y `POST /v1/reconciliations/demo`.
 - Migración `0002`: historial de consultas por OLT y origen de cada conciliación.
+- Despliegue de producción (`deploy/produccion/`): Caddy con HTTPS automático y CSP, roles de
+  la base con claves generadas, respaldo diario con prueba de restauración y `./olterra.sh`
+  para instalar, actualizar y crear ISP. Imágenes publicadas en GHCR. Ver
+  `docs/DESPLIEGUE.md`.
 
 ### Corregido
 

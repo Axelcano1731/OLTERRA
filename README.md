@@ -18,6 +18,7 @@ Estado: **fase 0** (esqueleto técnico, laboratorio y pilotos). Plan completo en
 | Ejecutor genérico + NATS JetStream | Listo: colas por OLT con prioridad, una sesión por OLT, credenciales selladas, deduplicación |
 | Túnel WireGuard + NAT 1:1 para MikroTik | Generador listo y probado; falta correrlo contra el CHR real |
 | API FastAPI + PostgreSQL/PostGIS con RLS | Esqueleto: OLT, consultas de lectura con su catálogo e historial, túnel, conciliación (JSON, archivos o demo), planes |
+| Despliegue (`deploy/produccion/`) | Listo para un droplet de DigitalOcean: Caddy con HTTPS, imágenes en GHCR, respaldos diarios que se prueban restaurando; todo con `./olterra.sh`. CI lo instala de punta a punta en cada PR |
 | Interfaz web (`web/`) | Lista para pilotos: panel, alta y consultas de OLT, túnel, conciliación desde archivos o con la demo. Entra con la llave de API (aún sin usuarios) |
 | Mapa FTTH, autorización de ONU, monitoreo, app de campo | Fases 1 a 3 |
 
@@ -45,6 +46,7 @@ cd web; npm install; npm run dev      # http://localhost:5173
 | [LABORATORIO.md](docs/LABORATORIO.md) | Protocolo de la fase 0: preparar la OLT, capturar, revisar, preguntas abiertas | Lo que se prueba en el laboratorio |
 | [DRIVERS_VSOL.md](docs/DRIVERS_VSOL.md) | Comandos, SNMP, capacidades por modelo y sus fuentes | Un comando, parser u OID |
 | [BASE_DATOS.md](docs/BASE_DATOS.md) | Roles, RLS, tablas, cómo sumar una tabla | Una migración |
+| [DESPLIEGUE.md](docs/DESPLIEGUE.md) | Producción: servidor, dominio, `./olterra.sh`, respaldos, túnel y seguridad | `deploy/produccion/`, imágenes, variables de producción |
 | [INTERFAZ.md](docs/INTERFAZ.md) | Pantallas, cómo habla con la API, sesión, seguridad y comandos de la interfaz | Una pantalla, un endpoint que usa, la sesión |
 | [MANUAL_DESARROLLADOR.md](docs/MANUAL_DESARROLLADOR.md) | Instalación, pruebas, variables, herramientas | Entorno, comandos, pruebas |
 | [CHANGELOG.md](CHANGELOG.md) | Versiones | Cada versión |

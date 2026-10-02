@@ -9,3 +9,9 @@
 lab-captures
 reportes
 tests
+# Interfaz: se instala y compila dentro de la imagen
+web/node_modules
+web/dist
+# Claves y respaldos de producción: nunca dentro de una imagen
+**/.env
+deploy/produccion/respaldos

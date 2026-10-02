@@ -336,3 +336,18 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Al conectar la interfaz con un ejecutor real apareció un error de la fase 0: el ejecutor y el
   consumidor de resultados de la API morían a los pocos segundos sin trabajo (nats-py a veces
   lanza el `TimeoutError` de asyncio y solo se atrapaba el suyo). Corregido y con prueba.
+
+### A.12 Despliegue
+
+- **Un droplet con Docker Compose**, no Kubernetes: un servidor alcanza para los pilotos y
+  cabe en lo que el equipo ya opera. Todo con `deploy/produccion/olterra.sh`
+  ([DESPLIEGUE.md](DESPLIEGUE.md)).
+- **Caddy** sirve la interfaz y la API bajo un dominio, con HTTPS automático: sin CORS y con
+  una sola cosa expuesta. La base y NATS no publican puertos.
+- Las imágenes se publican en **GHCR** desde `main`; el servidor solo las baja. Se pueden
+  construir en el servidor (`OLTERRA_CONSTRUIR=1`) si hace falta.
+- Los respaldos se prueban restaurándolos (`./olterra.sh probar-respaldo`), y CI instala el
+  stack de producción completo en cada PR: así un cambio que rompa el despliegue no llega a
+  `main`.
+- El ejecutor de la nube llega a las OLT como un peer más del concentrador (`198.18.0.2`).
+  Falta probarlo contra el CHR real, como el resto del túnel.
