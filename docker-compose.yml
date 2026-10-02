@@ -1,4 +1,5 @@
 # Entorno de desarrollo completo. Las claves de aquí son de DESARROLLO.
+# Producción: deploy/produccion/ (ver docs/DESPLIEGUE.md).
 #
 #   cp .env.example .env        # y completar las llaves (ver MANUAL_DESARROLLADOR)
 #   docker compose up -d db nats

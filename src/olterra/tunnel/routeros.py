@@ -285,6 +285,10 @@ def render_hub_bootstrap(
     s.add(":local ffil [/ip firewall filter find where dynamic=no]")
     rules = [
         f'chain=input protocol=udp dst-port={listen_port} action=accept comment="{tag}: WireGuard"',
+        # Un ISP del túnel no administra el concentrador: sin esto, si el firewall del CHR solo
+        # descarta lo que entra por la WAN, llegaría a Winbox, SSH y la API por la IP del túnel.
+        f"chain=input in-interface={interface} src-address=!{platform_prefix} action=drop"
+        f' comment="{tag}: los ISP no entran al concentrador"',
         f"chain=forward in-interface={interface} out-interface={interface} src-address={platform_prefix}"
         f' action=accept comment="{tag}: plataforma hacia los ISP"',
         f"chain=forward in-interface={interface} out-interface={interface} dst-address={platform_prefix}"

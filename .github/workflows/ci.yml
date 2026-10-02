@@ -73,3 +73,47 @@ jobs:
           docker build -t olterra:ci .
           docker run --rm olterra:ci olterra-conciliar --help
           docker run --rm olterra:ci olterra-executor --help
+
+  # El despliegue de producción, de punta a punta, como en el servidor: ./olterra.sh instalar
+  # con dominio localhost (Caddy usa su CA interna), un ISP, la demo, respaldo y restauración.
+  despliegue:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/produccion
+    env:
+      OLTERRA_CONSTRUIR: "1"
+      OLTERRA_VERSION: ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scripts (shellcheck)
+        run: shellcheck olterra.sh respaldo.sh
+      - name: Instalar
+        run: ./olterra.sh instalar localhost
+      - name: Humo
+        run: |
+          set -euo pipefail
+          base=https://localhost
+          curl -fsSk "$base/health" | grep -q '"database":"ok"'
+          curl -fsSk "$base/health" | grep -q '"nats":"conectado"'
+          curl -fsSk "$base/" | grep -q '<div id="app">'
+          curl -fsSk "$base/olts/una-ruta-de-la-spa" | grep -q '<div id="app">'
+          curl -fsSkI "$base/" | grep -qi '^content-security-policy:'
+          test "$(curl -sSk -o /dev/null -w '%{http_code}' "$base/v1/me")" = 401
+          test "$(curl -sSk -o /dev/null -w '%{http_code}' http://localhost/)" = 308
+          llave=$(./olterra.sh isp isp-ci "ISP CI" | grep -oE 'olt_[0-9a-f]{32}_[0-9a-f]{32}_[A-Za-z0-9_-]{43}')
+          curl -fsSk -H "Authorization: Bearer $llave" "$base/v1/me" | grep -q '"slug":"isp-ci"'
+          curl -fsSk -X POST -H "Authorization: Bearer $llave" "$base/v1/reconciliations/demo"             | grep -q '"source":"demo"'
+      - name: Cambiar el dominio
+        run: |
+          ./olterra.sh dominio localhost
+          curl -fsSk https://localhost/health | grep -q '"database":"ok"'
+      - name: Respaldo y restauración
+        run: |
+          ./olterra.sh respaldo
+          ./olterra.sh probar-respaldo
+      - name: Actualizar sobre una instalación andando
+        run: ./olterra.sh actualizar
+      - name: Registros (si algo falló)
+        if: failure()
+        run: docker compose logs --no-color --tail 200
