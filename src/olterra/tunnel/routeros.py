@@ -281,7 +281,7 @@ class SstpTunnel:
 
 
 def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
-    """Script del router del ISP con RouterOS v6 (sirve igual en v7).
+    """Script del router del ISP con RouterOS v6 (en v7 se usa WireGuard).
 
     El certificado de la CA va dentro del script: v6 no deja importarlo desde texto, así que
     se escribe en un archivo (``/file print file=`` + ``/file set contents=``) y se importa.
@@ -320,11 +320,12 @@ def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
     s.add('/certificate set [find where name~"^olterra-ca"] name=olterra-ca trusted=yes')
     s.add("/interface sstp-client remove [find where name=$ifn]")
     s.add(
-        f"/interface sstp-client add name=$ifn connect-to={_host(tunnel.hub_host)}"
-        f' port={tunnel.hub_port} user="{tunnel.user}" password="{tunnel.password}"'
-        " profile=default-encryption authentication=mschap2 verify-server-certificate=yes"
-        " verify-server-address-from-certificate=no add-default-route=no keepalive-timeout=60"
-        f' comment="{tag}" disabled=no'
+        # En v6 el puerto va pegado a la dirección: el parámetro ``port`` es de v7 y v6 corta
+        # todo el script con "expected end of command". Solo lo esencial: el resto de
+        # parámetros (autenticación, keepalive, ruta por defecto) ya viene bien por defecto.
+        f"/interface sstp-client add name=$ifn connect-to={_host(tunnel.hub_host)}:{tunnel.hub_port}"
+        f' user="{tunnel.user}" password="{tunnel.password}" profile=default-encryption'
+        f' verify-server-certificate=yes comment="{tag}" disabled=no'
     )
     s.add('/ip route remove [find where comment~"^olterra"]')
     s.add(f'/ip route add dst-address={prefix} gateway=$ifn comment="{tag}"')

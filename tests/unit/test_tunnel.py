@@ -220,10 +220,14 @@ def test_sstp_script_for_routeros_v6() -> None:
     assert script.isascii()
     assert "wireguard" not in script  # v6 no la tiene: el script no la nombra
     assert (
-        "/interface sstp-client add name=$ifn connect-to=203.0.113.10 port=4443"
+        "/interface sstp-client add name=$ifn connect-to=203.0.113.10:4443"
         f' user="olterra-isp-piloto-CORE_VIOTA" password="{tunnel.password}"'
     ) in script
     assert "verify-server-certificate=yes" in script
+    # RouterOS 6 no conoce estos parámetros de v7: uno solo corta todo el script.
+    [client] = [line for line in script.splitlines() if "sstp-client add" in line]
+    for v7_only in (" port=", "tls-version", "pfs=", "ciphers"):
+        assert v7_only not in client
     # La CA va en una sola línea del script, con los saltos como \n de RouterOS.
     [contents] = [line for line in script.splitlines() if "contents=" in line]
     assert contents.count("-----BEGIN CERTIFICATE-----\\n") == 1
