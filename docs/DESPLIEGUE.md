@@ -27,10 +27,10 @@ llave maestra no llega al ejecutor.
 
 ## 1. El servidor
 
-1. **Droplet**: Ubuntu 24.04 con Docker (imagen "Docker" del Marketplace, o Ubuntu e instalar
-   Docker Engine con su repositorio oficial). **2 GB de RAM** mínimo; 4 GB si se van a
-   construir las imágenes ahí mismo. En la **misma región que el CHR** del túnel, para que la
-   latencia hacia las OLT sea la menor posible.
+1. **Droplet**: Ubuntu 24.04 con Docker Engine (repositorio oficial de Docker). **1 GB de RAM
+   con 2 GB de swap** alcanza para el piloto: probado el 2026-10-02, todo corriendo usa ~600 MB
+   y construye las imágenes en el servidor. Con ISP reales, 2 GB para tener holgura. En la
+   **misma región que el CHR** del túnel, para que la latencia hacia las OLT sea la menor.
 2. **Firewall de DigitalOcean** (Networking → Firewalls), entrada: TCP 22 solo desde las IP
    de administración; TCP 80 y 443 y UDP 443 desde todos. Salida: todo.
 3. **Respaldos del droplet** activados (semanales): son la segunda red, no la única.
