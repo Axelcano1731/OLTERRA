@@ -254,6 +254,18 @@ def test_query_end_to_end(env: Env) -> None:
     assert env.client.get(f"/v1/plans/{plan_id}", headers=env.headers(env.key_b)).status_code == 404
 
 
+def test_olt_real_ip_cannot_be_a_tunnel_ip(env: Env) -> None:
+    # La IP del router en el túnel (198.18.x) o una IP NAT (198.19.x) no son la de la OLT.
+    for ip in ("198.18.1.1", "198.19.0.0"):
+        response = env.client.post(
+            "/v1/olts",
+            json={"name": f"OLT-{ip[-3:]}", "username": "a", "password": "b", "real_ip": ip},
+            headers=env.headers(),
+        )
+        assert response.status_code == 400
+        assert "es una IP del túnel" in response.json()["detail"]
+
+
 @pytest.mark.parametrize(
     ("body", "detail"),
     [

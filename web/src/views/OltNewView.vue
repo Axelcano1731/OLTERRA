@@ -53,6 +53,10 @@ const problems = computed(() => {
     found.name = 'Hasta 32 caracteres: letras, números, punto, guion o guion bajo.'
   }
   if (!IPV4.test(form.realIp.trim())) found.realIp = 'Una IPv4, como 192.168.8.200.'
+  // 198.18.x y 198.19.x son del túnel: la del router o una IP NAT, nunca la de la OLT.
+  else if (/^198\.1[89]\./.test(form.realIp.trim())) {
+    found.realIp = 'Esa es una IP del túnel. Va la IP con la que abres la web de la OLT en tu red.'
+  }
   if (!port(form.sshPort)) found.sshPort = 'De 1 a 65535.'
   if (!port(form.snmpPort)) found.snmpPort = 'De 1 a 65535.'
   if (!form.username.trim()) found.username = 'Falta el usuario.'
@@ -181,6 +185,9 @@ async function submit(): Promise<void> {
             :aria-invalid="!!show('realIp')"
           />
           <p v-if="show('realIp')" class="hint text-danger">{{ show('realIp') }}</p>
+          <p v-else class="hint">
+            La IP con la que abres la web de la OLT desde tu red. No es la del túnel.
+          </p>
         </div>
         <div>
           <label for="ssh-port" class="label">Puerto SSH</label>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from ipaddress import IPv4Network
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
@@ -63,6 +64,17 @@ async def get_olt(olt_id: UUID, ctx: Tenant) -> Olt:
 @router.post("", response_model=OltOut, status_code=status.HTTP_201_CREATED)
 async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
     ctx.require("olt:write")
+    # Confusión real: poner la IP del router en el túnel (198.18.x) en vez de la de la OLT.
+    pools = [
+        IPv4Network(state.settings.tunnel_peer_pool),
+        IPv4Network(state.settings.tunnel_nat_pool),
+    ]
+    if body.real_ip is not None and any(body.real_ip in pool for pool in pools):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{body.real_ip} es una IP del túnel. Va la IP que la OLT tiene en la red del ISP,"
+            " la misma con la que se abre su página web (por ejemplo 192.168.1.50).",
+        )
     credential = Credential(
         username=body.username,
         password=body.password,
