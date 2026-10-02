@@ -1,0 +1,146 @@
+# Olterra en producción: un servidor con Docker (DigitalOcean). Ver docs/DESPLIEGUE.md.
+#
+# Todo se maneja con ./olterra.sh (instalar, actualizar, isp, respaldo, estado).
+# Las claves viven en .env (lo genera `./olterra.sh instalar`, permisos 600, fuera de git) y
+# cada servicio recibe SOLO las suyas: la llave privada del ejecutor no llega a la API y la
+# llave maestra no llega al ejecutor.
+#
+# Desde internet solo se ven 80 y 443 (Caddy). La base y NATS no publican puertos: NATS no
+# tiene cuentas todavía y no se expone hasta que las tenga (agentes on-premise, fase 4).
+
+name: olterra
+
+x-api-image: &api-image ${OLTERRA_REGISTRO:-ghcr.io/axelcano1731}/olterra-api:${OLTERRA_VERSION:-main}
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Las lee initdb/01-olterra.sql la primera vez (volumen vacío) para crear los roles.
+      OLTERRA_OWNER_PASSWORD: ${OLTERRA_OWNER_PASSWORD}
+      OLTERRA_APP_PASSWORD: ${OLTERRA_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./respaldos:/respaldos:ro # para `./olterra.sh probar-respaldo`
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d olterra"]
+      interval: 10s
+      retries: 30
+
+  nats:
+    image: nats:2.11-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - natsdata:/data
+
+  # Migraciones y olterra-admin. No queda corriendo: lo usa ./olterra.sh.
+  migrate:
+    image: *api-image
+    profiles: ["herramientas"]
+    command: ["olterra-admin", "migrar"]
+    environment:
+      OLTERRA_ENV: prod
+      OLTERRA_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://olterra_owner:${OLTERRA_OWNER_PASSWORD}@db:5432/olterra
+      OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
+      OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
+      # Para `olterra-admin concentrador`: el script del CHR sale con el puerto del .env.
+      OLTERRA_TUNNEL_HUB_PORT: ${OLTERRA_TUNNEL_HUB_PORT:-13231}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    image: *api-image
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      OLTERRA_ENV: prod
+      OLTERRA_DATABASE_URL: postgresql+asyncpg://olterra_app:${OLTERRA_APP_PASSWORD}@db:5432/olterra
+      OLTERRA_NATS_URL: nats://nats:4222
+      OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
+      OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
+      OLTERRA_TUNNEL_HUB_HOST: ${OLTERRA_TUNNEL_HUB_HOST:-}
+      OLTERRA_TUNNEL_HUB_PORT: ${OLTERRA_TUNNEL_HUB_PORT:-13231}
+      OLTERRA_TUNNEL_HUB_PUBLIC_KEY: ${OLTERRA_TUNNEL_HUB_PUBLIC_KEY:-}
+      # Solo Caddy llega a la API (no publica puertos): se confía en su X-Forwarded-For
+      # para que la bitácora guarde la IP real de quien hizo cada cambio.
+      FORWARDED_ALLOW_IPS: "*"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)
+      interval: 15s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  executor:
+    image: *api-image
+    restart: unless-stopped
+    command: ["olterra-executor"]
+    environment:
+      # Sin OLTERRA_ENV=prod a propósito: esa validación pide la llave maestra y el ejecutor
+      # nunca debe tenerla. Llega a las OLT por el túnel del servidor (docs/DESPLIEGUE.md).
+      OLTERRA_NATS_URL: nats://nats:4222
+      OLTERRA_EXECUTOR_PRIVATE_KEY: ${OLTERRA_EXECUTOR_PRIVATE_KEY}
+      OLTERRA_EXECUTOR_GROUP: cloud
+    depends_on:
+      nats:
+        condition: service_started
+
+  # Caddy: la interfaz, HTTPS automático (Let's Encrypt) y /v1 hacia la API.
+  web:
+    image: ${OLTERRA_REGISTRO:-ghcr.io/axelcano1731}/olterra-web:${OLTERRA_VERSION:-main}
+    build:
+      context: ../..
+      dockerfile: deploy/produccion/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      OLTERRA_DOMINIO: ${OLTERRA_DOMINIO}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Un respaldo al arrancar y luego uno por día en ./respaldos; borra los de más de N días.
+  backup:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/respaldo.sh", "--cada-dia"]
+    environment:
+      PGHOST: db
+      PGUSER: olterra_owner # tiene BYPASSRLS: el respaldo lleva a todos los ISP
+      PGPASSWORD: ${OLTERRA_OWNER_PASSWORD}
+      PGDATABASE: olterra
+      OLTERRA_RESPALDO_DIAS: ${OLTERRA_RESPALDO_DIAS:-14}
+    volumes:
+      - ./respaldo.sh:/respaldo.sh:ro
+      - ./respaldos:/respaldos
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  natsdata:
+  caddy_data:
+  caddy_config:

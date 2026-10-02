@@ -99,7 +99,8 @@ La base `olterra` tiene que existir con los roles de `deploy/postgres/init.sql` 
 lo hace la imagen; con el script local, correr esas sentencias una vez como `postgres`).
 La documentación interactiva de la API queda en `http://localhost:8000/docs`.
 
-Con Docker: ver el encabezado de `docker-compose.yml`.
+Con Docker: ver el encabezado de `docker-compose.yml` (desarrollo). Producción tiene su propio
+stack en `deploy/produccion/`: ver [DESPLIEGUE.md](DESPLIEGUE.md).
 
 ## Herramientas de línea de comandos
 
