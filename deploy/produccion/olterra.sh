@@ -135,9 +135,15 @@ actualizar() {
         echo "Respaldo antes de actualizar…"
         respaldo
     fi
-    if construye_aqui && git -C ../.. rev-parse --git-dir >/dev/null 2>&1; then
-        echo "Código nuevo…"
-        git -C ../.. pull --ff-only
+    if construye_aqui; then
+        # Solo si el repo está en una rama que sigue a una remota; si no (un commit suelto,
+        # como en CI), se construye el código tal como está.
+        if git -C ../.. rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
+            echo "Código nuevo…"
+            git -C ../.. pull --ff-only
+        else
+            echo "Sin rama remota que seguir: se construye el código tal como está."
+        fi
     fi
     imagenes
     arrancar
