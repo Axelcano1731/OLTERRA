@@ -117,8 +117,9 @@ docker compose exec -T db pg_restore -U postgres -d olterra /respaldos/olterra-A
 
 ## 6. Túnel hacia las OLT
 
-El ejecutor llega a las OLT por el concentrador WireGuard (el CHR) usando la IP única de cada
-OLT (`198.19.x.x`). El servidor de Olterra es un peer más del concentrador, con la IP
+El ejecutor llega a las OLT por el concentrador (el CHR) usando la IP única de cada OLT
+(`198.19.x.x`). Los MikroTik de los ISP entran por **WireGuard** (RouterOS 7) o por **SSTP**
+(RouterOS 6, que no tiene WireGuard; TLS sobre TCP 4443). El servidor de Olterra es un peer más del concentrador, con la IP
 `198.18.0.2` de la plataforma (la misma que recibe las traps). **Probado el 2026-10-02** contra
 el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la misma región.
 
@@ -137,6 +138,19 @@ el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la 
    La llave pública del concentrador (`/interface wireguard print`) va a
    `OLTERRA_TUNNEL_HUB_PUBLIC_KEY` y su IP pública a `OLTERRA_TUNNEL_HUB_HOST` en `.env`; luego
    `./olterra.sh actualizar`.
+
+   Con `OLTERRA_TUNNEL_HUB_HOST` en `.env`, el script también deja el **servidor SSTP** para
+   RouterOS 6: su CA y su certificado (con la IP pública), el perfil PPP y la regla del
+   puerto 4443. Hay que correrlo de nuevo después de poner la IP (rehace solo lo suyo). La CA
+   es pública y va a `.env` en una sola línea:
+
+   ```
+   /certificate export-certificate olterra-ca type=pem
+   :put [/file get [find where name~"olterra-ca.crt"] contents]
+   ```
+
+   Las líneas entre `BEGIN` y `END`, pegadas sin saltos, van a `OLTERRA_TUNNEL_SSTP_CA`; luego
+   `./olterra.sh actualizar` y borrar el archivo exportado en el CHR.
 
    > Ojo con los firewalls que bloquean por intento: el del CHR de ISPWatch manda a
    > `BLACKLIST` por 30 días a quien toque SSH o Winbox sin estar en `ALLOWED_MGMT`. No probar
@@ -169,7 +183,10 @@ el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la 
 
    Prueba: desde el servidor, `ping 198.18.0.1` y `wg show olterra` (handshake reciente).
 
-4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik**, y pegar el script en su router.
+4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik** con su versión de RouterOS. El
+   script se descarga, se sube al router (Files) y se corre con `/import`. El bloque "Alta en
+   el concentrador" se aplica en el CHR. Si un router se dio de alta con la versión
+   equivocada, **Rotar o cambiar versión** lo pasa al otro transporte.
 
 ## 7. Seguridad, en corto
 

@@ -14,7 +14,7 @@ por HTTP; no tiene lógica de negocio propia.
 | `/` | Panel: cuántas OLT, routers y la última conciliación; primeros pasos; estado de la plataforma | `/health`, listas |
 | `/olts`, `/olts/nueva` | OLT del ISP y alta (credenciales cifradas, nunca se vuelven a mostrar) | `GET/POST /v1/olts` |
 | `/olts/:id` | Detalle: consultas de solo lectura con atajos, resultado interpretado, historial | `/v1/olts/{id}/commands`, `/queries`, `/plans`, `/v1/plans/{id}` |
-| `/tunel` | MikroTik en el túnel: alta y rotación de llaves; el script se muestra una sola vez | `/v1/tunnel/routers` |
+| `/tunel` | MikroTik en el túnel: alta con su versión de RouterOS (7 → WireGuard, 6 → SSTP), rotación y cambio de versión; el script se muestra una sola vez | `/v1/tunnel/routers` |
 | `/conciliacion`, `/conciliacion/nueva`, `/conciliacion/:id` | Historial, nueva (archivos o demo) y detalle con filtros y CSV | `/v1/reconciliations` |
 
 En la barra lateral se ven, sin abrirse, los módulos que vienen según el plan (autorizar ONU,

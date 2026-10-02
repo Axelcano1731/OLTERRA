@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     tunnel_hub_port: int = 13231
     tunnel_hub_public_key: str | None = None
     tunnel_trap_receiver: str = "198.18.0.2"
+    # SSTP para RouterOS v6 (sin WireGuard). La CA es pública: la del concentrador, en PEM o
+    # solo su base64 en una línea (así cabe en .env). Sin ella no se dan de alta routers v6.
+    tunnel_sstp_port: int = 4443
+    tunnel_sstp_ca: str | None = None
 
     @model_validator(mode="after")
     def _prod_requires_secrets(self) -> Settings:

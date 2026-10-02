@@ -30,7 +30,7 @@ from olterra.db.models import ApiKey, Tenant, TenantKey
 from olterra.db.session import create_engine, session_factory, tenant_session
 from olterra.security import apikeys, sealed
 from olterra.security.vault import Vault
-from olterra.tunnel.routeros import render_hub_bootstrap
+from olterra.tunnel.routeros import ScriptError, render_hub_bootstrap
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
 
@@ -158,11 +158,14 @@ def main(argv: list[str] | None = None) -> None:
                     platform_prefix=IPv4Network(settings.tunnel_platform_prefix),
                     peer_pool=IPv4Network(settings.tunnel_peer_pool),
                     nat_pool=IPv4Network(settings.tunnel_nat_pool),
+                    # SSTP para RouterOS v6: su certificado lleva la IP pública del concentrador.
+                    sstp_port=settings.tunnel_sstp_port if settings.tunnel_hub_host else None,
+                    sstp_host=settings.tunnel_hub_host,
                 )
             )
         else:
             asyncio.run(_with_owner(args.accion, args))
-    except (AdminError, ConfigError) as exc:
+    except (AdminError, ConfigError, ScriptError) as exc:
         raise SystemExit(f"Error: {exc}") from exc
 
 

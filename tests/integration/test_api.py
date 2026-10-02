@@ -4,6 +4,7 @@ API → plan sellado → ejecutor → SSH al simulador → resultado guardado �
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -30,7 +31,7 @@ from olterra.security import apikeys
 from olterra.security.sealed import generate_keypair
 from olterra.security.vault import Vault
 from olterra.tunnel.wireguard import generate_keypair as wg_keypair
-from tests.conftest import PgDatabase, b64key
+from tests.conftest import PgDatabase, b64key, ca_pem
 
 pytestmark = pytest.mark.postgres
 
@@ -88,6 +89,7 @@ def env(pg: PgDatabase, master_key: bytes) -> Iterator[Env]:
         executor_public_key=public,
         tunnel_hub_host="hub.olterra.co",
         tunnel_hub_public_key=hub_public,
+        tunnel_sstp_ca=ca_pem(),
     )
     a, b, key_a, key_b = asyncio.run(_make_tenants(pg, master_key))
     publisher = RecordingPublisher()
@@ -411,3 +413,81 @@ def test_scopes_are_enforced(env: Env) -> None:
         "/v1/olts", json={"name": "X", "username": "a", "password": "b"}, headers=env.headers(key)
     )
     assert response.status_code == 403
+
+
+# --- Túnel SSTP (RouterOS v6) ----------------------------------------------------------
+
+
+def test_sstp_router_for_routeros_v6(env: Env) -> None:
+    created = env.client.post(
+        "/v1/tunnel/routers",
+        json={"name": "CORE_V6", "routeros_version": "6.49.18"},
+        headers=env.headers(),
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    router = body["router"]
+    assert router["transport"] == "sstp" and router["wg_public_key"] is None
+    assert router["ppp_user"].startswith("olterra-api-a-") and router["ppp_user"].endswith(
+        "-CORE_V6"
+    )
+    assert "/interface sstp-client add" in body["isp_script"]
+    assert "wireguard" not in body["isp_script"]
+    match = re.search(r'password="([A-Za-z0-9]+)"', body["isp_script"])
+    assert match is not None
+    password = match.group(1)
+    assert f'password="{password}" service=sstp' in body["hub_script"]  # la misma en los dos
+
+    # Con una OLT detrás, el concentrador enruta su IP NAT por el túnel SSTP.
+    olt = create_olt(env, router_id=router["id"], real_ip="192.168.8.200")
+    rotated = env.client.post(
+        f"/v1/tunnel/routers/{router['id']}/script", headers=env.headers()
+    ).json()
+    assert rotated["router"]["transport"] == "sstp"
+    assert f'routes="{olt["nat_ip"]}/32"' in rotated["hub_script"]
+    assert password not in rotated["isp_script"]  # rotar cambia la clave
+    listed = env.client.get("/v1/tunnel/routers", headers=env.headers()).json()
+    assert [r["transport"] for r in listed] == ["sstp"]
+
+
+def test_router_changes_transport_when_rotating(env: Env) -> None:
+    """Un router v6 dado de alta como v7 pasa a SSTP sin borrarlo ni cambiar su IP."""
+    created = env.client.post(
+        "/v1/tunnel/routers",
+        json={"name": "CORE_VIOTA", "routeros_version": "7"},
+        headers=env.headers(),
+    ).json()
+    router_id = created["router"]["id"]
+    switched = env.client.post(
+        f"/v1/tunnel/routers/{router_id}/script",
+        json={"routeros_version": "6"},
+        headers=env.headers(),
+    )
+    assert switched.status_code == 200, switched.text
+    body = switched.json()
+    assert body["router"]["transport"] == "sstp" and body["router"]["wg_public_key"] is None
+    assert body["router"]["overlay_ip"] == created["router"]["overlay_ip"]
+    assert '/interface wireguard peers remove [find where comment="olterra:' in body["hub_script"]
+
+    back = env.client.post(
+        f"/v1/tunnel/routers/{router_id}/script",
+        json={"routeros_version": "7.16"},
+        headers=env.headers(),
+    ).json()
+    assert back["router"]["transport"] == "wireguard" and back["router"]["ppp_user"] is None
+
+
+def test_sstp_needs_the_concentrator_ca(env: Env) -> None:
+    state = env.client.app.state.olterra  # type: ignore[attr-defined]
+    original = state.settings
+    state.settings = original.model_copy(update={"tunnel_sstp_ca": None})
+    try:
+        response = env.client.post(
+            "/v1/tunnel/routers",
+            json={"name": "SIN-CA", "routeros_version": "6.49"},
+            headers=env.headers(),
+        )
+        assert response.status_code == 503
+        assert "OLTERRA_TUNNEL_SSTP_CA" in response.json()["detail"]
+    finally:
+        state.settings = original
