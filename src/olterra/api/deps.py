@@ -40,6 +40,7 @@ def get_state(request: Request) -> AppState:
 class TenantContext:
     tenant_id: UUID
     key_id: UUID
+    key_name: str
     actor: str
     scopes: tuple[str, ...]
     client_ip: str | None
@@ -88,6 +89,7 @@ async def current_tenant(
     return TenantContext(
         tenant_id=parsed.tenant_id,
         key_id=parsed.key_id,
+        key_name=name,
         actor=f"llave:{name}",
         scopes=scopes,
         client_ip=_client_ip(request),

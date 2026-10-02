@@ -203,4 +203,6 @@ class ReconciliationRun(Base):
     requested_by: Mapped[str] = mapped_column(Text)
     counts: Mapped[dict[str, Any]] = mapped_column(JSONB)
     findings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    source: Mapped[str] = mapped_column(Text, server_default="api")  # api | upload | demo
+    files: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default="[]")
     created_at: Mapped[datetime] = _created()

@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+/* Misma familia visual que Converza (barra lateral azul noche, Inter), con acento propio.
+   Los colores son variables: el modo oscuro solo las redefine. */
+@theme {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+
+  --color-page: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-subtle: #f0f3f8;
+  --color-line: #e2e7ef;
+  --color-ink: #0f1a2e;
+  --color-muted: #5b6b85;
+
+  --color-accent: #4f5bd5;
+  --color-accent-hover: #3f4ac0;
+  --color-accent-soft: #eef0fd;
+  --color-on-accent: #ffffff;
+
+  --color-sidebar: #0f1a2e;
+  --color-sidebar-hover: #1a2744;
+  --color-sidebar-active: #243352;
+  --color-sidebar-ink: #dbe3f0;
+  --color-sidebar-muted: #8899b4;
+
+  --color-danger: #c62828;
+  --color-danger-soft: #fdecec;
+  --color-warning: #b45309;
+  --color-warning-soft: #fdf3e2;
+  --color-info: #1d5fd6;
+  --color-info-soft: #e8f0fe;
+  --color-success: #047857;
+  --color-success-soft: #e3f5ee;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-page: #0d1117;
+    --color-surface: #161b22;
+    --color-subtle: #1c2330;
+    --color-line: #2d3440;
+    --color-ink: #e6edf3;
+    --color-muted: #8b949e;
+
+    --color-accent: #8b93ff;
+    --color-accent-hover: #a5abff;
+    --color-accent-soft: #23284a;
+    --color-on-accent: #0d1117;
+
+    --color-sidebar: #0a1222;
+    --color-sidebar-hover: #142036;
+    --color-sidebar-active: #1d2b47;
+
+    --color-danger: #f87171;
+    --color-danger-soft: #3a1d1d;
+    --color-warning: #fbbf24;
+    --color-warning-soft: #3a2e12;
+    --color-info: #6ea8ff;
+    --color-info-soft: #172a46;
+    --color-success: #34d399;
+    --color-success-soft: #123227;
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-page);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Piezas reutilizables. Con @utility (no @layer components) se pueden componer con @apply. */
+@utility card {
+  @apply rounded-xl border border-line bg-surface;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent text-on-accent hover:bg-accent-hover;
+}
+
+@utility btn-secondary {
+  @apply btn border border-line bg-surface text-ink hover:bg-subtle;
+}
+
+@utility btn-ghost {
+  @apply btn text-muted hover:bg-subtle hover:text-ink;
+}
+
+@utility input {
+  @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 disabled:opacity-60;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-ink;
+}
+
+@utility hint {
+  @apply mt-1.5 text-xs text-muted;
+}
+
+@utility table-head {
+  @apply bg-subtle text-left text-xs font-medium tracking-wide text-muted uppercase;
+}
+
+@utility code {
+  @apply rounded bg-subtle px-1.5 py-0.5 font-mono text-[0.8125em];
+}
