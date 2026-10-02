@@ -7,7 +7,7 @@ from uuid import uuid4
 from pydantic import SecretStr
 
 from olterra.drivers.vsol_gpon import SESSION
-from olterra.executor.bus import MemoryBus, MemoryDelivery
+from olterra.executor.bus import MemoryBus, MemoryDelivery, NatsBus
 from olterra.executor.lanes import LaneScheduler
 from olterra.executor.plan import (
     CliCommand,
@@ -209,3 +209,71 @@ async def test_runner_expires_stale_plans_and_rejects_incomplete_ones() -> None:
     no_session = make_plan().model_copy(update={"session": None})
     result = await runner.run(no_session, Credential(username="x"))
     assert result.status == "rejected"
+
+
+# --- Bus NATS: la cola vacía no tumba a nadie ------------------------------------------
+
+
+class _FakeMsg:
+    subject = "olterra.prueba"
+
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+
+    async def ack(self) -> None: ...
+
+    async def term(self) -> None: ...
+
+
+class _FakeSubscription:
+    """fetch() que vence como lo hace nats-py y después entrega un mensaje."""
+
+    def __init__(self, *outcomes: BaseException | list[_FakeMsg]) -> None:
+        self.outcomes = list(outcomes)
+
+    async def fetch(self, batch: int, timeout: float) -> list[_FakeMsg]:
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+class _FakeNats:
+    def __init__(self, subscription: _FakeSubscription) -> None:
+        self.subscription = subscription
+
+    def jetstream(self) -> _FakeNats:
+        return self
+
+    async def pull_subscribe(self, *args: object, **kwargs: object) -> _FakeSubscription:
+        return self.subscription
+
+
+async def test_nats_consumers_survive_empty_fetches() -> None:
+    # Con la cola vacía, nats-py lanza su TimeoutError o, si el plazo se agota entre el
+    # pedido sin espera y el que espera, el de asyncio. Antes solo se atrapaba el primero:
+    # el ejecutor y el consumidor de resultados de la API morían estando ociosos.
+    from nats.errors import TimeoutError as NatsTimeout
+
+    plan = make_plan()
+    now = datetime.now(UTC)
+    result = PlanResult(
+        plan_id=plan.plan_id,
+        tenant_id=plan.tenant_id,
+        olt_id=plan.olt_id,
+        executor="prueba",
+        status="ok",
+        started_at=now,
+        finished_at=now,
+    )
+
+    def timeouts_then(data: bytes) -> _FakeNats:
+        return _FakeNats(_FakeSubscription(TimeoutError(), NatsTimeout(), [_FakeMsg(data)]))
+
+    plans = NatsBus(timeouts_then(plan.model_dump_json().encode())).deliveries("cloud")
+    delivery = await anext(plans)
+    assert delivery.plan.plan_id == plan.plan_id
+
+    results = NatsBus(timeouts_then(result.model_dump_json().encode())).results("api")
+    received, _ = await anext(results)
+    assert received.plan_id == plan.plan_id

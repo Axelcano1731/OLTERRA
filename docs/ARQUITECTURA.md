@@ -323,3 +323,16 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Identidad única entre los tres productos: falta decidir quién es el proveedor de identidad.
   La fase 0 usa llaves de API por tenant.
 - Las credenciales de fábrica de la OLT están en el manual público: el alta debe cambiarlas.
+
+### A.11 Interfaz web
+
+- **Vue 3 + Vite + Tailwind 4**, como Converza, para que el equipo y los componentes se
+  reutilicen entre productos. Es una SPA aparte (`web/`) que consume la API; en producción va
+  bajo el mismo dominio, sin CORS. Detalle en [INTERFAZ.md](INTERFAZ.md).
+- Mientras no haya proveedor de identidad (A.10), se entra con la llave de API del ISP. Es lo
+  más débil de hoy: la llave vive en el navegador. Los usuarios con roles y 2FA del plan
+  esperan esa decisión.
+- MapLibre entra con el mapa FTTH (fase 2), no antes: sin datos de planta no hay qué mostrar.
+- Al conectar la interfaz con un ejecutor real apareció un error de la fase 0: el ejecutor y el
+  consumidor de resultados de la API morían a los pocos segundos sin trabajo (nats-py a veces
+  lanza el `TimeoutError` de asyncio y solo se atrapaba el suyo). Corregido y con prueba.

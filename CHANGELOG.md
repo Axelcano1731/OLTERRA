@@ -1,5 +1,22 @@
 # Cambios
 
+## [Sin publicar]
+
+### Agregado
+
+- Interfaz web (`web/`, Vue 3 + Vite + Tailwind): panel, alta y consultas de OLT con su
+  historial, túnel (scripts que se muestran una sola vez), conciliación desde archivos o con la
+  demo. Ver `docs/INTERFAZ.md`.
+- API: `GET /v1/me`, `GET /v1/olts/{id}/commands`, `GET /v1/olts/{id}/plans`,
+  `GET /v1/reconciliations`, `POST /v1/reconciliations/files` y `POST /v1/reconciliations/demo`.
+- Migración `0002`: historial de consultas por OLT y origen de cada conciliación.
+
+### Corregido
+
+- El ejecutor y el consumidor de resultados de la API morían a los pocos segundos sin
+  trabajo: nats-py a veces lanza el `TimeoutError` de asyncio en vez del suyo y solo se
+  atrapaba el suyo.
+
 ## [0.1.0] — sin publicar
 
 Esqueleto de la fase 0.

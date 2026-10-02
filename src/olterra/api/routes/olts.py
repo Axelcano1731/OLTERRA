@@ -3,23 +3,30 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from olterra.api.deps import State, Tenant
-from olterra.api.schemas import OltCreate, OltOut, PlanOut, QueryRequest
+from olterra.api.schemas import (
+    CommandOut,
+    OltCreate,
+    OltOut,
+    PlanOut,
+    PlanSummary,
+    QueryRequest,
+)
 from olterra.api.state import audit
 from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Olt, PlanRun, TunnelRouter
 from olterra.db.models import Tenant as TenantRow
 from olterra.drivers import get_driver
-from olterra.drivers.base import Access, CliMode, CommandCall
+from olterra.drivers.base import Access, CliMode, CommandCall, CommandTemplate
 from olterra.executor.plan import Credential, Priority, Target
-from olterra.orchestrator import build_read_plan
+from olterra.orchestrator import PARSERS, build_read_plan
 from olterra.security.vault import Vault
 
 router = APIRouter(prefix="/v1/olts", tags=["OLT"])
@@ -136,6 +143,21 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
         ) from exc
 
 
+def query_scope(template: CommandTemplate) -> Literal["olt", "pon", "onu"] | None:
+    """Qué pide un comando en una consulta: nada, un PON o un PON:ONU.
+
+    None si pide otros parámetros (perfil, VLAN...): esos no se consultan por aquí.
+    """
+    placeholders = set(template.placeholders())
+    if placeholders - {"pon", "onu"}:
+        return None
+    if "onu" in placeholders:
+        return "onu"
+    if template.mode is CliMode.PON or "pon" in placeholders:
+        return "pon"
+    return "olt"
+
+
 def _calls_for(
     driver_key: str, body: QueryRequest, model: str | None, firmware: str | None
 ) -> list[CommandCall]:
@@ -155,20 +177,20 @@ def _calls_for(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, f"'{key}' escribe en la OLT; aquí solo lecturas"
             )
-        placeholders = set(template.placeholders())
-        if "onu" in placeholders:
+        scope = query_scope(template)
+        if scope == "onu":
             if not samples:
                 raise HTTPException(
                     status.HTTP_400_BAD_REQUEST, f"'{key}' necesita al menos una ONU (PON:ONU)"
                 )
             calls += [CommandCall(key, {"pon": p, "onu": o}) for p, o in samples]
-        elif template.mode is CliMode.PON or "pon" in placeholders:
+        elif scope == "pon":
             if not body.pon:
                 raise HTTPException(
                     status.HTTP_400_BAD_REQUEST, f"'{key}' necesita al menos un PON"
                 )
             calls += [CommandCall(key, {"pon": p}) for p in body.pon]
-        elif placeholders:
+        elif scope is None:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 f"'{key}' necesita parámetros que esta consulta no admite",
@@ -176,6 +198,66 @@ def _calls_for(
         else:
             calls.append(CommandCall(key))
     return calls
+
+
+@router.get("/{olt_id}/commands", response_model=list[CommandOut])
+async def list_commands(olt_id: UUID, ctx: Tenant) -> list[CommandOut]:
+    """Lecturas que acepta ``/queries`` para esta OLT, con la sintaxis de su modelo y firmware."""
+    ctx.require("olt:read")
+    async with ctx.session() as session:
+        olt = await _get_olt(session, olt_id)
+        driver_key, model, firmware = olt.driver, olt.model, olt.firmware
+    driver = get_driver(driver_key)
+    commands = []
+    for base in driver.read_only_catalog():
+        template = driver.command(base.key, model, firmware)
+        scope = query_scope(template)
+        if scope is not None:
+            commands.append(
+                CommandOut(
+                    key=template.key,
+                    command=template.template,
+                    scope=scope,
+                    verified=template.verified,
+                    parsed=template.key in PARSERS,
+                    notes=template.notes,
+                )
+            )
+    return commands
+
+
+@router.get("/{olt_id}/plans", response_model=list[PlanSummary])
+async def list_plans(
+    olt_id: UUID, ctx: Tenant, limit: Annotated[int, Query(ge=1, le=100)] = 20
+) -> list[PlanSummary]:
+    """Las consultas más recientes de la OLT, sin su resultado (se pide con ``/v1/plans``)."""
+    ctx.require("olt:read")
+    async with ctx.session() as session:
+        await _get_olt(session, olt_id)
+        rows = await session.execute(
+            select(
+                PlanRun.id,
+                PlanRun.status,
+                PlanRun.requested_by,
+                PlanRun.calls,
+                PlanRun.created_at,
+                PlanRun.finished_at,
+            )
+            .where(PlanRun.olt_id == olt_id)
+            .order_by(PlanRun.created_at.desc())
+            .limit(limit)
+        )
+        return [
+            PlanSummary(
+                plan_id=row.id,
+                status=row.status,
+                requested_by=row.requested_by,
+                commands=list(dict.fromkeys(call["key"] for call in row.calls)),
+                created_at=row.created_at,
+                finished_at=row.finished_at,
+            )
+            for row in rows
+        ]
 
 
 @router.post("/{olt_id}/queries", response_model=PlanOut, status_code=status.HTTP_202_ACCEPTED)

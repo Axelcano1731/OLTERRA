@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from ipaddress import IPv4Address
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -50,13 +50,41 @@ class OltOut(BaseModel):
     _ips = field_validator("real_ip", "nat_ip", mode="before")(_ip_text)
 
 
+class TenantOut(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+
+
+class MeOut(BaseModel):
+    """Quién llama: el ISP y la llave. La interfaz lo usa para saludar y ocultar acciones."""
+
+    tenant: TenantOut
+    key_name: str
+    scopes: list[str]
+
+
+class CommandOut(BaseModel):
+    key: str
+    command: str = Field(description="Como se envía a esta OLT (con sus overrides de modelo)")
+    scope: Literal["olt", "pon", "onu"] = Field(
+        description="Qué pide la consulta: nada, al menos un PON o al menos un PON:ONU"
+    )
+    verified: bool = Field(description="Validado con una captura de laboratorio")
+    parsed: bool = Field(description="La salida se interpreta en datos, no solo texto")
+    notes: str = ""
+
+
 class QueryRequest(BaseModel):
     commands: list[str] = Field(
         min_length=1, max_length=40, description="Llaves del catálogo de solo lectura"
     )
-    pon: list[int] = Field(default_factory=list, description="PON para los comandos por puerto")
+    # Topes para que una consulta no se vuelva un plan de miles de comandos.
+    pon: list[int] = Field(
+        default_factory=list, max_length=16, description="PON para los comandos por puerto"
+    )
     onu: list[str] = Field(
-        default_factory=list, description="Muestras PON:ONU para comandos por ONU"
+        default_factory=list, max_length=64, description="Muestras PON:ONU para comandos por ONU"
     )
 
 
@@ -67,6 +95,17 @@ class PlanOut(BaseModel):
     created_at: datetime
     finished_at: datetime | None = None
     result: dict[str, Any] | None = None
+
+
+class PlanSummary(BaseModel):
+    """Un plan sin su resultado (que puede traer una running-config entera)."""
+
+    plan_id: UUID
+    status: str
+    requested_by: str
+    commands: list[str] = Field(description="Llaves del catálogo, en orden y sin repetir")
+    created_at: datetime
+    finished_at: datetime | None = None
 
 
 class RouterCreate(BaseModel):
@@ -139,8 +178,22 @@ class ReconRequest(BaseModel):
     customers: list[ReconCustomer] = Field(default_factory=list, max_length=200_000)
 
 
-class ReconOut(BaseModel):
+class ReconFile(BaseModel):
+    kind: Literal["onus", "secrets", "sessions", "customers"]
+    name: str
+    records: int
+
+
+class ReconSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     created_at: datetime
+    requested_by: str
+    source: Literal["api", "upload", "demo"]
+    files: list[ReconFile]
     counts: dict[str, int]
+
+
+class ReconOut(ReconSummary):
     findings: list[dict[str, Any]]

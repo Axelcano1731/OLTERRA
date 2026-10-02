@@ -5,6 +5,7 @@
 ## Requisitos
 
 - Python 3.12 o superior (probado con 3.13).
+- Node 22.12 o superior para la interfaz (`web/`); CI usa Node 24.
 - Para las pruebas de integración: PostgreSQL 17 + PostGIS y NATS con JetStream. Con Docker,
   `docker compose`; sin Docker (Windows), `scripts/servicios-locales.ps1`.
 
@@ -46,6 +47,13 @@ PostgreSQL queda en 127.0.0.1:55432 (usuario `postgres` sin clave, solo local) y
 
 Sin las variables, las pruebas que las necesitan se saltan (no fallan). En CI corren todas.
 
+La interfaz tiene las suyas (ver [INTERFAZ.md](INTERFAZ.md)):
+
+```powershell
+cd web
+npm run lint; npm run format:check; npm run typecheck; npm test; npm run build
+```
+
 ## Variables de entorno
 
 Ver `.env.example`. Las importantes:
@@ -78,7 +86,14 @@ $env:OLTERRA_MASTER_KEY = (.venv\Scripts\olterra-admin generar-llave-maestra)
 # 3. Ejecutor y una OLT simulada
 .venv\Scripts\olterra-executor
 .venv\Scripts\python -m olterra.devtools.vsol_sim --puerto 2222
+
+# 4. Interfaz (otra terminal): entra con la llave del paso 1
+cd web; npm install; npm run dev     # http://localhost:5173
 ```
+
+Con el simulador, la OLT se da de alta con IP `127.0.0.1`, puerto SSH `2222`, usuario
+`admin` y clave `olterra-sim`. El simulador no conoce todos los comandos: los que no, salen
+como "Falló" con su salida, que es justo lo que pasa con un firmware distinto.
 
 La base `olterra` tiene que existir con los roles de `deploy/postgres/init.sql` (con Docker
 lo hace la imagen; con el script local, correr esas sentencias una vez como `postgres`).
@@ -115,6 +130,7 @@ src/olterra/
   api/                 FastAPI
   devtools/            simulador de OLT y datos de demo
 migrations/            Alembic (el esquema manda aquí)
+web/                   interfaz (Vue 3 + Vite + Tailwind): api/, lib/, components/, views/
 ```
 
 ## Convenciones
