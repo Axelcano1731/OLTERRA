@@ -112,7 +112,6 @@ services:
       - "443:443/udp"
     environment:
       OLTERRA_DOMINIO: ${OLTERRA_DOMINIO}
-      OLTERRA_ACME_EMAIL: ${OLTERRA_ACME_EMAIL}
     volumes:
       - caddy_data:/data
       - caddy_config:/config

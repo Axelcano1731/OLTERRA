@@ -50,7 +50,7 @@ llave maestra no llega al ejecutor.
 ```bash
 git clone https://github.com/Axelcano1731/OLTERRA.git /opt/olterra
 cd /opt/olterra/deploy/produccion
-./olterra.sh instalar olterra.tuisp.co admin@tuisp.co
+./olterra.sh instalar olterra.tuisp.co
 ```
 
 `instalar`:
@@ -58,7 +58,8 @@ cd /opt/olterra/deploy/produccion
 1. Genera `.env` con permisos 600: claves de PostgreSQL al azar, **llave maestra** de la
    bóveda y par de llaves del ejecutor (con `olterra-admin`). Nunca pisa un `.env` existente.
 2. Baja las imágenes de GHCR (`ghcr.io/axelcano1731/olterra-api` y `olterra-web`, etiqueta
-   `main`). Con `OLTERRA_CONSTRUIR=1` las construye en el servidor desde el repo.
+   `main`). Con `OLTERRA_CONSTRUIR=1` las construye en el servidor desde el repo: queda en
+   `.env` y `actualizar` trae el código nuevo con `git pull`.
 3. Arranca la base (que crea sus roles en el primer arranque), corre las migraciones y
    levanta todo.
 

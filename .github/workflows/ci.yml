@@ -89,7 +89,7 @@ jobs:
       - name: Scripts (shellcheck)
         run: shellcheck olterra.sh respaldo.sh
       - name: Instalar
-        run: ./olterra.sh instalar localhost ci@olterra.co
+        run: ./olterra.sh instalar localhost
       - name: Humo
         run: |
           set -euo pipefail

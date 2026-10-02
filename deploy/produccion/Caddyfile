@@ -1,9 +1,7 @@
 # Olterra: la interfaz y la API bajo un mismo dominio, con HTTPS automático (Let's Encrypt).
-# OLTERRA_DOMINIO y OLTERRA_ACME_EMAIL llegan del .env (ver compose.yml). OLTERRA_API y
-# OLTERRA_WEB_RAIZ solo cambian para probar este archivo fuera de Docker.
-{
-	email {$OLTERRA_ACME_EMAIL}
-}
+# OLTERRA_DOMINIO llega del .env (ver compose.yml). OLTERRA_API y OLTERRA_WEB_RAIZ solo
+# cambian para probar este archivo fuera de Docker. Sin correo de ACME: Let's Encrypt ya no
+# manda avisos de vencimiento y Caddy renueva solo.
 
 {$OLTERRA_DOMINIO} {
 	encode zstd gzip

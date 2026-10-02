@@ -5,7 +5,8 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
-RUN npm run build
+# Solo Vite: los tipos (vue-tsc) los revisa CI. Así compila en un droplet de 1 GB.
+RUN npx vite build
 
 FROM caddy:2.11-alpine
 COPY deploy/produccion/Caddyfile /etc/caddy/Caddyfile

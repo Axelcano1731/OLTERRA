@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Olterra en producción. Se corre en el servidor, desde deploy/produccion/.
 #
-#   ./olterra.sh instalar <dominio> <correo>  primera vez: claves nuevas en .env, base,
+#   ./olterra.sh instalar <dominio>           primera vez: claves nuevas en .env, base,
 #                                             migraciones y todo arriba
 #   ./olterra.sh actualizar                   respaldo, imágenes nuevas, migraciones, reinicio
 #   ./olterra.sh isp <slug> "<Nombre>"        crea un ISP y su primera llave de API
@@ -11,16 +11,15 @@
 #   ./olterra.sh estado                       contenedores y /health
 #   ./olterra.sh registros [servicio]         últimos registros
 #
-# Con OLTERRA_CONSTRUIR=1 las imágenes se construyen aquí desde el repo en vez de bajarlas
-# de GHCR (sin registro, o para probar una rama).
+# Con OLTERRA_CONSTRUIR=1 (al instalar; queda en .env) las imágenes se construyen aquí desde
+# el repo en vez de bajarlas de GHCR, y `actualizar` trae el código nuevo con git pull.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 SERVICIOS=(api executor web backup)
 REQUERIDAS=(
-    OLTERRA_DOMINIO OLTERRA_ACME_EMAIL POSTGRES_PASSWORD OLTERRA_OWNER_PASSWORD
-    OLTERRA_APP_PASSWORD OLTERRA_MASTER_KEY OLTERRA_EXECUTOR_PRIVATE_KEY
-    OLTERRA_EXECUTOR_PUBLIC_KEY
+    OLTERRA_DOMINIO POSTGRES_PASSWORD OLTERRA_OWNER_PASSWORD OLTERRA_APP_PASSWORD
+    OLTERRA_MASTER_KEY OLTERRA_EXECUTOR_PRIVATE_KEY OLTERRA_EXECUTOR_PUBLIC_KEY
 )
 
 die() {
@@ -47,7 +46,7 @@ poner() {
 }
 
 verificar_env() {
-    [ -f .env ] || die "no hay .env: primero ./olterra.sh instalar <dominio> <correo>"
+    [ -f .env ] || die "no hay .env: primero ./olterra.sh instalar <dominio>"
     local falta=() nombre
     for nombre in "${REQUERIDAS[@]}"; do
         [ -n "$(leer "$nombre")" ] || falta+=("$nombre")
@@ -55,9 +54,13 @@ verificar_env() {
     [ ${#falta[@]} -eq 0 ] || die "faltan en .env: ${falta[*]}"
 }
 
+construye_aqui() { [ "${OLTERRA_CONSTRUIR:-$(leer OLTERRA_CONSTRUIR)}" = "1" ]; }
+
 imagenes() {
-    if [ "${OLTERRA_CONSTRUIR:-0}" = "1" ]; then
-        compose build api web
+    if construye_aqui; then
+        # Una a la vez: en un droplet chico las dos juntas no caben en memoria.
+        compose build api
+        compose build web
     else
         compose pull --quiet
     fi
@@ -70,12 +73,9 @@ arrancar() {
 }
 
 instalar() {
-    local dominio="${1:-}" correo="${2:-}"
-    if [ -z "$dominio" ] || [ -z "$correo" ]; then
-        die "uso: ./olterra.sh instalar <dominio> <correo>"
-    fi
+    local dominio="${1:-}"
+    [ -n "$dominio" ] || die "uso: ./olterra.sh instalar <dominio>"
     [[ "$dominio" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "dominio inválido: $dominio"
-    [[ "$correo" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || die "correo inválido: $correo"
     [ ! -e .env ] || die ".env ya existe y no se pisan claves. Para actualizar: ./olterra.sh actualizar"
     requisitos
 
@@ -85,8 +85,8 @@ instalar() {
 # Tiene TODAS las claves: no va a git ni se comparte. Guárdalo también en un gestor de
 # claves: sin OLTERRA_MASTER_KEY las credenciales guardadas no se pueden leer.
 OLTERRA_DOMINIO=$dominio
-OLTERRA_ACME_EMAIL=$correo
 OLTERRA_VERSION=${OLTERRA_VERSION:-main}
+OLTERRA_CONSTRUIR=${OLTERRA_CONSTRUIR:-0}
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 OLTERRA_OWNER_PASSWORD=$(openssl rand -hex 24)
 OLTERRA_APP_PASSWORD=$(openssl rand -hex 24)
@@ -134,6 +134,10 @@ actualizar() {
     if compose ps --status running --services 2>/dev/null | grep -qx backup; then
         echo "Respaldo antes de actualizar…"
         respaldo
+    fi
+    if construye_aqui && git -C ../.. rev-parse --git-dir >/dev/null 2>&1; then
+        echo "Código nuevo…"
+        git -C ../.. pull --ff-only
     fi
     imagenes
     arrancar
