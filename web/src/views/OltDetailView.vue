@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { LoaderCircle, Pencil, Play, RefreshCw, Terminal } from '@lucide/vue'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { getOlt, listCommands, listPlans, queryOlt, type CommandScope } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
+import DeleteOlt from '@/components/DeleteOlt.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PlanResult from '@/components/PlanResult.vue'
@@ -18,6 +19,8 @@ import { can } from '@/session'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
+const router = useRouter()
+const deleteError = ref<string | null>(null)
 
 const olt = useAsync(() => getOlt(props.id))
 const commands = useAsync(() => listCommands(props.id))
@@ -145,8 +148,21 @@ watch(waiting, (now, before) => {
           <Pencil class="size-4" />
           Editar
         </RouterLink>
+        <DeleteOlt
+          :olt="olt.data.value"
+          @deleted="
+            (gone) =>
+              router.push({
+                name: 'olts',
+                query: { borrada: gone.name, router: gone.router_id ? '1' : '0' },
+              })
+          "
+          @failed="deleteError = $event"
+        />
       </template>
     </PageHeader>
+
+    <AlertBox v-if="deleteError" tone="danger" class="mb-6">{{ deleteError }}</AlertBox>
 
     <AlertBox v-if="justEdited" tone="success" title="OLT actualizada" class="mb-6">
       Los cambios quedaron guardados.

@@ -30,6 +30,9 @@
   servidor mira `main`, espera al CI en verde y se actualiza solo, sin llaves en GitHub ni
   puertos nuevos. Un commit que falla no se reintenta; las manuales y la automática comparten
   un candado. `./olterra.sh rama <rama>` pasa el servidor a seguir otra rama.
+- Eliminar OLT (`DELETE /v1/olts/{id}`): borra la OLT, su credencial cifrada y su historial de
+  consultas; la bitácora conserva quién la borró y cómo era. En la lista de OLT, **Editar** y
+  **Eliminar** en cada fila (antes Editar solo estaba dentro del detalle).
 - Editar OLT (`PATCH /v1/olts/{id}` y su pantalla): modelo, firmware, IP, puertos y
   credenciales, incluida la clave de enable. Las claves se vuelven a cifrar; la bitácora anota
   cuáles cambiaron, nunca su valor.

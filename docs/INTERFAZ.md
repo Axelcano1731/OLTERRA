@@ -12,7 +12,7 @@ por HTTP; no tiene lógica de negocio propia.
 |---|---|---|
 | `/conectar` | Entrar con la llave de API del ISP | `GET /v1/me` |
 | `/` | Panel: cuántas OLT, routers y la última conciliación; primeros pasos; estado de la plataforma | `/health`, listas |
-| `/olts`, `/olts/nueva` | OLT del ISP y alta (credenciales cifradas, nunca se vuelven a mostrar). Con una OLT nueva se dejan usuario y clave vacíos y el servidor usa los de fábrica (aviso para cambiarlos); la clave de enable la pone el cliente | `GET/POST /v1/olts`, `GET /v1/olts/defaults` |
+| `/olts`, `/olts/nueva` | OLT del ISP, con **Editar** y **Eliminar** en cada fila (el borrado pide confirmación y dice si hay que rotar el MikroTik), y alta (credenciales cifradas, nunca se vuelven a mostrar). Con una OLT nueva se dejan usuario y clave vacíos y el servidor usa los de fábrica (aviso para cambiarlos); la clave de enable la pone el cliente | `GET/POST /v1/olts`, `GET /v1/olts/defaults`, `DELETE /v1/olts/{id}` |
 | `/olts/:id/editar` | Corregir modelo, firmware, IP, puertos y credenciales (incluida la de enable); las claves se vuelven a cifrar y la bitácora solo anota cuáles cambiaron | `PATCH /v1/olts/{id}` |
 | `/olts/:id` | Detalle: consultas de solo lectura con atajos, resultado interpretado, historial | `/v1/olts/{id}/commands`, `/queries`, `/plans`, `/v1/plans/{id}` |
 | `/tunel` | MikroTik en el túnel: alta con su versión de RouterOS (7 → WireGuard, 6 → SSTP), rotación y cambio de versión; el script se muestra una sola vez | `/v1/tunnel/routers` |
