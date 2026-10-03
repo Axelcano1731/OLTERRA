@@ -160,6 +160,43 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
         ) from exc
 
 
+@router.delete("/{olt_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_olt(olt_id: UUID, ctx: Tenant) -> None:
+    """Borra la OLT, su credencial cifrada y su historial de consultas.
+
+    Quedan sus ONU y planes borrados en cascada; la bitácora conserva quién la borró y cómo era.
+    Si estaba detrás de un router del túnel, hay que rotar ese router para que su script deje de
+    publicarla.
+    """
+    ctx.require("olt:write")
+    async with ctx.session() as session:
+        olt = await _get_olt(session, olt_id)
+        credential = (
+            await session.get(CredentialRow, olt.credential_id) if olt.credential_id else None
+        )
+        before = {
+            "name": olt.name,
+            "model": olt.model,
+            "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
+            "nat_ip": str(olt.nat_ip).split("/")[0] if olt.nat_ip else None,
+            "router_id": str(olt.router_id) if olt.router_id else None,
+        }
+        await session.delete(olt)
+        await session.flush()
+        if credential is not None:
+            await session.delete(credential)
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="olt.delete",
+            target_type="olt",
+            target_id=str(olt_id),
+            before=before,
+            source_ip=ctx.client_ip,
+        )
+
+
 @router.patch("/{olt_id}", response_model=OltOut)
 async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -> Olt:
     """Corrige la OLT: modelo, firmware, IP, puertos o credenciales (se vuelven a cifrar).

@@ -411,6 +411,51 @@ def test_olt_commands_and_plan_history(env: Env) -> None:
         assert other.status_code == 404
 
 
+def test_delete_olt_removes_its_credential_and_leaves_a_trace(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.20")
+    # Otro ISP no puede borrarla (ni saber que existe).
+    other = env.client.delete(f"/v1/olts/{olt['id']}", headers=env.headers(env.key_b))
+    assert other.status_code == 404
+    assert env.client.get(f"/v1/olts/{olt['id']}", headers=env.headers()).status_code == 200
+
+    async def credentials_and_audit() -> tuple[int, list[dict[str, Any]]]:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session:
+                count = (
+                    await session.execute(
+                        select(Credential.id).where(Credential.tenant_id == env.tenant_a)
+                    )
+                ).all()
+                audits = (
+                    (
+                        await session.execute(
+                            select(AuditLog.before).where(
+                                AuditLog.tenant_id == env.tenant_a,
+                                AuditLog.action == "olt.delete",
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            return len(count), list(audits)
+        finally:
+            await engine.dispose()
+
+    before_credentials, _ = asyncio.run(credentials_and_audit())
+    deleted = env.client.delete(f"/v1/olts/{olt['id']}", headers=env.headers())
+    assert deleted.status_code == 204 and deleted.content == b""
+    assert env.client.get(f"/v1/olts/{olt['id']}", headers=env.headers()).status_code == 404
+    assert env.client.delete(f"/v1/olts/{olt['id']}", headers=env.headers()).status_code == 404
+
+    after_credentials, audits = asyncio.run(credentials_and_audit())
+    assert after_credentials == before_credentials - 1  # su credencial cifrada también se fue
+    [trace] = audits
+    assert trace["name"] == olt["name"] and trace["real_ip"] == "10.0.0.20"
+    assert "password" not in json.dumps(trace)
+
+
 def test_scopes_are_enforced(env: Env) -> None:
     async def read_only_key() -> str:
         engine = create_engine(env.pg.owner_url)

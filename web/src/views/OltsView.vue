@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { Plus, Server } from '@lucide/vue'
+import { Pencil, Plus, Server } from '@lucide/vue'
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
-import { listOlts } from '@/api'
+import { listOlts, type Olt } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
+import DeleteOlt from '@/components/DeleteOlt.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -12,7 +15,23 @@ import { oltStatus } from '@/lib/labels'
 import { useAsync } from '@/lib/useAsync'
 import { can } from '@/session'
 
-const { data: olts, error, loading } = useAsync(listOlts)
+const route = useRoute()
+const { data: olts, error, loading, reload } = useAsync(listOlts)
+
+// Qué se borró (aquí o desde el detalle) y si hay que rotar su MikroTik.
+const deleted = ref<{ name: string; viaRouter: boolean } | null>(
+  typeof route.query.borrada === 'string'
+    ? { name: route.query.borrada, viaRouter: route.query.router === '1' }
+    : null,
+)
+const deleteError = ref<string | null>(null)
+const canWrite = computed(() => can('olt:write'))
+
+async function onDeleted(olt: Olt): Promise<void> {
+  deleteError.value = null
+  deleted.value = { name: olt.name, viaRouter: olt.router_id !== null }
+  await reload()
+}
 </script>
 
 <template>
@@ -25,6 +44,15 @@ const { data: olts, error, loading } = useAsync(listOlts)
     </template>
   </PageHeader>
 
+  <AlertBox v-if="deleted" tone="success" :title="`${deleted.name} eliminada`" class="mb-4">
+    Se borraron su credencial y su historial de consultas.
+    <template v-if="deleted.viaRouter">
+      Estaba detrás de un MikroTik: rota sus llaves en
+      <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>
+      para que su script deje de publicarla.
+    </template>
+  </AlertBox>
+  <AlertBox v-if="deleteError" tone="danger" class="mb-4">{{ deleteError }}</AlertBox>
   <AlertBox v-if="error" tone="danger">{{ error }}</AlertBox>
   <LoadingBlock v-else-if="loading && !olts" />
   <EmptyState
@@ -50,6 +78,7 @@ const { data: olts, error, loading } = useAsync(listOlts)
           <th class="px-4 py-2.5">IP en el túnel</th>
           <th class="px-4 py-2.5">Estado</th>
           <th class="px-4 py-2.5">Alta</th>
+          <th class="px-4 py-2.5"><span class="sr-only">Acciones</span></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-line">
@@ -72,6 +101,19 @@ const { data: olts, error, loading } = useAsync(listOlts)
           </td>
           <td class="px-4 py-3 text-muted" :title="formatDateTime(olt.created_at)">
             {{ timeAgo(olt.created_at) }}
+          </td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            <template v-if="canWrite">
+              <RouterLink
+                :to="{ name: 'olt-edit', params: { id: olt.id } }"
+                class="btn-ghost px-2 py-1 text-xs"
+                :aria-label="`Editar ${olt.name}`"
+              >
+                <Pencil class="size-3.5" />
+                Editar
+              </RouterLink>
+              <DeleteOlt compact :olt="olt" @deleted="onDeleted" @failed="deleteError = $event" />
+            </template>
           </td>
         </tr>
       </tbody>

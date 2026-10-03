@@ -24,6 +24,8 @@ export const getMe = (key?: string) => api<Me>('/v1/me', { key })
 export const listOlts = () => api<Olt[]>('/v1/olts')
 export const getOlt = (id: string) => api<Olt>(`/v1/olts/${encodeURIComponent(id)}`)
 export const createOlt = (body: OltCreate) => api<Olt>('/v1/olts', { json: body })
+export const deleteOlt = (id: string) =>
+  api<void>(`/v1/olts/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const updateOlt = (id: string, body: OltUpdate) =>
   api<Olt>(`/v1/olts/${encodeURIComponent(id)}`, { method: 'PATCH', json: body })
 export const listCommands = (id: string) =>
