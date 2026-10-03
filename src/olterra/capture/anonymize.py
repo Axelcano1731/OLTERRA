@@ -21,8 +21,12 @@ from olterra.identifiers import normalize_gpon_serial
 _SERIAL = re.compile(r"\b([A-Z0-9]{4})([0-9A-Fa-f]{8})\b")
 _SERIAL_HEX = re.compile(r"\b(?:0x)?[0-9A-Fa-f]{16}\b")
 _MAC = re.compile(
-    r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b|\b[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\b"
+    r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b"
+    r"|\b[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\b"
+    # V1600G0-B V1.4.8R (tabla de MAC por PON): tres grupos de cuatro con dos puntos.
+    r"|\b(?:[0-9A-Fa-f]{4}:){2}[0-9A-Fa-f]{4}\b"
 )
+_MAC_GROUPS_OF_FOUR = re.compile(r"(?:[0-9A-Fa-f]{4}:){2}[0-9A-Fa-f]{4}")
 
 
 class Anonymizer:
@@ -53,6 +57,8 @@ class Anonymizer:
         digits = re.sub(r"[^0-9A-Fa-f]", "", match.group(0)).upper()
         # Prefijo localmente administrado (02) para que nunca coincida con un fabricante real.
         fake = "02" + self._digest("mac", digits, 10)
+        if _MAC_GROUPS_OF_FOUR.fullmatch(match.group(0)):
+            return ":".join(fake[i : i + 4] for i in range(0, 12, 4)).lower()
         separator = ":" if ":" in match.group(0) else "-" if "-" in match.group(0) else None
         if separator is None:
             return ".".join(fake[i : i + 4] for i in range(0, 12, 4)).lower()

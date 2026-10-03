@@ -36,11 +36,22 @@
 - Editar OLT (`PATCH /v1/olts/{id}` y su pantalla): modelo, firmware, IP, puertos y
   credenciales, incluida la clave de enable. Las claves se vuelven a cifrar; la bitácora anota
   cuáles cambiaron, nunca su valor.
+- Alta de OLT con la clave de fábrica de VSOL: si el cliente deja usuario y clave vacíos, el
+  servidor usa `OLTERRA_VSOL_DEFAULT_USERNAME/PASSWORD` (solo en `.env`) y avisa que conviene
+  cambiarla; `GET /v1/olts/defaults` dice si está configurada sin revelarla. La clave de enable
+  la sigue pidiendo (es la que configura el cliente).
+- Driver VSOL V1600G0-B V1.4.8R validado en laboratorio: comandos propios de `onu.optical`,
+  `onu.description` y `pon.statistics` (el manual de otros modelos no aplica), nuevos
+  `onu.state` y `onu.distance`, captura con `--modelo/--firmware-olt` y captura anonimizada en
+  `tests/fixtures/vsol-gpon/V1600G0-B`. Ver `docs/DRIVERS_VSOL.md`.
 - Alta de OLT: el modelo se escribe como sale en la web de la OLT (sugerencias con V1600G0-B)
   y el driver lo compara sin guiones (V1600G1-B = V1600G1B).
 
 ### Corregido
 
+- La salida de la OLT perdía columnas: la V1600G0-B coloca cada columna con el cursor
+  (`` + `ESC[nC`) y el normalizador las pisaba, así que `show onu info`, `state` y
+  `rx_power` no se interpretaban. Ahora se emula el cursor.
 - `olterra.sh` ya no puede ejecutar basura al final de `actualizar`: el `git pull` que trae una
   versión nueva del propio script cambiaba el archivo mientras bash lo leía.
 

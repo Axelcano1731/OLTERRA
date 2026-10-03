@@ -9,11 +9,13 @@ y su parser la reconoce.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from olterra.drivers.base import Access, CliMode, CommandOverride, CommandTemplate
 from olterra.drivers.vsol_gpon.sources import (
     INFERRED,
+    LAB_G0B,
     LIBRENMS_19368,
     PUBLIC_GUIDES,
     manual,
@@ -91,6 +93,9 @@ _COMMANDS = [
     _c("onu.capability", "show onu {onu} capability", PON, R, manual("19.3.12")),
     _c("onu.service_config", "show running-config onu {onu}", PON, R, manual("19.3.11")),
     _c("onu.description", "show onu {onu} description", PON, R, manual("19.2.7")),
+    # Los dos de abajo no están en el manual v2.1: salieron de la ayuda de la V1600G0-B.
+    _c("onu.state", "show onu state", PON, R, LAB_G0B, notes="Estado de todas las ONU del PON"),
+    _c("onu.distance", "show onu {onu} distance", PON, R, LAB_G0B),
     # --- Escrituras sobre ONU --------------------------------------------------------
     _c(
         "onu.authorize",
@@ -216,9 +221,37 @@ _COMMANDS = [
     _c("user.delete", "user delete {username}", CONFIG, W, manual("23.6")),
 ]
 
-COMMANDS: dict[str, CommandTemplate] = {command.key: command for command in _COMMANDS}
+# Comandos que respondieron en la captura de la V1600G0-B V1.4.8R (tests/fixtures). Con la
+# sintaxis del catálogo: los que ahí fallaron (profile.list, pon.statistics, onu.optical,
+# onu.description) no están aquí; su sintaxis de ese modelo va como override, abajo.
+_LAB_VERIFIED = {
+    "system.version", "system.running_time", "system.cpu", "system.memory", "system.fan",
+    "system.running_config", "system.startup_config", "system.alarm_config",
+    "system.syslog_major", "system.users", "interfaces.brief", "snmp.communities",
+    "snmp.trap_hosts", "mac.by_pon", "pon.info", "pon.optical", "onu.autolearn",
+    "onu.autofind", "onu.autofind_detail", "onu.list", "onu.rx_power_all", "onu.detail",
+    "onu.capability", "onu.service_config", "onu.state", "onu.distance",
+}  # fmt: skip
+
+COMMANDS: dict[str, CommandTemplate] = {
+    command.key: dataclasses.replace(command, verified=True)
+    if command.key in _LAB_VERIFIED
+    else command
+    for command in _COMMANDS
+}
 
 OVERRIDES = [
+    # V1600G0-B V1.4.8R: el manual v2.1 escribe otras palabras (la ayuda '?' de la OLT dice
+    # optical_info, desc y 'show pon <n> statistics').
+    CommandOverride(
+        "V1600G0*", "*", "onu.optical", "show onu {onu} optical_info", LAB_G0B, verified=True
+    ),
+    CommandOverride(
+        "V1600G0*", "*", "onu.description", "show onu {onu} desc", LAB_G0B, verified=True
+    ),
+    CommandOverride(
+        "V1600G0*", "*", "pon.statistics", "show pon {pon} statistics", LAB_G0B, verified=True
+    ),
     CommandOverride("V1600GS*", "*", "config.save", "write memory", LIBRENMS_19368),
     CommandOverride(
         "V1600GS*",

@@ -1,0 +1,20 @@
+----------onu 2 running-config----------
+onu add 2 profile default sn GPON0CE43515
+onu 2 desc CLIENTE-PRUEBA
+onu 2 profile onu default
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 111
+onu 2 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu 2 pri equid VSOLV824
+onu 2 pri wan_adv add route
+onu 2 pri wan_adv index 1 route mode internet mtu 1492
+onu 2 pri wan_adv index 1 route ipv4 pppoe proxy disable user usuario-pppoe pwd ****** mode auto nat enable
+onu 2 pri wan_adv index 1 vlan tag wan_vlan 111 0
+onu 2 pri wan_adv index 1 bind lan1 lan2 lan3 lan4 ssid1 ssid2 ssid3 ssid4 ssid5 ssid6 ssid7 ssid8
+onu 2 pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 2 pri acl telnet control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 2 pri acl ftp control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 2 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 2 pri acl https control enable lan enable wan enable ipv4_control disable ipv6_control disable

@@ -1,0 +1,21 @@
+----------onu 3 running-config----------
+onu add 3 profile default sn GPONE5197ED0
+onu 3 desc CLIENTE-PRUEBA
+onu 3 profile onu default
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 111
+onu 3 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu 3 pri equid VSOLV422
+onu 3 pri wan_adv add route
+onu 3 pri wan_adv index 1 route mode internet mtu 1492
+onu 3 pri wan_adv index 1 route ipv4 pppoe proxy disable user usuario-pppoe pwd ****** mode auto nat enable
+onu 3 pri wan_adv index 1 vlan tag wan_vlan 111 0
+onu 3 pri wan_adv index 1 bind lan1 lan2 ssid1
+onu 3 pri wifi_ssid 1 name LATIN_BURGER hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key EJR2025# rekey_interval 0
+onu 3 pri firewall level low
+onu 3 pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 3 pri acl telnet control enable lan enable wan enable ipv4_control disable ipv6_control disable port 23
+onu 3 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable port 80
+onu 3 pri acl https control enable lan enable wan enable ipv4_control disable ipv6_control disable port 443

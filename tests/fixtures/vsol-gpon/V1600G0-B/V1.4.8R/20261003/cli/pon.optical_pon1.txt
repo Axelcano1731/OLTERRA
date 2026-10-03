@@ -1,0 +1,4 @@
+Temperature:	54.824 C
+Voltage:	3.270 V
+TxBias:		30.150 mA
+TxPower:	9.608 dBm

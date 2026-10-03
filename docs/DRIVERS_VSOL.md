@@ -1,11 +1,46 @@
 # Driver VSOL GPON
 
-> Última actualización: 2026-10-01 · Código: `src/olterra/drivers/vsol_gpon/`
+> Última actualización: 2026-10-03 · Código: `src/olterra/drivers/vsol_gpon/`
 
-Cubre la serie V1600G (V1600G1, V1600G1B, V1600G2, V1600GS…). **Ningún comando está
-verificado en laboratorio todavía**: la sintaxis sale del manual público y de fuentes
-abiertas, y cada uno lleva `verified=False` hasta que una captura real de ese modelo y
-firmware lo confirme (ver [LABORATORIO.md](LABORATORIO.md)).
+Cubre la serie V1600G (V1600G0-B, V1600G1, V1600G1B, V1600G2, V1600GS…). La sintaxis sale
+del manual público y de fuentes abiertas, y cada comando lleva `verified=False` hasta que una
+captura real lo confirme (ver [LABORATORIO.md](LABORATORIO.md)). **Desde el 2026-10-03 hay una
+captura real: V1600G0-B con firmware V1.4.8R** (`tests/fixtures/vsol-gpon/V1600G0-B/`), que
+verifica 26 comandos con la sintaxis del catálogo y 3 con la sintaxis propia de ese modelo
+(abajo). El resto, y todos los demás modelos, siguen sin verificar.
+
+## V1600G0-B V1.4.8R: lo que se aprendió en laboratorio (2026-10-03)
+
+**Sintaxis propia del modelo** (overrides en `commands.py`; el manual v2.1 usa otras palabras):
+
+| Llave | Manual | V1600G0-B V1.4.8R |
+|---|---|---|
+| `onu.optical` | `show onu {onu} optical-info` | `show onu {onu} optical_info` (guion bajo) |
+| `onu.description` | `show onu {onu} description` | `show onu {onu} desc` |
+| `pon.statistics` | `show pon statistics` | `show pon {pon} statistics` |
+
+**No existe en este firmware** `show profile {kind} all` (`profile.list`): los perfiles están
+en modo PON y como `show profile dba`, `show profile onu`, `show profile srv`… (con `id`,
+`name` o `running-config`). Queda para la fase 1 (plantillas de autorización).
+
+**La CLI posiciona las columnas con el cursor**: cada celda se imprime como `` + `ESC[<n>C`
+(vuelve al inicio y avanza `n` columnas). Quien borre las secuencias ANSI y trate cada ``
+como "sobrescribir desde el inicio" pierde todo menos la última celda. Olterra lo emula
+(`executor/cli.py`, `_render_line`). Los parsers de `show onu info`, `show onu state` y
+`show pon onu all rx-power` dependen de esto.
+
+**Otros hechos de esa OLT:**
+
+- `show version` trae `Olt Serial Number` y `Olt Device Model`: el serial también empieza con
+  `V`; el modelo es el segundo.
+- Los usuarios de la web y los de la CLI son distintos, y la clave de `enable` es otra más.
+- La descripción de cada ONU (el nombre del cliente) se ve en `show interface brief` y en
+  `show onu <n> desc`; en `show running-config onu <n>` (`onu.service_config`) viene además el
+  usuario PPPoE de la WAN, con la clave tapada (`pwd ******`). Es dato personal: las capturas
+  del repo lo reemplazan.
+- Comandos nuevos que la ayuda `?` mostró y que el catálogo todavía no usa: `show onu <n> ber`,
+  `show onu <n> statistics`, `show pon transceiver-info`, `show pon rx_power`.
+- Una OLT con 57 ONU respondió `show onu info` y `show onu state` en menos de un segundo.
 
 ## Fuentes
 
@@ -74,6 +109,8 @@ inyectar otro comando en la OLT.
 | `onu.capability` | `show onu {onu} capability` | PON | lectura | Manual v2.1 §19.3.12 |
 | `onu.service_config` | `show running-config onu {onu}` | PON | lectura | Manual v2.1 §19.3.11 |
 | `onu.description` | `show onu {onu} description` | PON | lectura | Manual v2.1 §19.2.7 |
+| `onu.state` | `show onu state` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
+| `onu.distance` | `show onu {onu} distance` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
 | `onu.authorize` | `onu add {onu} profile {profile} sn {serial}` | PON | escritura | Manual v2.1 §19.2.6 y ejemplo §19.4.7 |
 | `onu.delete` | `no onu {onu}` | PON | escritura | Inferido del patrón `no onu …`; confirmar |
 | `onu.reboot` | `onu {onu} reboot` | PON | escritura | Manual v2.1 §19.3.4 |

@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -15,6 +16,8 @@ from olterra.api.deps import State, Tenant
 from olterra.api.schemas import (
     CommandOut,
     OltCreate,
+    OltCreated,
+    OltDefaults,
     OltOut,
     OltUpdate,
     PlanOut,
@@ -62,6 +65,15 @@ async def _get_olt(session: Any, olt_id: UUID) -> Olt:
     return olt
 
 
+@router.get("/defaults", response_model=OltDefaults)
+async def olt_defaults(ctx: Tenant, state: State) -> OltDefaults:
+    """Si hay credenciales de fábrica para una OLT nueva. Nunca devuelve la clave."""
+    ctx.require("olt:read")
+    settings = state.settings
+    configured = settings.vsol_default_password is not None
+    return OltDefaults(username=settings.vsol_default_username, password_configured=configured)
+
+
 @router.get("", response_model=list[OltOut])
 async def list_olts(ctx: Tenant) -> list[Olt]:
     ctx.require("olt:read")
@@ -76,13 +88,31 @@ async def get_olt(olt_id: UUID, ctx: Tenant) -> Olt:
         return await _get_olt(session, olt_id)
 
 
-@router.post("", response_model=OltOut, status_code=status.HTTP_201_CREATED)
-async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
+def _login(body: OltCreate, state: State) -> tuple[str, SecretStr, bool]:
+    """Usuario y clave de la OLT; sin clave, los de fábrica del servidor (OLT nueva)."""
+    settings = state.settings
+    password = body.password
+    if password is not None and password.get_secret_value():
+        if not body.username:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Falta el usuario de la OLT")
+        return body.username, password, False
+    if settings.vsol_default_password is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Falta la clave de la OLT (este servidor no tiene una de fábrica configurada)",
+        )
+    username = body.username or settings.vsol_default_username
+    return username, settings.vsol_default_password, True
+
+
+@router.post("", response_model=OltCreated, status_code=status.HTTP_201_CREATED)
+async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> OltCreated:
     ctx.require("olt:write")
     _check_real_ip(state, body.real_ip)
+    username, password, used_default = _login(body, state)
     credential = Credential(
-        username=body.username,
-        password=body.password,
+        username=username,
+        password=password,
         enable_password=body.enable_password,
         snmp_community=body.snmp_community,
     )
@@ -149,11 +179,14 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> Olt:
                     "model": olt.model,
                     "nat_ip": olt.nat_ip,
                     "real_ip": olt.real_ip,
+                    "used_default_credentials": used_default,
                 },
                 source_ip=ctx.client_ip,
             )
             await session.refresh(olt)
-            return olt
+            return OltCreated(
+                **OltOut.model_validate(olt).model_dump(), used_default_credentials=used_default
+            )
     except IntegrityError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Ya existe una OLT con ese nombre o esa IP"

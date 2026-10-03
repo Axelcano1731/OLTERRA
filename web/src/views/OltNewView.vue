@@ -3,7 +3,7 @@ import { LoaderCircle, LockKeyhole, Save } from '@lucide/vue'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { createOlt, listRouters, type OltCreate } from '@/api'
+import { createOlt, getOltDefaults, listRouters, type OltCreate } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { errorText, useAsync } from '@/lib/useAsync'
@@ -17,6 +17,8 @@ const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]
 
 const router = useRouter()
 const routers = useAsync(listRouters)
+const defaults = useAsync(getOltDefaults)
+const factory = computed(() => defaults.data.value?.password_configured === true)
 
 const form = reactive({
   name: '',
@@ -59,8 +61,9 @@ const problems = computed(() => {
   }
   if (!port(form.sshPort)) found.sshPort = 'De 1 a 65535.'
   if (!port(form.snmpPort)) found.snmpPort = 'De 1 a 65535.'
-  if (!form.username.trim()) found.username = 'Falta el usuario.'
-  if (!form.password) found.password = 'Falta la clave.'
+  // Con clave de fábrica en el servidor se puede dejar vacío (OLT nueva); sin ella, es obligatoria.
+  if (!form.password && !factory.value) found.password = 'Falta la clave.'
+  if (form.password && !form.username.trim()) found.username = 'Falta el usuario.'
   const hasLat = form.latitude.trim() !== ''
   const hasLon = form.longitude.trim() !== ''
   if (hasLat || hasLon) {
@@ -86,8 +89,8 @@ function body(): OltCreate {
     real_ip: form.realIp.trim(),
     ssh_port: form.sshPort,
     snmp_port: form.snmpPort,
-    username: form.username.trim(),
-    password: form.password,
+    username: optional(form.username),
+    password: form.password || undefined,
     enable_password: form.enablePassword || undefined,
     snmp_community: form.snmpCommunity || undefined,
     latitude: form.latitude.trim() ? Number(form.latitude) : undefined,
@@ -102,7 +105,11 @@ async function submit(): Promise<void> {
   busy.value = true
   try {
     const olt = await createOlt(body())
-    await router.push({ name: 'olt', params: { id: olt.id }, query: { nueva: '1' } })
+    await router.push({
+      name: 'olt',
+      params: { id: olt.id },
+      query: { nueva: '1', ...(olt.used_default_credentials ? { fabrica: '1' } : {}) },
+    })
   } catch (caught) {
     error.value = errorText(caught)
   } finally {
@@ -222,23 +229,35 @@ async function submit(): Promise<void> {
         <h2 class="font-semibold">Credenciales</h2>
       </div>
       <p class="mt-1 text-sm text-muted">
-        Usa un usuario propio para Olterra, no el de fábrica: la clave de fábrica está en el manual
-        público.
+        <template v-if="factory">
+          Si la OLT es nueva (nunca se ha entrado por SSH), deja usuario y clave vacíos: Olterra usa
+          los de fábrica ({{ defaults.data.value?.username }}). Si ya la configuraste, escribe los
+          tuyos.
+        </template>
+        <template v-else>
+          Usa un usuario propio para Olterra, no el de fábrica: la clave de fábrica está en el
+          manual público.
+        </template>
       </p>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
-          <label for="username" class="label">Usuario</label>
+          <label for="username" class="label">
+            Usuario <span v-if="factory" class="text-muted">(opcional)</span>
+          </label>
           <input
             id="username"
             v-model="form.username"
             class="input"
             autocomplete="off"
+            :placeholder="factory ? defaults.data.value?.username : ''"
             :aria-invalid="!!show('username')"
           />
           <p v-if="show('username')" class="hint text-danger">{{ show('username') }}</p>
         </div>
         <div>
-          <label for="password" class="label">Clave</label>
+          <label for="password" class="label">
+            Clave <span v-if="factory" class="text-muted">(vacía = la de fábrica)</span>
+          </label>
           <input
             id="password"
             v-model="form.password"
@@ -251,7 +270,7 @@ async function submit(): Promise<void> {
         </div>
         <div>
           <label for="enable" class="label"
-            >Clave de enable <span class="text-muted">(opcional)</span></label
+            >Clave de enable <span class="text-muted">(la que configuró el cliente)</span></label
           >
           <input
             id="enable"
@@ -260,6 +279,10 @@ async function submit(): Promise<void> {
             class="input"
             autocomplete="off"
           />
+          <p class="hint">
+            No hay una de fábrica que valga: es la que el cliente puso en su OLT. Sin ella no se
+            pueden correr comandos de modo privilegiado.
+          </p>
         </div>
         <div>
           <label for="community" class="label">

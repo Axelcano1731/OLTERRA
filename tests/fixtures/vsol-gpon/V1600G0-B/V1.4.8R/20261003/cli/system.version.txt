@@ -1,0 +1,6 @@
+  Olt Serial Number:           V2504240405
+  Olt Device Model:            V1600G0-B
+  Hardware Version:            V3.1.4
+  Software Version:            V1.4.8R
+  Software Created Time:       Thu, 10 Apr 2025 11:09:48
+  Copyright 2020-2025

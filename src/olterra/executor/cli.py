@@ -21,7 +21,8 @@ from typing import Protocol
 
 from olterra.executor.plan import SessionProfile
 
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][A-Za-z0-9]|\x1b[=>78DEHM]")
+_CSI = re.compile(r"\x1b\[([0-9;?]*)[ -/]*([@-~])")  # ESC [ parámetros letra
+_OTHER_ESCAPE = re.compile(r"\x1b[()][A-Za-z0-9]|\x1b[=>78DEHM]")
 
 
 class CliError(Exception):
@@ -47,36 +48,71 @@ class CliTransport(Protocol):
     async def close(self) -> None: ...
 
 
-def _apply_backspaces(line: str) -> str:
-    out: list[str] = []
-    for ch in line:
-        if ch == "\b":
-            if out:
-                out.pop()
-        else:
-            out.append(ch)
-    return "".join(out)
+def _first_number(params: str, default: int) -> int:
+    head = params.split(";")[0].lstrip("?")
+    return int(head) if head.isdigit() else default
 
 
-def _overlay_carriage_returns(line: str) -> str:
-    """Emula una terminal: cada ``\\r`` suelto vuelve al inicio y sobrescribe."""
-    if "\r" not in line:
-        return line
+def _render_line(line: str) -> str:
+    """Lo que una terminal dejaría en pantalla en esta línea, con su cursor.
+
+    Hay OLT (la VSOL V1600G0-B) que imprimen cada columna volviendo al inicio con ``\\r`` y
+    avanzando el cursor con ``ESC[<n>C``: ``GPON0/1:2 \\r ESC[11C V824 \\r ESC[32C default``. Si se
+    borran las secuencias y cada ``\\r`` sobrescribe desde el inicio, solo sobrevive la última
+    celda. Aquí el cursor se mueve de verdad: ``\\r`` vuelve a la columna 0, ``ESC[nC`` y
+    ``ESC[nD`` avanzan o retroceden, ``ESC[K`` borra hasta el final, ``\\b`` retrocede y lo demás
+    se escribe sobre lo que haya en esa columna (las columnas saltadas quedan en blanco).
+    """
+    if "\x1b" not in line and "\r" not in line and "\b" not in line:
+        return line  # vía rápida: casi todas las líneas (una running-config puede pesar MB)
     buffer: list[str] = []
-    for segment in line.split("\r"):
-        for i, ch in enumerate(segment):
-            if i < len(buffer):
-                buffer[i] = ch
+    col = 0
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\x1b":
+            csi = _CSI.match(line, i)
+            if csi is not None:
+                params, final = csi.group(1), csi.group(2)
+                if final == "C":
+                    col += max(1, _first_number(params, 1))
+                elif final == "D":
+                    col = max(0, col - max(1, _first_number(params, 1)))
+                elif final == "G":
+                    col = max(0, _first_number(params, 1) - 1)
+                elif final == "K":
+                    mode = _first_number(params, 0)
+                    if mode == 0:
+                        del buffer[col:]
+                    elif mode == 1:
+                        buffer[:col] = [" "] * min(col, len(buffer))
+                    else:
+                        buffer.clear()
+                i = csi.end()
+                continue
+            other = _OTHER_ESCAPE.match(line, i)
+            i = other.end() if other else i + 1
+            continue
+        if ch == "\r":
+            col = 0
+        elif ch == "\b":
+            col = max(0, col - 1)
+        else:
+            if col > len(buffer):
+                buffer.extend(" " * (col - len(buffer)))
+            if col < len(buffer):
+                buffer[col] = ch
             else:
                 buffer.append(ch)
+            col += 1
+        i += 1
     return "".join(buffer)
 
 
 def normalize_terminal_text(text: str) -> str:
     """Convierte lo recibido de la terminal en texto plano línea por línea."""
-    text = _ANSI.sub("", text).replace("\r\n", "\n").replace("\x00", "")
-    lines = [_overlay_carriage_returns(_apply_backspaces(line)) for line in text.split("\n")]
-    return "\n".join(line.rstrip() for line in lines)
+    text = text.replace("\r\n", "\n").replace("\x00", "")
+    return "\n".join(_render_line(line).rstrip() for line in text.split("\n"))
 
 
 class CliSession:

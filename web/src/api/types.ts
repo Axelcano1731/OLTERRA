@@ -37,12 +37,23 @@ export interface OltCreate {
   real_ip?: string
   ssh_port: number
   snmp_port: number
-  username: string
-  password: string
+  /** Vacío: el usuario de fábrica de VSOL (lo informa /v1/olts/defaults). */
+  username?: string
+  /** Vacío en una OLT nueva: el servidor usa su clave de fábrica. */
+  password?: string
   enable_password?: string
   snmp_community?: string
   latitude?: number
   longitude?: number
+}
+
+export interface OltCreated extends Olt {
+  used_default_credentials: boolean
+}
+
+export interface OltDefaults {
+  username: string
+  password_configured: boolean
 }
 
 /** Solo lo que cambia. En enable y comunidad SNMP, una cadena vacía la quita. */

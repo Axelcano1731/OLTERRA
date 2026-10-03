@@ -1,0 +1,22 @@
+---------onu 2 defail-info---------
+Vendor ID:                    VSOL
+Version:                      V5.2
+SN:                           GPON0CE43515
+Admin status:                 unlock
+Battery monitor:              false
+Security mode:                aes
+Product code:                 0
+Total priority queue num:     143
+Total traffic schedule num:   31
+Traffic management option:    priotity&rate controlled
+Operate status:               enable
+Equipment ID:                 VSOLV824
+OMCC Version:                 128
+Security capability:          aes
+Model:                        N/A
+Survival time:                N/A
+TotalGemPortNum:              127
+Startup time:                 Sun Jan  2 10:26:00 2022
+SysUpTime:                    82580 s
+Region code:                  N/A
+Chip info:                    0

@@ -26,6 +26,10 @@ PARSERS: dict[str, Parser] = {
     "onu.autofind": lambda text, params: vsol.parse_autofind(text, params.get("pon")),
     "onu.rx_power_all": lambda text, params: vsol.parse_rx_power(text, params.get("pon")),
     "onu.optical": lambda text, params: vsol.parse_onu_optical(text),
+    "onu.state": lambda text, params: vsol.parse_onu_state(text, params.get("pon")),
+    "onu.distance": lambda text, params: vsol.parse_onu_distance(text),
+    "onu.description": lambda text, params: vsol.parse_onu_description(text),
+    "pon.statistics": lambda text, params: vsol.parse_pon_statistics(text),
 }
 
 

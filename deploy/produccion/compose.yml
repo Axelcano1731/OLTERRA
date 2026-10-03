@@ -80,6 +80,9 @@ services:
       # SSTP para RouterOS v6: la CA del concentrador (pública), en una línea.
       OLTERRA_TUNNEL_SSTP_PORT: ${OLTERRA_TUNNEL_SSTP_PORT:-4443}
       OLTERRA_TUNNEL_SSTP_CA: ${OLTERRA_TUNNEL_SSTP_CA:-}
+      # Clave de fábrica de una OLT VSOL nueva (opcional, secreto: solo en el .env del servidor).
+      OLTERRA_VSOL_DEFAULT_USERNAME: ${OLTERRA_VSOL_DEFAULT_USERNAME:-admin}
+      OLTERRA_VSOL_DEFAULT_PASSWORD: ${OLTERRA_VSOL_DEFAULT_PASSWORD:-}
       # Solo Caddy llega a la API (no publica puertos): se confía en su X-Forwarded-For
       # para que la bitácora guarde la IP real de quien hizo cada cambio.
       FORWARDED_ALLOW_IPS: "*"

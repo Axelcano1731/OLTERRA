@@ -1,0 +1,6 @@
+ Chassis Fans State Information
+ --------------------------------------------
+ current fans state: auto-running
+ current temperature:55.0 .C
+ open fan temperature:35.0 .C
+ --------------------------------------------

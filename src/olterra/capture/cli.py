@@ -47,8 +47,16 @@ PON_KEYS = (
     "onu.autofind_detail",
     "onu.list",
     "onu.rx_power_all",
+    "onu.state",
 )
-ONU_KEYS = ("onu.detail", "onu.optical", "onu.capability", "onu.service_config", "onu.description")
+ONU_KEYS = (
+    "onu.detail",
+    "onu.optical",
+    "onu.capability",
+    "onu.service_config",
+    "onu.description",
+    "onu.distance",
+)
 SNMP_WALKS = {
     "sysDescr": vsol_snmp.SYS_DESCR,
     "ifDescr": "1.3.6.1.2.1.2.2.1.2",
@@ -78,22 +86,36 @@ class CaptureCall:
         return f"cli/{self.template.key}{suffix}.txt"
 
 
-def plan_calls(driver: Driver, pons: list[int], onus: list[tuple[int, int]]) -> list[CaptureCall]:
-    """Llamadas de solo lectura, agrupadas por modo para no saltar de un PON a otro."""
+def plan_calls(
+    driver: Driver,
+    pons: list[int],
+    onus: list[tuple[int, int]],
+    model: str | None = None,
+    firmware: str | None = None,
+) -> list[CaptureCall]:
+    """Llamadas de solo lectura, agrupadas por modo para no saltar de un PON a otro.
+
+    Con ``model`` y ``firmware`` se usa la sintaxis propia de ese modelo (overrides del driver);
+    sin ellos, la del manual.
+    """
+
+    def template(key: str) -> CommandTemplate:
+        return driver.command(key, model, firmware)
+
     calls: list[CaptureCall] = []
-    for template in driver.read_only_catalog():
-        placeholders = set(template.placeholders())
-        if template.mode.value != "pon" and not placeholders:
-            calls.append(CaptureCall(template, {}))
+    for base in driver.read_only_catalog():
+        placeholders = set(base.placeholders())
+        if base.mode.value != "pon" and not placeholders:
+            calls.append(CaptureCall(template(base.key), {}))
     for kind in PROFILE_KINDS:
-        calls.append(CaptureCall(driver.commands["profile.list"], {"kind": kind}))
+        calls.append(CaptureCall(template("profile.list"), {"kind": kind}))
     for pon in pons:
         for key in PON_KEYS:
-            calls.append(CaptureCall(driver.commands[key], {"pon": pon}))
+            calls.append(CaptureCall(template(key), {"pon": pon}))
         for onu_pon, onu in onus:
             if onu_pon == pon:
                 for key in ONU_KEYS:
-                    calls.append(CaptureCall(driver.commands[key], {"pon": pon, "onu": onu}))
+                    calls.append(CaptureCall(template(key), {"pon": pon, "onu": onu}))
     return calls
 
 
@@ -113,7 +135,9 @@ def _map_outputs(
 async def run_capture(args: argparse.Namespace, password: str, enable_password: str | None) -> Path:
     driver = get_driver(args.driver)
     onus = [tuple(int(x) for x in item.split(":")) for item in args.onu]
-    calls = plan_calls(driver, sorted(set(args.pon)), [(p, o) for p, o in onus])
+    calls = plan_calls(
+        driver, sorted(set(args.pon)), [(p, o) for p, o in onus], args.modelo, args.firmware_olt
+    )
     credential = Credential(
         username=args.usuario,
         password=SecretStr(password),
@@ -132,7 +156,10 @@ async def run_capture(args: argparse.Namespace, password: str, enable_password: 
         target=target,
         session=session,
         steps=driver.build_cli_steps(
-            [CommandCall(c.template.key, c.params) for c in calls], timeout_s=args.timeout
+            [CommandCall(c.template.key, c.params) for c in calls],
+            model=args.modelo,
+            firmware=args.firmware_olt,
+            timeout_s=args.timeout,
         ),
     )
     runner = PlanRunner("olterra-capture")
@@ -269,6 +296,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Muestra PON:ONU para comandos por ONU (se repite)",
     )
+    parser.add_argument(
+        "--modelo",
+        help="Modelo de la OLT (V1600G0-B): usa su sintaxis propia en vez de la del manual",
+    )
+    parser.add_argument("--firmware-olt", help="Firmware de la OLT (V1.4.8R), junto con --modelo")
     parser.add_argument("--snmp-comunidad", help="Si se da, también se recorren las tablas SNMP")
     parser.add_argument(
         "--anonimizar", action="store_true", help="Reemplaza seriales y MAC por valores falsos"

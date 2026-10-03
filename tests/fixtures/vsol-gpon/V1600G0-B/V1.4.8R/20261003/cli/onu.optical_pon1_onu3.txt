@@ -1,0 +1,12 @@
+Alarm                      : enable
+Piggyback DBA rpt mode     : mode 0 only
+Rx optical level(ONU)      : -17.75
+Lower rx optical threshold : ont internal policy
+Upper rx optical threshold : ont internal policy
+Tx optical level           : 2.41
+Lower tx optical threshold : ont internal policy
+Upper tx optical threshold : ont internal policy
+ONU response time          : 22320
+Power feed voltage         : 3.28(V)
+Laser bias current         : 12.154(mA)
+Temperature                : 45.320(C)
