@@ -105,7 +105,10 @@ async function submit(): Promise<void> {
   busy.value = true
   try {
     const olt = await createOlt(body())
-    await router.push({ name: 'olt', params: { id: olt.id }, query: { nueva: '1', ...(olt.used_default_credentials ? { fabrica: '1' } : {}) },
+    await router.push({
+      name: 'olt',
+      params: { id: olt.id },
+      query: { nueva: '1', ...(olt.used_default_credentials ? { fabrica: '1' } : {}) },
     })
   } catch (caught) {
     error.value = errorText(caught)
