@@ -104,7 +104,7 @@ def run_migrations() -> None:
 
 async def _with_owner(action: str, args: argparse.Namespace) -> None:
     settings = get_settings()
-    engine = create_engine(settings.effective_migrations_url())
+    engine = create_engine(settings.effective_migrations_url(), pool_size=1, max_overflow=1)
     factory = session_factory(engine)
     try:
         if action == "crear-tenant":

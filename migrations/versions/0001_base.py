@@ -205,7 +205,6 @@ CREATE POLICY tenant_isolation ON tenants
 """
 
 GRANTS = f"""
-GRANT USAGE ON SCHEMA public TO {APP_ROLE};
 GRANT EXECUTE ON FUNCTION olterra_current_tenant() TO {APP_ROLE};
 GRANT SELECT ON tenants, tenant_keys TO {APP_ROLE};
 GRANT SELECT, UPDATE (last_used_at) ON api_keys TO {APP_ROLE};
@@ -233,6 +232,10 @@ def upgrade() -> None:
             " USING (tenant_id = olterra_current_tenant())"
             " WITH CHECK (tenant_id = olterra_current_tenant())"
         )
+    # El esquema donde corre la migración: public en una base propia; "olterra" en una base
+    # compartida (Supabase), donde el rol dueño trae ese esquema como primero de su search_path.
+    schema = op.get_bind().exec_driver_sql("SELECT current_schema()").scalar_one()
+    op.execute(f'GRANT USAGE ON SCHEMA "{schema}" TO {APP_ROLE}')
     for statement in _statements(GRANTS):
         op.execute(statement)
 

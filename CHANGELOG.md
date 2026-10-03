@@ -21,6 +21,11 @@
   servidor SSTP en el concentrador y aislamiento por lista de interfaces para los dos
   transportes. Al rotar, un router puede cambiar de versión y de transporte. Migración `0003`.
 
+- Base de datos compartida: Olterra puede vivir en un esquema propio (`olterra`) de la base de
+  Supabase de ISPWatch y Converza, con dos roles que no ven nada de lo demás
+  (`deploy/produccion/base-compartida.sql`). El contenedor `db` pasa a ser opcional, el respaldo
+  lleva solo ese esquema y `probar-respaldo` restaura en una base desechable. Pool de conexiones
+  chico y configurable. Ver `docs/DESPLIEGUE.md`, 3.1.
 - Actualización automática desde `main` (`./olterra.sh auto activar`): cada 5 minutos el
   servidor mira `main`, espera al CI en verde y se actualiza solo, sin llaves en GitHub ni
   puertos nuevos. Un commit que falla no se reintenta; las manuales y la automática comparten
