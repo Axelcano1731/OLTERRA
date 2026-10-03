@@ -134,6 +134,8 @@ inyectar otro comando en la OLT.
 | `user.add` | `user add {username} login-password {password}` (lleva clave) | config | escritura | Manual v2.1 §23.4 |
 | `user.role_admin` | `user role {username} admin` | config | escritura | Manual v2.1 §23.4. Sintaxis ambigua en el manual |
 | `user.delete` | `user delete {username}` | config | escritura | Manual v2.1 §23.6 |
+| `user.set_login_password` | `user login-password {username} {password}` | config | escritura | Ayuda de la V1600G0-B (`user ?`). **Sin verificar**: falta confirmar si la clave va en la misma línea. La clave nueva viaja sellada (`{{secret:new_password}}`) |
+| `user.set_enable_password` | `user enable-password {username} {password}` | config | escritura | Ídem. Clave nueva en `{{secret:new_enable_password}}` |
 
 Sintaxis distinta por modelo (`CommandOverride`):
 

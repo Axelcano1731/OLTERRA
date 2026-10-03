@@ -219,6 +219,30 @@ _COMMANDS = [
         notes="La sintaxis del manual es ambigua: '{admin | normal enable-password …}'",
     ),
     _c("user.delete", "user delete {username}", CONFIG, W, manual("23.6")),
+    # Cambio de claves de acceso. La clave nueva va por ``secret_params``: el plan lleva el
+    # marcador y el ejecutor la toma de la credencial sellada. SIN verificar: la ayuda de la
+    # V1600G0-B (`user ?`) lista ``login-password`` y ``enable-password``, pero falta confirmar en
+    # el laboratorio si la clave se escribe en la misma línea o la pide aparte.
+    _c(
+        "user.set_login_password",
+        "user login-password {username} {password}",
+        CONFIG,
+        W,
+        LAB_G0B,
+        sensitive=True,
+        secret_params={"password": "new_password"},
+        notes="Clave de acceso (SSH/web) de un usuario. Sintaxis por confirmar en laboratorio",
+    ),
+    _c(
+        "user.set_enable_password",
+        "user enable-password {username} {password}",
+        CONFIG,
+        W,
+        LAB_G0B,
+        sensitive=True,
+        secret_params={"password": "new_enable_password"},
+        notes="Clave de enable de un usuario. Sintaxis por confirmar en laboratorio",
+    ),
 ]
 
 # Comandos que respondieron en la captura de la V1600G0-B V1.4.8R (tests/fixtures). Con la

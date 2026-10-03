@@ -36,6 +36,12 @@
 - Editar OLT (`PATCH /v1/olts/{id}` y su pantalla): modelo, firmware, IP, puertos y
   credenciales, incluida la clave de enable. Las claves se vuelven a cifrar; la bitácora anota
   cuáles cambiaron, nunca su valor.
+- Base para cambiar las claves de una OLT desde Olterra: un paso CLI puede llevar
+  `{{secret:campo}}` y el ejecutor lo reemplaza con la credencial sellada (`new_password`,
+  `new_enable_password`) justo al escribir en la OLT; la clave nueva no viaja en claro por NATS ni
+  queda en el plan, y se tapa en cualquier salida. `build_credential_change_plan` arma el plan de
+  escritura (se detiene al primer error, guarda con `write`) y se niega mientras la sintaxis no esté
+  verificada en laboratorio. Todavía sin endpoint ni pantalla.
 - Alta de OLT con la clave de fábrica de VSOL: si el cliente deja usuario y clave vacíos, el
   servidor usa `OLTERRA_VSOL_DEFAULT_USERNAME/PASSWORD` (solo en `.env`) y avisa que conviene
   cambiarla; `GET /v1/olts/defaults` dice si está configurada sin revelarla. La clave de enable
