@@ -369,7 +369,9 @@ probar_respaldo() {
     docker run -d --rm --name "$contenedor" -e POSTGRES_PASSWORD=prueba \
         -v "$PWD/respaldos:/respaldos:ro" postgis/postgis:17-3.5 >/dev/null
     for _ in $(seq 1 40); do
-        if docker exec "$contenedor" pg_isready -U postgres >/dev/null 2>&1; then
+        # Por TCP (-h): al arrancar, el contenedor levanta un servidor temporal que solo
+        # escucha por socket y ya responde a pg_isready; luego se apaga y arranca el definitivo.
+        if docker exec "$contenedor" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
             listo=1
             break
         fi
