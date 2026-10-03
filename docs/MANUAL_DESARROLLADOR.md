@@ -62,6 +62,7 @@ Ver `.env.example`. Las importantes:
 |---|---|---|
 | `OLTERRA_DATABASE_URL` | API | Con el rol `olterra_app` |
 | `OLTERRA_MIGRATIONS_DATABASE_URL` | migraciones, `olterra-admin` | Con el rol `olterra_owner` |
+| `OLTERRA_DB_POOL_SIZE`, `OLTERRA_DB_MAX_OVERFLOW` | API | Conexiones por proceso (3 y 2): la base de producción es compartida y tiene un tope |
 | `OLTERRA_MASTER_KEY` | API, `olterra-admin` | Llave maestra de la bóveda (`olterra-admin generar-llave-maestra`) |
 | `OLTERRA_EXECUTOR_PUBLIC_KEY` | API | Para sellar credenciales |
 | `OLTERRA_EXECUTOR_PRIVATE_KEY` | ejecutor | Para abrirlas. Nunca en la API |

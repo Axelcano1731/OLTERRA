@@ -18,7 +18,7 @@ Estado: **fase 0** (esqueleto técnico, laboratorio y pilotos). Plan completo en
 | Ejecutor genérico + NATS JetStream | Listo: colas por OLT con prioridad, una sesión por OLT, credenciales selladas, deduplicación |
 | Túnel + NAT 1:1 para MikroTik | WireGuard para RouterOS 7 y SSTP para RouterOS 6. Concentrador andando en el CHR (compartido con ISPWatch) y la plataforma conectada |
 | API FastAPI + PostgreSQL/PostGIS con RLS | Esqueleto: OLT, consultas de lectura con su catálogo e historial, túnel, conciliación (JSON, archivos o demo), planes |
-| Despliegue (`deploy/produccion/`) | Andando en un droplet de DigitalOcean: Caddy con HTTPS, respaldos diarios que se prueban restaurando; todo con `./olterra.sh`. Se actualiza solo desde `main` cuando el CI queda en verde. CI lo instala de punta a punta en cada PR |
+| Despliegue (`deploy/produccion/`) | Andando en un droplet de DigitalOcean: Caddy con HTTPS, respaldos diarios que se prueban restaurando; todo con `./olterra.sh`. Se actualiza solo desde `main` cuando el CI queda en verde. La base es la de Supabase de ISPWatch y Converza, en el esquema propio `olterra` (ARQUITECTURA A.13). CI lo instala de punta a punta en cada PR |
 | Interfaz web (`web/`) | Lista para pilotos: panel, alta y consultas de OLT, túnel, conciliación desde archivos o con la demo. Entra con la llave de API (aún sin usuarios) |
 | Mapa FTTH, autorización de ONU, monitoreo, app de campo | Fases 1 a 3 |
 

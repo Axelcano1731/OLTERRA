@@ -1,6 +1,6 @@
 # Base de datos
 
-> Última actualización: 2026-10-02 · Migración vigente: `0003`
+> Última actualización: 2026-10-03 · Migración vigente: `0003`
 
 PostgreSQL 17 + PostGIS. El esquema manda en `migrations/versions/`; `src/olterra/db/models.py`
 lo refleja para el ORM.
@@ -14,6 +14,13 @@ lo refleja para el ORM.
 
 Los crea `deploy/postgres/init.sql` (una vez, como superusuario), junto con la base y la
 extensión PostGIS. En producción, con claves generadas.
+
+**Base compartida (Supabase).** En producción las tablas viven en el esquema `olterra` de la base
+de ISPWatch y Converza, y los roles los crea `deploy/produccion/base-compartida.sql`: mismos
+dos roles, con `search_path = olterra, public` y un tope de conexiones. `olterra_owner` sigue
+con `BYPASSRLS`, pero no tiene permiso sobre ninguna tabla de otro sistema; `olterra_app` tampoco
+(lo prueba `tests/integration/test_shared_database.py`). La migración `0001` da `USAGE` al
+esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 
 ## Aislamiento por tenant
 
