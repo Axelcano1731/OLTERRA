@@ -22,7 +22,7 @@ export function configureClient(next: ClientHooks): void {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH'
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   json?: unknown
   form?: FormData
   signal?: AbortSignal
@@ -98,5 +98,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     }
     throw new ApiError(response.status, message)
   }
+  if (response.status === 204) return undefined as T // sin cuerpo (borrados)
   return (await response.json()) as T
 }
