@@ -30,7 +30,21 @@ die() {
     exit 1
 }
 
-compose() { docker compose "$@"; }
+# La base propia (contenedor db) solo corre si OLTERRA_DB_HOST no apunta a otra base, como la
+# compartida de Supabase. Sin .env todavía (instalar) se asume la propia.
+usa_base_local() {
+    local host=""
+    if [ -f .env ]; then host=$(leer OLTERRA_DB_HOST); fi
+    [ -z "$host" ] || [ "$host" = "db" ]
+}
+
+compose() {
+    if usa_base_local; then
+        COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}db-local" docker compose "$@"
+    else
+        docker compose "$@"
+    fi
+}
 
 # Estado de las actualizaciones (candado, qué commit corre, el que falló, historial). Está
 # fuera del repo y lo comparte la actualización automática (auto-actualizar.sh).
@@ -102,7 +116,9 @@ imagenes() {
 }
 
 arrancar() {
-    compose up -d --wait db nats
+    local base=(nats)
+    if usa_base_local; then base=(db nats); fi
+    compose up -d --wait "${base[@]}"
     compose run --rm migrate
     compose up -d --wait --remove-orphans "${SERVICIOS[@]}"
 }
@@ -129,6 +145,14 @@ OLTERRA_MASTER_KEY=
 OLTERRA_EXECUTOR_PRIVATE_KEY=
 OLTERRA_EXECUTOR_PUBLIC_KEY=
 OLTERRA_RESPALDO_DIAS=14
+
+# Base de datos. Vacío = la propia (contenedor db). Para una compartida, como la de Supabase de
+# ISPWatch y Converza, ver docs/DESPLIEGUE.md ("Base de datos compartida"):
+#   OLTERRA_DB_HOST=aws-0-us-east-1.pooler.supabase.com   OLTERRA_DB_PORT=5432
+#   OLTERRA_DB_NAME=postgres   OLTERRA_DB_QUERY=?ssl=require   OLTERRA_DB_SSLMODE=require
+#   OLTERRA_DB_APP_USER=olterra_app.<proyecto>   OLTERRA_DB_OWNER_USER=olterra_owner.<proyecto>
+#   OLTERRA_DB_SCHEMA=olterra
+OLTERRA_DB_HOST=
 
 # Concentrador WireGuard (CHR). Completar cuando esté listo y correr ./olterra.sh actualizar.
 OLTERRA_TUNNEL_HUB_HOST=
@@ -333,21 +357,44 @@ respaldo() {
 
 probar_respaldo() {
     verificar_env
-    local ultimo
+    local ultimo archivo esquema contenedor listo=0
     # shellcheck disable=SC2012  # nombres con fecha, sin espacios
     ultimo=$(ls -1t respaldos/olterra-*.dump 2>/dev/null | head -n 1 || true)
     [ -n "$ultimo" ] || die "no hay respaldos en respaldos/ (./olterra.sh respaldo)"
-    echo "Restaurando $(basename "$ultimo") en una base aparte (olterra_prueba)…"
+    archivo=$(basename "$ultimo")
+    esquema="${OLTERRA_DB_SCHEMA:-$(leer OLTERRA_DB_SCHEMA)}"
+    esquema="${esquema:-public}"
+    contenedor="olterra-restaurar-$$"
+    echo "Restaurando $archivo en una base desechable (nada de la real se toca)…"
+    docker run -d --rm --name "$contenedor" -e POSTGRES_PASSWORD=prueba \
+        -v "$PWD/respaldos:/respaldos:ro" postgis/postgis:17-3.5 >/dev/null
+    for _ in $(seq 1 40); do
+        if docker exec "$contenedor" pg_isready -U postgres >/dev/null 2>&1; then
+            listo=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$listo" != 1 ]; then
+        docker rm -f "$contenedor" >/dev/null 2>&1 || true
+        die "la base desechable no arrancó"
+    fi
     # shellcheck disable=SC2016  # las variables se expanden dentro del contenedor
-    compose exec -T db sh -eu -c '
-        dropdb -U postgres --if-exists olterra_prueba
-        createdb -U postgres olterra_prueba
-        pg_restore -U postgres --no-owner --exit-on-error -d olterra_prueba "/respaldos/$1"
-        isps=$(psql -U postgres -d olterra_prueba -tAc "SELECT count(*) FROM tenants")
-        migracion=$(psql -U postgres -d olterra_prueba -tAc "SELECT version_num FROM alembic_version")
-        dropdb -U postgres olterra_prueba
+    docker exec -i "$contenedor" sh -eu -c '
+        createdb -U postgres prueba
+        # Un respaldo de toda la base trae PostGIS; el de un solo esquema (base compartida) no.
+        if ! pg_restore -l "/respaldos/$1" | grep -q "EXTENSION - postgis"; then
+            psql -U postgres -d prueba -qc "CREATE EXTENSION postgis"
+        fi
+        pg_restore -U postgres --no-owner --no-acl --exit-on-error -d prueba "/respaldos/$1"
+        isps=$(psql -U postgres -d prueba -tAc "SELECT count(*) FROM \"$2\".tenants")
+        migracion=$(psql -U postgres -d prueba -tAc "SELECT version_num FROM \"$2\".alembic_version")
         echo "El respaldo se restaura bien: $isps ISP, migración $migracion."
-    ' sh "$(basename "$ultimo")"
+    ' sh "$archivo" "$esquema" || {
+        docker rm -f "$contenedor" >/dev/null 2>&1 || true
+        die "el respaldo no se restauró"
+    }
+    docker rm -f "$contenedor" >/dev/null 2>&1 || true
 }
 
 estado() {
