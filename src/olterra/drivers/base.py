@@ -154,6 +154,7 @@ class CommandOverride:
     key: str
     template: str
     source: str
+    verified: bool = False  # validada con una captura de laboratorio de ese modelo y firmware
 
 
 class Capability(StrEnum):
@@ -236,7 +237,7 @@ class Driver:
                     mode=base.mode,
                     access=base.access,
                     source=override.source,
-                    verified=False,
+                    verified=override.verified,
                     sensitive=base.sensitive,
                     notes=base.notes,
                     param_types=base.param_types,

@@ -1,0 +1,8 @@
+Input rate Bps:      1387981
+Input rate Pps:      6224
+Output rate Bps:     10473445
+Output rate Pps:     6224
+Input  bytes:      178463884323
+Input  packets:    747210645
+Output bytes:      1287674547003
+Output packets:      1044466115

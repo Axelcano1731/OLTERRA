@@ -1,0 +1,115 @@
+Onuindex   Model                Profile                Mode    AuthInfo
+---------------------------------------------------------------------------------------------
+GPON0/1:2  V824                 default                sn      GPON0CE43515
+
+GPON0/1:3  V422                 default                sn      GPONE5197ED0
+
+GPON0/1:4  V422                 default                sn      GPONF6C63E6C
+
+GPON0/1:5  V422                 default                sn      GPON86AD4F65
+
+GPON0/1:6  V422                 default                sn      GPONFC2D6DC0
+
+GPON0/1:7  V824                 default                sn      GPON828D3E24
+
+GPON0/1:8  V422                 default                sn      GPON1927AB26
+
+GPON0/1:9  unknown              default                sn      GPON225E4B77
+
+GPON0/1:10 V422                 default                sn      GPON4C4EF975
+
+GPON0/1:11 V422                 default                sn      GPONAC9604EE
+
+GPON0/1:12 V422                 default                sn      GPON9BB987FE
+
+GPON0/1:13 V824                 default                sn      GPON5F81660A
+
+GPON0/1:14 V422                 default                sn      GPON872D7ADE
+
+GPON0/1:15 V422                 default                sn      GPON4983CE51
+
+GPON0/1:16 V422                 default                sn      GPON68BDE313
+
+GPON0/1:17 V422                 default                sn      GPON54F5244D
+
+GPON0/1:18 V824                 default                sn      GPON5B8FC123
+
+GPON0/1:19 V422                 default                sn      GPON3B2D9556
+
+GPON0/1:20 V422                 default                sn      GPON61631D83
+
+GPON0/1:21 V422                 default                sn      GPONF56800AD
+
+GPON0/1:22 V711                 default                sn      GPON41DC19B1
+
+GPON0/1:23 V711                 default                sn      GPON776D3801
+
+GPON0/1:24 V711                 default                sn      GPONEB7E88E8
+
+GPON0/1:25 V422                 default                sn      GPON8F3592DA
+
+GPON0/1:26 V422                 default                sn      GPONAF36E3C9
+
+GPON0/1:27 V422                 default                sn      GPOND0C7E4C6
+
+GPON0/1:28 V824                 default                sn      GPONB5B060BA
+
+GPON0/1:29 V422                 default                sn      GPON49955E64
+
+GPON0/1:30 V422                 default                sn      GPON614C5B0F
+
+GPON0/1:31 V824                 default                sn      GPON8D3E3506
+
+GPON0/1:32 V422                 default                sn      GPONDE53FB20
+
+GPON0/1:33 V824                 default                sn      GPON236C23B0
+
+GPON0/1:34 V824                 default                sn      GPON363A02BF
+
+GPON0/1:35 V824                 default                sn      GPONAB45A08F
+
+GPON0/1:36 V824                 default                sn      GPON763205C6
+
+GPON0/1:37 V512                 default                sn      GPOND81DE0DD
+
+GPON0/1:38 unknown              default                sn      GPON401CE163
+
+GPON0/1:39 V422                 default                sn      GPONC963A320
+
+GPON0/1:40 V422                 default                sn      GPONC6F80115
+
+GPON0/1:41 V422                 default                sn      GPONFEDF20B9
+
+GPON0/1:42 V824                 default                sn      GPON8CFA42B2
+
+GPON0/1:43 unknown              default                sn      GPONFA0C39F1
+
+GPON0/1:45 V422                 default                sn      GPONF20AFFBD
+
+GPON0/1:46 V422                 default                sn      GPON604B6705
+
+GPON0/1:47 unknown              default                sn      GPON081B759A
+
+GPON0/1:48 unknown              default                sn      GPONB0F1C4F3
+
+GPON0/1:49 V824                 default                sn      GPON079130F0
+
+GPON0/1:50 V824                 default                sn      GPON1C77A3B3
+
+GPON0/1:51 V824                 default                sn      GPON9B310822
+
+GPON0/1:52 V824                 default                sn      GPON8DE5CAEE
+
+GPON0/1:53 V422                 default                sn      GPON91CCDFD4
+
+GPON0/1:54 V422                 default                sn      GPON20F337EE
+
+GPON0/1:55 V422                 default                sn      GPONCFFDF1CD
+
+GPON0/1:56 V422                 default                sn      GPON968D3C75
+
+GPON0/1:57 V664                 default                sn      VSOLC5CAE090
+
+GPON0/1:58 V422                 default                sn      GPONEF1B32C7
+
+GPON0/1:59 V422                 default                sn      GPON7078D068

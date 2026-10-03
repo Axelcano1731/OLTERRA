@@ -1,0 +1,30 @@
+------------onu 2 capability------------
+TCONT number:                      31
+GEM port number:                   127
+Total priority queue number:       143
+Up priority queue number:          103
+Down priority queue number:        40
+Traffic scheduler number:          31
+Traffic management option:         priotity&rate controlled
+Total UNI number:                  5
+Ethernet UNI number:               4
+40GE number:                       0
+25GE number:                       0
+10GE number:                       0
+5GE number:                        0
+2.5GE number:                      0
+GE number:                         4
+FE number:                         0
+CES UNI number:                    0
+POTS UNI number:                   0
+Video UNI number(num:slot/port):   0:0/0
+WIFI UNI number:                   1
+xDSL UNI number:                   0
+IP host number:                    3
+IPv6 host number:                  3
+VEIP number:                       1
+Operation Id:                      CTC
+CTC spc version:                   CTC 2.0
+CUC spc version:                   N/A
+ONU type:                          HGU
+Tx power supply control:           Tx & Rx

@@ -25,6 +25,7 @@ const history = useAsync(() => listPlans(props.id))
 
 const justCreated = computed(() => route.query.nueva === '1')
 const justEdited = computed(() => route.query.editada === '1')
+const usedFactory = computed(() => route.query.fabrica === '1')
 
 const GROUPS: { scope: CommandScope; title: string; text: string }[] = [
   { scope: 'olt', title: 'Equipo', text: 'Una vez por consulta.' },
@@ -154,6 +155,16 @@ watch(waiting, (now, before) => {
         <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>
         para publicarla.
       </template>
+    </AlertBox>
+
+    <AlertBox
+      v-if="justCreated && usedFactory"
+      tone="warning"
+      title="Se usó la clave de fábrica"
+      class="mb-6"
+    >
+      Cambia la clave de acceso en la OLT y luego actualízala aquí con Editar: la de fábrica es
+      pública.
     </AlertBox>
 
     <AlertBox v-if="justCreated" tone="success" title="OLT agregada" class="mb-6">

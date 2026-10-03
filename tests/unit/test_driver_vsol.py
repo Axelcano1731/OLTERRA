@@ -247,6 +247,12 @@ def test_parse_version() -> None:
     )
     assert (version.model, version.firmware, version.hardware) == ("V1600G1B", "V1.4.4R", "V2.0")
     assert parsers.parse_version("V1600GS booted ok").model == "V1600GS"
+    # V1600G0-B V1.4.8R: el número de serie también empieza con V; no es el modelo.
+    real = parsers.parse_version(
+        "  Olt Serial Number:           V2504240405\n  Olt Device Model:            V1600G0-B\n"
+        "  Hardware Version:            V3.1.4\n  Software Version:            V1.4.8R\n"
+    )
+    assert (real.model, real.firmware, real.hardware) == ("V1600G0-B", "V1.4.8R", "V3.1.4")
     with pytest.raises(UnrecognizedOutput):
         parsers.parse_version("nada útil")
 

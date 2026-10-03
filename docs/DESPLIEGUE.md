@@ -329,6 +329,22 @@ el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la 
    el concentrador" se aplica en el CHR. Si un router se dio de alta con la versión
    equivocada, **Rotar o cambiar versión** lo pasa al otro transporte.
 
+### 6.1 Clave de fábrica de las OLT VSOL
+
+Cuando el cliente agrega una OLT VSOL que nunca se ha configurado por SSH, deja usuario y clave
+vacíos y Olterra usa los de fábrica del servidor. Se configuran en `.env` (nunca en el repo):
+
+```
+OLTERRA_VSOL_DEFAULT_USERNAME=admin
+OLTERRA_VSOL_DEFAULT_PASSWORD='la-clave-de-fabrica'
+```
+
+Entre comillas simples si trae `#` o `$`. Sin `OLTERRA_VSOL_DEFAULT_PASSWORD` la clave es
+obligatoria al agregar una OLT. La API nunca devuelve esa clave (`GET /v1/olts/defaults` solo
+dice si está configurada) y la bitácora solo anota que se usó. La clave de **enable** no tiene
+valor de fábrica: es la que el cliente configuró y se escribe al agregar la OLT. Cambiar las
+claves en la OLT desde Olterra todavía no existe.
+
 ## 7. Seguridad, en corto
 
 - Solo 80 y 443 abiertos. La base y NATS no publican puertos.

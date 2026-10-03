@@ -5,6 +5,8 @@ import type {
   Me,
   Olt,
   OltCreate,
+  OltCreated,
+  OltDefaults,
   OltUpdate,
   Plan,
   PlanSummary,
@@ -23,7 +25,8 @@ export const getMe = (key?: string) => api<Me>('/v1/me', { key })
 
 export const listOlts = () => api<Olt[]>('/v1/olts')
 export const getOlt = (id: string) => api<Olt>(`/v1/olts/${encodeURIComponent(id)}`)
-export const createOlt = (body: OltCreate) => api<Olt>('/v1/olts', { json: body })
+export const getOltDefaults = () => api<OltDefaults>('/v1/olts/defaults')
+export const createOlt = (body: OltCreate) => api<OltCreated>('/v1/olts', { json: body })
 export const updateOlt = (id: string, body: OltUpdate) =>
   api<Olt>(`/v1/olts/${encodeURIComponent(id)}`, { method: 'PATCH', json: body })
 export const listCommands = (id: string) =>

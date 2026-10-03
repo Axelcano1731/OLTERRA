@@ -23,12 +23,27 @@ class OltCreate(BaseModel):
     real_ip: IPv4Address | None = Field(None, description="IP de la OLT en la red del ISP")
     ssh_port: int = Field(22, ge=1, le=65535)
     snmp_port: int = Field(161, ge=1, le=65535)
-    username: str = Field(min_length=1, max_length=64)
-    password: SecretStr
-    enable_password: SecretStr | None = None
+    username: str | None = Field(
+        None, min_length=1, max_length=64, description="Vacío: el usuario de fábrica de VSOL"
+    )
+    password: SecretStr | None = Field(
+        None,
+        description="Vacío en una OLT nueva (nunca se ha entrado por SSH): se usa la clave de "
+        "fábrica que el servidor tenga configurada",
+    )
+    enable_password: SecretStr | None = Field(
+        None, description="La que el cliente configuró en su OLT para entrar a modo privilegiado"
+    )
     snmp_community: SecretStr | None = None
     latitude: float | None = Field(None, ge=-90, le=90)
     longitude: float | None = Field(None, ge=-180, le=180)
+
+
+class OltDefaults(BaseModel):
+    """Lo que la interfaz necesita saber de las credenciales de fábrica (nunca la clave)."""
+
+    username: str
+    password_configured: bool
 
 
 class OltUpdate(BaseModel):
@@ -87,6 +102,12 @@ class CommandOut(BaseModel):
     verified: bool = Field(description="Validado con una captura de laboratorio")
     parsed: bool = Field(description="La salida se interpreta en datos, no solo texto")
     notes: str = ""
+
+
+class OltCreated(OltOut):
+    used_default_credentials: bool = Field(
+        False, description="Se usó la clave de fábrica: conviene cambiarla en la OLT y en Olterra"
+    )
 
 
 class QueryRequest(BaseModel):

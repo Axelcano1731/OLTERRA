@@ -251,14 +251,21 @@ def _kv_find(kv: Mapping[str, str], *needles: str, exclude: tuple[str, ...] = ()
 
 
 def parse_onu_optical(text: str) -> OpticalInfo:
-    """Salida de ``show onu <n> optical-info``."""
+    """Salida de ``show onu <n> optical-info`` (``optical_info`` en la V1600G0-B)."""
     kv = parse_key_values(text)
+    thresholds = ("lower", "upper", "threshold", "olt")
     info = OpticalInfo(
         rx_dbm=parse_dbm(
             _kv_find(kv, "rx", "power", exclude=("olt",))
             or _kv_find(kv, "receive", "power", exclude=("olt",))
+            # V1600G0-B V1.4.8R: "Rx optical level(ONU) : -18.15"
+            or _kv_find(kv, "rx", "optical", "level", exclude=thresholds)
         ),
-        tx_dbm=parse_dbm(_kv_find(kv, "tx", "power") or _kv_find(kv, "transmit", "power")),
+        tx_dbm=parse_dbm(
+            _kv_find(kv, "tx", "power")
+            or _kv_find(kv, "transmit", "power")
+            or _kv_find(kv, "tx", "optical", "level", exclude=thresholds)
+        ),
         olt_rx_dbm=parse_dbm(_kv_find(kv, "olt", "rx")),
         temperature_c=parse_number(_kv_find(kv, "temp")),
         voltage_v=parse_number(_kv_find(kv, "volt") or _kv_find(kv, "vcc")),
@@ -283,6 +290,7 @@ def parse_version(text: str) -> VersionInfo:
         (
             kv[k]
             for k in (
+                "oltdevicemodel",  # V1600G0-B V1.4.8R: "Olt Device Model: V1600G0-B"
                 "devicemodel",
                 "devicetype",
                 "model",
@@ -318,3 +326,92 @@ def parse_version(text: str) -> VersionInfo:
     if model is None and firmware is None:
         raise UnrecognizedOutput("vsol.system.version", "no se halló modelo ni firmware", text)
     return VersionInfo(model=model, firmware=firmware, hardware=hardware)
+
+
+# --- V1600G0-B V1.4.8R: estado, distancia, descripción y estadísticas ----------------------
+
+
+@dataclass(frozen=True)
+class OnuState:
+    pon: int | None
+    onu: int
+    admin_state: str
+    omcc_state: str
+    phase: str  # working, offline, LOS...
+    serial: str | None
+
+
+_STATE_ROW = re.compile(r"^\s*(GPON\d+/\d+:\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$", re.IGNORECASE)
+
+
+def parse_onu_state(text: str, default_pon: int | None = None) -> list[OnuState]:
+    """Salida de ``show onu state``: administrativo, OMCC y fase de cada ONU del PON."""
+    rows: list[OnuState] = []
+    for line in text.splitlines():
+        match = _STATE_ROW.match(line)
+        if match is None:
+            continue
+        ref = parse_onu_ref(match.group(1), default_pon)
+        if ref is None:
+            continue
+        rows.append(
+            OnuState(
+                pon=ref.pon,
+                onu=ref.onu,
+                admin_state=match.group(2),
+                omcc_state=match.group(3),
+                phase=match.group(4),
+                serial=normalize_gpon_serial(match.group(5)),
+            )
+        )
+    if not rows:
+        if re.search(r"(?i)\bphase state\b", text) or not text.strip():
+            return []  # tabla sin filas: PON sin ONU
+        raise UnrecognizedOutput("vsol.onu.state", "ninguna fila 'GPON0/<pon>:<onu> …'", text)
+    return rows
+
+
+@dataclass(frozen=True)
+class OnuDistance:
+    onu: int | None
+    meters: int
+
+
+_DISTANCE = re.compile(r"(?im)^\s*onu\s+(\d+)\s+distance\s*:\s*(\d+)\s*m\b")
+
+
+def parse_onu_distance(text: str) -> OnuDistance:
+    """Salida de ``show onu <n> distance``: ``onu 2 Distance: 445m``."""
+    match = _DISTANCE.search(text)
+    if match is None:
+        raise UnrecognizedOutput("vsol.onu.distance", "no hay 'onu <n> Distance: <m>m'", text)
+    return OnuDistance(onu=int(match.group(1)), meters=int(match.group(2)))
+
+
+@dataclass(frozen=True)
+class OnuDescription:
+    onu: int | None
+    description: str | None
+
+
+_DESCRIPTION = re.compile(r"(?im)^\s*onu\s+(\d+)\s+description\s*:[ \t]*(.*?)\s*$")
+
+
+def parse_onu_description(text: str) -> OnuDescription:
+    """Salida de ``show onu <n> desc``: ``onu 2 Description: <texto>`` (vacío si no tiene)."""
+    match = _DESCRIPTION.search(text)
+    if match is None:
+        raise UnrecognizedOutput("vsol.onu.description", "no hay 'onu <n> Description:'", text)
+    return OnuDescription(onu=int(match.group(1)), description=match.group(2) or None)
+
+
+def parse_pon_statistics(text: str) -> dict[str, int]:
+    """Salida de ``show pon <n> statistics``: tasas y contadores del puerto PON."""
+    values: dict[str, int] = {}
+    for key, raw in parse_key_values(text).items():
+        number = parse_number(raw)
+        if number is not None and re.fullmatch(r"\d+", raw.strip()):
+            values[key] = int(number)
+    if not values:
+        raise UnrecognizedOutput("vsol.pon.statistics", "no hay contadores 'clave: número'", text)
+    return values

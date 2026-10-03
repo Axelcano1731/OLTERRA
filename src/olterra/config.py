@@ -13,7 +13,7 @@ import binascii
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +64,17 @@ class Settings(BaseSettings):
     # La nube sella las credenciales con esta llave pública.
     executor_public_key: str | None = None
     executor_max_sessions: int = 32
+    # Credenciales de FÁBRICA de una OLT VSOL nueva (nunca se ha entrado por SSH): se aplican solo
+    # cuando el cliente deja la clave vacía al agregarla. Es un secreto de la plataforma: va en
+    # .env (OLTERRA_VSOL_DEFAULT_PASSWORD), nunca en el repo, y la API no lo devuelve jamás.
+    vsol_default_username: str = "admin"
+    vsol_default_password: SecretStr | None = None
+
+    @field_validator("vsol_default_password", mode="before")
+    @classmethod
+    def _blank_default_password_is_none(cls, value: object) -> object:
+        # compose pasa la variable vacía cuando no se configuró: eso es "sin clave de fábrica".
+        return None if isinstance(value, str) and not value.strip() else value
 
     # --- Plan de direcciones del túnel (ver olterra.tunnel.addressing) -------
     tunnel_platform_prefix: str = "198.18.0.0/24"

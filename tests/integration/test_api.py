@@ -37,6 +37,8 @@ from tests.conftest import PgDatabase, b64key, ca_pem
 
 pytestmark = pytest.mark.postgres
 
+FACTORY_PASSWORD = "factory-pass-123"
+
 
 @dataclass
 class RecordingPublisher:
@@ -92,6 +94,7 @@ def env(pg: PgDatabase, master_key: bytes) -> Iterator[Env]:
         tunnel_hub_host="hub.olterra.co",
         tunnel_hub_public_key=hub_public,
         tunnel_sstp_ca=ca_pem(),
+        vsol_default_password=SecretStr(FACTORY_PASSWORD),
     )
     a, b, key_a, key_b = asyncio.run(_make_tenants(pg, master_key))
     publisher = RecordingPublisher()
@@ -583,3 +586,68 @@ def test_update_olt_and_its_credentials(env: Env) -> None:
         f"/v1/olts/{olt['id']}", json={"model": "X"}, headers=env.headers(env.key_b)
     )
     assert other.status_code == 404
+
+
+def test_new_olt_without_password_gets_the_factory_one(env: Env) -> None:
+    defaults = env.client.get("/v1/olts/defaults", headers=env.headers())
+    assert defaults.status_code == 200
+    assert defaults.json() == {"username": "admin", "password_configured": True}
+    assert FACTORY_PASSWORD not in defaults.text
+
+    # Sin usuario ni clave: los de fábrica; la clave de enable es la que pone el cliente.
+    response = env.client.post(
+        "/v1/olts",
+        json={"name": "OLT-FABRICA", "enable_password": "enable-cliente"},
+        headers=env.headers(),
+    )
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["used_default_credentials"] is True
+    assert FACTORY_PASSWORD not in response.text and "enable-cliente" not in response.text
+
+    async def stored() -> tuple[SecretCredential, list[dict[str, Any]]]:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session:
+                row = await session.get(Olt, UUID(created["id"]))
+                assert row is not None and row.credential_id is not None
+                secret = await session.get(Credential, row.credential_id)
+                assert secret is not None
+                wrapped = (
+                    await session.execute(
+                        select(TenantKey.wrapped_dek).where(TenantKey.tenant_id == env.tenant_a)
+                    )
+                ).scalar_one()
+                audits = (
+                    (
+                        await session.execute(
+                            select(AuditLog.after).where(
+                                AuditLog.tenant_id == env.tenant_a,
+                                AuditLog.action == "olt.create",
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            dek = Vault.single(env.master_key).unwrap_tenant_key(env.tenant_a, wrapped)
+            plain = Vault.decrypt(env.tenant_a, dek, f"credential:{secret.id}", secret.ciphertext)
+            return SecretCredential.model_validate_json(plain), list(audits)
+        finally:
+            await engine.dispose()
+
+    credential, audits = asyncio.run(stored())
+    assert credential.username == "admin"
+    assert credential.password.get_secret_value() == FACTORY_PASSWORD
+    assert credential.enable_password is not None
+    assert credential.enable_password.get_secret_value() == "enable-cliente"
+    assert any(a.get("used_default_credentials") is True for a in audits)
+    assert FACTORY_PASSWORD not in json.dumps(audits)
+
+    # Con clave propia no se toca la de fábrica, y sin usuario no hay a quién aplicarla.
+    own = create_olt(env, username="otro", password="la-del-cliente")
+    assert own["used_default_credentials"] is False
+    no_user = env.client.post(
+        "/v1/olts", json={"name": "OLT-SIN-USER", "password": "x"}, headers=env.headers()
+    )
+    assert no_user.status_code == 400
