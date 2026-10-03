@@ -7,6 +7,10 @@
 #
 # Desde internet solo se ven 80 y 443 (Caddy). La base y NATS no publican puertos: NATS no
 # tiene cuentas todavía y no se expone hasta que las tenga (agentes on-premise, fase 4).
+#
+# La base de datos es la propia (contenedor `db`, perfil db-local) o una compartida, como la
+# de Supabase de ISPWatch y Converza: con OLTERRA_DB_HOST y compañía en .env los servicios
+# apuntan allá y `db` no corre. Ver docs/DESPLIEGUE.md, "Base de datos compartida".
 
 name: olterra
 
@@ -15,6 +19,7 @@ x-api-image: &api-image ${OLTERRA_REGISTRO:-ghcr.io/axelcano1731}/olterra-api:${
 services:
   db:
     image: postgis/postgis:17-3.5
+    profiles: ["db-local"] # ./olterra.sh lo activa solo si OLTERRA_DB_HOST no apunta a otra base
     restart: unless-stopped
     shm_size: 256mb
     environment:
@@ -25,7 +30,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d:ro
-      - ./respaldos:/respaldos:ro # para `./olterra.sh probar-respaldo`
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d olterra"]
       interval: 10s
@@ -45,7 +49,7 @@ services:
     command: ["olterra-admin", "migrar"]
     environment:
       OLTERRA_ENV: prod
-      OLTERRA_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://olterra_owner:${OLTERRA_OWNER_PASSWORD}@db:5432/olterra
+      OLTERRA_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://${OLTERRA_DB_OWNER_USER:-olterra_owner}:${OLTERRA_OWNER_PASSWORD}@${OLTERRA_DB_HOST:-db}:${OLTERRA_DB_PORT:-5432}/${OLTERRA_DB_NAME:-olterra}${OLTERRA_DB_QUERY:-}
       OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
       OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
       # Para `olterra-admin concentrador`: el script del CHR sale con los puertos del .env y
@@ -56,6 +60,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false # sin la base propia (Supabase) no hay contenedor db
 
   api:
     image: *api-image
@@ -65,7 +70,7 @@ services:
     restart: unless-stopped
     environment:
       OLTERRA_ENV: prod
-      OLTERRA_DATABASE_URL: postgresql+asyncpg://olterra_app:${OLTERRA_APP_PASSWORD}@db:5432/olterra
+      OLTERRA_DATABASE_URL: postgresql+asyncpg://${OLTERRA_DB_APP_USER:-olterra_app}:${OLTERRA_APP_PASSWORD}@${OLTERRA_DB_HOST:-db}:${OLTERRA_DB_PORT:-5432}/${OLTERRA_DB_NAME:-olterra}${OLTERRA_DB_QUERY:-}
       OLTERRA_NATS_URL: nats://nats:4222
       OLTERRA_MASTER_KEY: ${OLTERRA_MASTER_KEY}
       OLTERRA_EXECUTOR_PUBLIC_KEY: ${OLTERRA_EXECUTOR_PUBLIC_KEY}
@@ -90,6 +95,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false # sin la base propia (Supabase) no hay contenedor db
       nats:
         condition: service_started
 
@@ -133,10 +139,14 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/respaldo.sh", "--cada-dia"]
     environment:
-      PGHOST: db
-      PGUSER: olterra_owner # tiene BYPASSRLS: el respaldo lleva a todos los ISP
+      PGHOST: ${OLTERRA_DB_HOST:-db}
+      PGPORT: ${OLTERRA_DB_PORT:-5432}
+      PGUSER: ${OLTERRA_DB_OWNER_USER:-olterra_owner} # BYPASSRLS: el respaldo lleva a todos los ISP
       PGPASSWORD: ${OLTERRA_OWNER_PASSWORD}
-      PGDATABASE: olterra
+      PGDATABASE: ${OLTERRA_DB_NAME:-olterra}
+      PGSSLMODE: ${OLTERRA_DB_SSLMODE:-prefer}
+      # En una base compartida solo se respalda el esquema de Olterra; vacío = toda la base.
+      OLTERRA_DB_SCHEMA: ${OLTERRA_DB_SCHEMA:-}
       OLTERRA_RESPALDO_DIAS: ${OLTERRA_RESPALDO_DIAS:-14}
     volumes:
       - ./respaldo.sh:/respaldo.sh:ro
@@ -144,6 +154,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false # sin la base propia (Supabase) no hay contenedor db
 
 volumes:
   pgdata:

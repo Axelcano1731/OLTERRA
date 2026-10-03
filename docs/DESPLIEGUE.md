@@ -1,13 +1,13 @@
 # Despliegue en producción
 
-> Última actualización: 2026-10-01
+> Última actualización: 2026-10-03
 
 Olterra corre en **un servidor con Docker** (un droplet de DigitalOcean) detrás de
 **Cloudflare DNS**, como dice el plan. Todo lo de producción está en `deploy/produccion/`
 y se maneja con un solo comando, `./olterra.sh`.
 
 ```
-Internet ──443──▶ Caddy (web) ──/v1──▶ API ──▶ PostgreSQL + PostGIS
+Internet ──443──▶ Caddy (web) ──/v1──▶ API ──▶ PostgreSQL + PostGIS (propio o Supabase)
                      │                   │
                      └─ interfaz         └──▶ NATS ──▶ ejecutor ──túnel WireGuard──▶ CHR ──▶ MikroTik del ISP ──▶ OLT
 ```
@@ -17,7 +17,7 @@ Internet ──443──▶ Caddy (web) ──/v1──▶ API ──▶ Postgre
 | `web` | Caddy: la interfaz, HTTPS automático (Let's Encrypt) y `/v1`, `/docs`, `/health` hacia la API | 80 y 443 |
 | `api` | FastAPI (`OLTERRA_ENV=prod`) | No |
 | `executor` | El ejecutor: sesiones SSH y SNMP hacia las OLT | No |
-| `db` | PostgreSQL 17 + PostGIS, roles con claves generadas | No |
+| `db` | PostgreSQL 17 + PostGIS propio, roles con claves generadas. **Solo con la base propia** (perfil `db-local`); con una compartida, como la de Supabase, no corre (3.1) | No |
 | `nats` | NATS JetStream (sin cuentas todavía: no se expone) | No |
 | `backup` | `pg_dump` al arrancar y cada 24 h en `respaldos/`; guarda 14 días | No |
 | `migrate` | Migraciones y `olterra-admin` (no queda corriendo) | No |
@@ -73,6 +73,89 @@ Con esa llave se entra a `https://olterra.tuisp.co`.
 
 > **Guarda `.env` en un gestor de claves** apenas se cree. Si se pierde `OLTERRA_MASTER_KEY`,
 > las credenciales guardadas (OLT, PPPoE) no se pueden volver a leer, ni desde un respaldo.
+
+### 3.1 Base de datos compartida (Supabase)
+
+ISPWatch y Converza ya usan **la misma base de Supabase**, cada uno en su esquema
+(`ispwatch_dev`, `converza`…). Olterra se suma con el suyo, `olterra`, y dos roles propios,
+sin tocar nada de lo demás. Es la decisión de partida; separar las bases queda para después
+(ARQUITECTURA, A.13).
+
+**Qué crea** `deploy/produccion/base-compartida.sql`, una sola vez:
+
+| Qué | Para qué |
+|---|---|
+| Esquema `olterra` | Todas las tablas de Olterra. Sin acceso para PUBLIC ni para `anon` y `authenticated` (los roles que Supabase expone por su API) |
+| Rol `olterra_owner` | Dueño del esquema: migraciones, `olterra-admin` y respaldos. Tiene `BYPASSRLS` como en la base propia, pero **no tiene permiso sobre ninguna tabla de otro sistema** |
+| Rol `olterra_app` | La API. Sin `BYPASSRLS`: todo pasa por las políticas de cada ISP |
+| `search_path = olterra, public` | Las tablas caen en `olterra`; `public` queda solo para PostGIS |
+| Tope de conexiones (6 y 12) | La base permite 60 en total y ISPWatch y Converza ya usan una parte |
+
+La clave del administrador (`postgres` de Supabase) **se usa una vez y no se guarda en ningún
+archivo ni en el servidor**: el servidor solo conoce `olterra_owner` y `olterra_app`. Si el
+servidor se compromete, ISPWatch y Converza no quedan expuestos.
+
+```bash
+psql "host=aws-0-us-east-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.<proyecto> sslmode=require" \
+  -v owner_password="$(openssl rand -hex 24)" -v app_password="$(openssl rand -hex 24)" \
+  -f deploy/produccion/base-compartida.sql
+```
+
+(Guardar las dos claves: van al `.env`. Para generarlas aparte y verlas, usar variables y no
+la línea de comandos.) Después, en `.env`:
+
+```
+OLTERRA_DB_HOST=aws-0-us-east-1.pooler.supabase.com
+OLTERRA_DB_PORT=5432
+OLTERRA_DB_NAME=postgres
+OLTERRA_DB_QUERY=?ssl=require
+OLTERRA_DB_SSLMODE=require
+OLTERRA_DB_APP_USER=olterra_app.<proyecto>
+OLTERRA_DB_OWNER_USER=olterra_owner.<proyecto>
+OLTERRA_DB_SCHEMA=olterra
+OLTERRA_APP_PASSWORD=<la de olterra_app>
+OLTERRA_OWNER_PASSWORD=<la de olterra_owner>
+```
+
+Con `OLTERRA_DB_HOST` apuntando afuera, el contenedor `db` no corre. Después,
+`./olterra.sh actualizar` aplica las migraciones en el esquema `olterra`.
+
+Cosas que importan:
+
+- **Puerto 5432 del pooler** (modo sesión), no el 6543 (modo transacción): la API usa
+  sentencias preparadas. Los usuarios del pooler llevan el proyecto: `olterra_app.<proyecto>`.
+- **Conexiones**: cada proceso abre pocas (`OLTERRA_DB_POOL_SIZE=3` y
+  `OLTERRA_DB_MAX_OVERFLOW=2`). Antes de subirlas, mirar cuántas usan ISPWatch y Converza.
+- **El esquema `olterra` no debe aparecer en "Exposed schemas"** de la API de Supabase
+  (Settings → API). Hoy no aparece, y aunque apareciera `anon` no tiene permisos; pero no hay
+  por qué exponerlo.
+- La conexión va con TLS al pooler (`sslmode=require`, que falla si no hay cifrado).
+
+**Pasar una instalación que ya corre con base propia a la compartida** (se hizo el
+2026-10-03; la base propia queda parada, con su volumen, para volver atrás):
+
+1. Crear el esquema y los roles (arriba) y correr las migraciones desde cualquier lado con
+   `OLTERRA_MIGRATIONS_DATABASE_URL` del dueño nuevo: `olterra-admin migrar`.
+2. Respaldo (`./olterra.sh respaldo`) y copia del `.env` (`cp -p .env .env.antes`).
+3. Detener la API y el ejecutor. Volcar **solo los datos** de la base propia, pasarlos al
+   esquema nuevo y cargarlos en **una transacción**:
+
+   ```bash
+   docker exec olterra-db-1 pg_dump -U olterra_owner -d olterra --data-only --column-inserts \
+       --no-owner --exclude-table=alembic_version \
+     | sed -E "/^SET transaction_timeout/d; s/^INSERT INTO public\./INSERT INTO olterra./; s/^(SELECT pg_catalog\.setval\(')public\./\1olterra./" \
+     | docker run --rm -i -e PGPASSWORD postgis/postgis:17-3.5 psql -q -v ON_ERROR_STOP=1 \
+         --single-transaction "host=… user=olterra_owner.<proyecto> dbname=postgres sslmode=require"
+   ```
+
+   (`transaction_timeout` es de PostgreSQL 17; Supabase tiene 15.) Comparar `count(*)` de cada
+   tabla en las dos bases.
+4. Poner las variables de arriba en `.env` y correr `./olterra.sh actualizar`.
+5. Comprobar con una escritura por la API y mirando las conexiones de cada base. Detener el
+   contenedor `db` (`docker stop olterra-db-1`).
+
+**Volver a la base propia**: `cp -p .env.antes .env`, `docker start olterra-db-1` y
+`./olterra.sh actualizar`. Ojo: lo escrito en Supabase después del cambio no vuelve.
 
 ## 4. El día a día
 
@@ -138,20 +221,38 @@ reales dependiendo de esto.
 ## 5. Respaldos
 
 - El servicio `backup` deja un `pg_dump` diario en `deploy/produccion/respaldos/` (solo
-  root) y borra los de más de `OLTERRA_RESPALDO_DIAS` (14).
+  root) y borra los de más de `OLTERRA_RESPALDO_DIAS` (14). Con la base compartida solo lleva
+  el esquema `olterra` (`OLTERRA_DB_SCHEMA`): lo de ISPWatch y Converza no es de Olterra y
+  tiene su propio respaldo en Supabase.
 - **Un respaldo que no se ha restaurado no es un respaldo**: `./olterra.sh probar-respaldo`
-  lo restaura en una base aparte, cuenta los ISP y la borra. CI lo hace en cada PR.
+  lo restaura en un PostgreSQL desechable (un contenedor que se borra), cuenta los ISP y
+  comprueba la migración. Sirve con cualquiera de las dos bases. CI lo hace en cada PR.
 - Fuera del servidor: copiar `respaldos/` a DigitalOcean Spaces (u otro lugar) **cifrado**,
   por ejemplo con `rclone` y un remoto `crypt`. El respaldo sin `.env` no sirve: guarda las
   dos cosas, por separado.
 
-Restaurar de verdad (con la API y el ejecutor detenidos):
+Restaurar de verdad con la **base propia** (con la API y el ejecutor detenidos):
 
 ```bash
 docker compose stop api executor web
 docker compose exec -T db dropdb -U postgres olterra
 docker compose exec -T db createdb -U postgres -O olterra_owner olterra
 docker compose exec -T db pg_restore -U postgres -d olterra /respaldos/olterra-AAAAMMDD-HHMMSS.dump
+./olterra.sh actualizar
+```
+
+Con la **base compartida** se restauran solo las tablas de Olterra, con el dueño y sin tocar lo
+demás. Esta restauración sobre Supabase **no se ha ensayado todavía**: lo que sí está probado
+es que el respaldo se restaura entero en una base desechable (`probar-respaldo`). Antes de
+una restauración real, hacer un respaldo nuevo y ensayarla con el esquema vacío.
+
+```bash
+docker compose stop api executor web
+set -a; . ./.env; set +a
+PGPASSWORD="$OLTERRA_OWNER_PASSWORD" docker run --rm -e PGPASSWORD -v "$PWD/respaldos:/r:ro" \
+  postgis/postgis:17-3.5 pg_restore --clean --if-exists --no-owner --no-acl \
+  -d "host=$OLTERRA_DB_HOST port=$OLTERRA_DB_PORT user=$OLTERRA_DB_OWNER_USER dbname=$OLTERRA_DB_NAME sslmode=require" \
+  /r/olterra-AAAAMMDD-HHMMSS.dump
 ./olterra.sh actualizar
 ```
 

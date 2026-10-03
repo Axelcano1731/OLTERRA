@@ -365,3 +365,19 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
   túnel. De ahí salió una regla nueva del concentrador: los ISP del túnel no entran a sus
   servicios (el firewall de ese CHR solo descartaba lo que llega por la WAN). Falta el
   primer MikroTik de un ISP.
+
+### A.13 Base de datos compartida con ISPWatch y Converza
+
+- **Decisión (2026-10-03):** por ahora Olterra usa la misma base de Supabase que ISPWatch y
+  Converza, en su propio esquema (`olterra`) y con dos roles propios. Es lo que ya hacen esos dos
+  productos entre sí (`ispwatch_dev`, `converza`). Separar las bases queda para cuando haga falta.
+- **Por qué es seguro hacerlo así:** la separación es por permisos, no por buena voluntad. Los
+  roles de Olterra no leen ninguna tabla de otro sistema, y los roles que Supabase expone por su
+  API no entran al esquema. El runtime del servidor solo conoce `olterra_app`; la clave de
+  administrador se usó una vez y no se guardó.
+- **Lo que se paga:** las conexiones son compartidas (60 en total; ISPWatch y Converza usaban 20),
+  así que el pool de Olterra es chico; un problema de rendimiento en una de las apps se siente en
+  las otras; y las migraciones de Olterra corren sobre una base con datos de producción de otros.
+  Mientras tanto, el respaldo de Olterra es propio (solo su esquema).
+- **Separar después** es mover un esquema: `pg_dump -n olterra` a un proyecto nuevo y cambiar el
+  `.env`. Las tablas ya están aisladas, y por eso el costo de separar es bajo.

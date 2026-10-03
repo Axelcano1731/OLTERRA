@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # con el dueño de las tablas (otro rol, otra URL).
     database_url: str = "postgresql+asyncpg://olterra_app:olterra_app@localhost:5432/olterra"
     migrations_database_url: str | None = None
+    # Con una base compartida (Supabase: ISPWatch y Converza usan las mismas conexiones) cada
+    # proceso abre pocas: el rol olterra_app tiene un tope y la base, 60 en total.
+    db_pool_size: int = 3
+    db_max_overflow: int = 2
 
     # --- Mensajería ----------------------------------------------------------
     nats_url: str = "nats://localhost:4222"
