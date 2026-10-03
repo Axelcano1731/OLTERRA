@@ -21,6 +21,10 @@
   servidor SSTP en el concentrador y aislamiento por lista de interfaces para los dos
   transportes. Al rotar, un router puede cambiar de versión y de transporte. Migración `0003`.
 
+- Actualización automática desde `main` (`./olterra.sh auto activar`): cada 5 minutos el
+  servidor mira `main`, espera al CI en verde y se actualiza solo, sin llaves en GitHub ni
+  puertos nuevos. Un commit que falla no se reintenta; las manuales y la automática comparten
+  un candado. `./olterra.sh rama <rama>` pasa el servidor a seguir otra rama.
 - Editar OLT (`PATCH /v1/olts/{id}` y su pantalla): modelo, firmware, IP, puertos y
   credenciales, incluida la clave de enable. Las claves se vuelven a cifrar; la bitácora anota
   cuáles cambiaron, nunca su valor.
@@ -28,6 +32,9 @@
   y el driver lo compara sin guiones (V1600G1-B = V1600G1B).
 
 ### Corregido
+
+- `olterra.sh` ya no puede ejecutar basura al final de `actualizar`: el `git pull` que trae una
+  versión nueva del propio script cambiaba el archivo mientras bash lo leía.
 
 - El ejecutor y el consumidor de resultados de la API morían a los pocos segundos sin
   trabajo: nats-py a veces lanza el `TimeoutError` de asyncio en vez del suyo y solo se

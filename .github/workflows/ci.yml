@@ -87,7 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Scripts (shellcheck)
-        run: shellcheck olterra.sh respaldo.sh
+        run: shellcheck olterra.sh respaldo.sh auto-actualizar.sh pruebas/auto.sh
+      - name: Actualización automática (lógica)
+        run: ./pruebas/auto.sh
       - name: Instalar
         run: ./olterra.sh instalar localhost
       - name: Humo

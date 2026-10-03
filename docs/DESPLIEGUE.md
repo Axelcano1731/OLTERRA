@@ -80,6 +80,8 @@ Con esa llave se entra a `https://olterra.tuisp.co`.
 |---|---|
 | `./olterra.sh estado` | Contenedores y `/health` |
 | `./olterra.sh actualizar` | Respaldo, imágenes nuevas, migraciones y reinicio |
+| `./olterra.sh rama <rama>` | El servidor pasa a seguir esa rama (`main`) y actualiza |
+| `./olterra.sh auto activar` / `desactivar` / `estado` | Actualización automática desde `main` (sección 4.1) |
 | `./olterra.sh dominio <dominio>` | Cambia el dominio: el DNS tiene que apuntar al servidor; Caddy pide el certificado |
 | `./olterra.sh isp <slug> "<Nombre>"` | Un ISP nuevo con su llave |
 | `./olterra.sh llave <slug> <nombre>` | Otra llave para un ISP |
@@ -87,13 +89,51 @@ Con esa llave se entra a `https://olterra.tuisp.co`.
 | `./olterra.sh probar-respaldo` | Restaura el último respaldo en una base aparte y lo revisa |
 | `./olterra.sh registros [servicio]` | Últimos registros |
 
-**Publicar una versión**: al mergear a `main`, el workflow `Imágenes` publica las dos imágenes
-con la etiqueta `main`; en el servidor, `./olterra.sh actualizar`. Para fijar una versión,
-etiquetar `v1.2.3` en git y poner `OLTERRA_VERSION=1.2.3` en `.env`.
+**Publicar una versión**: mergear el PR a `main`. Con la actualización automática (sección
+4.1) el servidor se actualiza solo; sin ella, `./olterra.sh actualizar`. El workflow `Imágenes`
+además publica las dos imágenes en GHCR con la etiqueta `main`, que se usan cuando el servidor
+no construye (`OLTERRA_CONSTRUIR=0`). Para fijar una versión, etiquetar `v1.2.3` en git y poner
+`OLTERRA_VERSION=1.2.3` en `.env`.
 
 La primera vez que el workflow publique, en GitHub → Packages hay que dejar los dos paquetes
 como **públicos** (GHCR los crea privados). Si se prefieren privados, el servidor necesita
 `docker login ghcr.io` con un token de solo lectura (`read:packages`).
+
+### 4.1 Actualización automática desde `main`
+
+Cada 5 minutos el servidor mira `main` y, si hay un commit nuevo, se actualiza solo. Es el
+servidor quien consulta, no GitHub quien entra: **no hay ninguna llave del servidor en GitHub
+ni puertos nuevos abiertos**.
+
+1. Trae `main`. Sin commit nuevo, no hace nada.
+2. **Espera al CI de ese commit**: `pruebas`, `interfaz`, `imagen` y `despliegue` en verde.
+   Si no terminó, espera; si falló, no lo despliega. Así un PR que rompa algo no llega a
+   producción por mergearlo.
+3. Trae el código (solo avanza, nunca reescribe historia) y corre `./olterra.sh actualizar`:
+   respaldo, build, migraciones y reinicio. Si el build o la migración fallan, los
+   contenedores que ya corrían siguen corriendo.
+4. Un commit que falló **no se reintenta**; el siguiente sí. Una actualización manual y la
+   automática no se pisan (comparten un candado).
+
+Activarla, una vez, en el servidor:
+
+```bash
+cd /opt/olterra/deploy/produccion
+./olterra.sh rama main        # si el servidor seguía otra rama; luego actualiza
+sudo ./olterra.sh auto activar
+./olterra.sh auto estado      # temporizador, qué corre, historial y últimos registros
+```
+
+Para pararla: `sudo ./olterra.sh auto desactivar`. Mientras el servidor siga una rama que no es
+`main`, la automática no hace nada (lo dice en `auto estado`).
+
+Lo que **no** hace: avisar si una actualización falla. Hoy se ve en `auto estado` y con
+`systemctl status olterra-auto`; un aviso a Telegram o WhatsApp queda para cuando haya ISP
+reales dependiendo de esto.
+
+> Cuidado: las migraciones corren solas. Antes de cada actualización se hace un respaldo, pero
+> una migración que borra datos no se deshace sola: revisarlas en el PR como cualquier cambio
+> de esquema.
 
 ## 5. Respaldos
 
