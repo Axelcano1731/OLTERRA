@@ -95,6 +95,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false # sin la base propia (Supabase) no hay contenedor db
       nats:
         condition: service_started
 
