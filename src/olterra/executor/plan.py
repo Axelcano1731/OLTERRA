@@ -8,6 +8,7 @@ nuevos que no usa.
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from enum import IntEnum
 from typing import Annotated, Literal
@@ -51,6 +52,19 @@ class SessionProfile(BaseModel):
     terminal_width: int = 512
 
 
+# Un paso CLI puede llevar ``{{secret:<campo>}}``: el ejecutor lo reemplaza con el campo de la
+# credencial sellada justo antes de escribirlo en la OLT. Así una clave nueva nunca viaja en claro
+# por NATS ni queda en el plan guardado.
+SECRET_FIELDS = ("password", "enable_password", "new_password", "new_enable_password")
+_SECRET_PLACEHOLDER = re.compile(r"\{\{secret:([a-z_]+)\}\}")
+
+
+def secret_marker(field: str) -> str:
+    if field not in SECRET_FIELDS:
+        raise ValueError(f"Campo secreto desconocido: {field}")
+    return "{{secret:" + field + "}}"
+
+
 class CliCommand(BaseModel):
     kind: Literal["cli"] = "cli"
     command: str
@@ -63,7 +77,13 @@ class CliCommand(BaseModel):
     def _single_line(cls, value: str) -> str:
         if any(ch in value for ch in "\r\n") or any(ord(ch) < 32 and ch != "\t" for ch in value):
             raise ValueError("Un comando CLI va en una sola línea y sin caracteres de control")
+        for name in _SECRET_PLACEHOLDER.findall(value):
+            if name not in SECRET_FIELDS:
+                raise ValueError(f"Campo secreto desconocido: {name}")
         return value
+
+    def uses_secrets(self) -> bool:
+        return _SECRET_PLACEHOLDER.search(self.command) is not None
 
 
 class SnmpWalk(BaseModel):
@@ -104,6 +124,24 @@ class Credential(BaseModel):
     snmp_v3_user: str | None = None
     snmp_v3_auth_key: SecretStr | None = None
     snmp_v3_priv_key: SecretStr | None = None
+    # Solo en planes que cambian las claves de acceso: lo que se va a poner en la OLT.
+    new_password: SecretStr | None = None
+    new_enable_password: SecretStr | None = None
+
+    def resolve_secrets(self, command: str) -> str:
+        """Reemplaza los ``{{secret:campo}}`` de un comando. Falla si falta algún valor."""
+
+        def replace(match: re.Match[str]) -> str:
+            value = getattr(self, match.group(1), None)
+            if not isinstance(value, SecretStr) or not value.get_secret_value():
+                raise ValueError(f"La credencial sellada no trae '{match.group(1)}'")
+            return value.get_secret_value()
+
+        resolved = _SECRET_PLACEHOLDER.sub(replace, command)
+        # Una clave con salto de línea sería otro comando en la OLT.
+        if any(not ch.isprintable() for ch in resolved):
+            raise ValueError("El comando resuelto lleva caracteres de control")
+        return resolved
 
     def reveal_json(self) -> bytes:
         """JSON con los secretos EN CLARO, solo para sellarlo o cifrarlo enseguida.
@@ -125,6 +163,8 @@ class Credential(BaseModel):
             self.snmp_community,
             self.snmp_v3_auth_key,
             self.snmp_v3_priv_key,
+            self.new_password,
+            self.new_enable_password,
         ]
         return [v.get_secret_value() for v in values if v is not None]
 

@@ -11,7 +11,7 @@ from enum import StrEnum
 from fnmatch import fnmatchcase
 from typing import Any
 
-from olterra.executor.plan import CliCommand, SessionProfile, Step
+from olterra.executor.plan import CliCommand, SessionProfile, Step, secret_marker
 
 
 class Access(StrEnum):
@@ -125,6 +125,9 @@ class CommandTemplate:
     notes: str = ""
     # placeholder -> tipo de PARAM_TYPES (por defecto, el mismo nombre)
     param_types: Mapping[str, str] = field(default_factory=dict)
+    # placeholder -> campo de la credencial sellada (``new_password``...). Esa clave NUNCA entra
+    # al plan: el paso lleva ``{{secret:campo}}`` y el ejecutor la pone al escribir en la OLT.
+    secret_params: Mapping[str, str] = field(default_factory=dict)
 
     def placeholders(self) -> list[str]:
         return [name for _, name, _, _ in string.Formatter().parse(self.template) if name]
@@ -132,6 +135,9 @@ class CommandTemplate:
     def render(self, **values: Any) -> str:
         rendered: dict[str, str] = {}
         for name in self.placeholders():
+            if name in self.secret_params:
+                rendered[name] = secret_marker(self.secret_params[name])
+                continue
             if name not in values:
                 raise ParamError(f"{self.key}: falta el parámetro '{name}'")
             type_name = self.param_types.get(name, name)
@@ -241,6 +247,7 @@ class Driver:
                     sensitive=base.sensitive,
                     notes=base.notes,
                     param_types=base.param_types,
+                    secret_params=base.secret_params,
                 )
         return base
 

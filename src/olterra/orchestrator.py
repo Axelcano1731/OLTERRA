@@ -69,6 +69,56 @@ def build_read_plan(
     return plan.model_copy(update={"credential": sealed})
 
 
+def build_credential_change_plan(
+    driver: Driver,
+    *,
+    tenant_id: UUID,
+    olt_id: UUID,
+    target: Target,
+    credential: Credential,
+    executor_public_key: str,
+    model: str | None = None,
+    firmware: str | None = None,
+) -> Plan:
+    """Plan de ESCRITURA que cambia las claves del usuario con el que entra Olterra.
+
+    ``credential`` trae la clave vigente (para entrar) y ``new_password`` / ``new_enable_password``
+    (lo que se va a poner). Las claves nuevas viajan solo dentro del sello; los pasos llevan
+    marcadores. Si algún paso falla el plan se detiene y la clave guardada en Olterra NO se
+    cambia (quien lo llama la actualiza solo tras comprobar el acceso con la nueva).
+    """
+    if not credential.username:
+        raise PlanBuildError("La credencial no tiene usuario")
+    calls: list[CommandCall] = []
+    if credential.new_password is not None:
+        calls.append(CommandCall("user.set_login_password", {"username": credential.username}))
+    if credential.new_enable_password is not None:
+        calls.append(CommandCall("user.set_enable_password", {"username": credential.username}))
+    if not calls:
+        raise PlanBuildError("No hay ninguna clave nueva que poner")
+    calls.append(CommandCall("config.save"))
+    for call in calls:
+        template = driver.command(call.key, model, firmware)
+        if template.access is not Access.WRITE:
+            raise PlanBuildError(f"'{call.key}' no es de escritura")
+        if not template.verified:
+            raise PlanBuildError(
+                f"'{call.key}' todavía no se validó en laboratorio con este modelo y firmware"
+            )
+    plan = Plan(
+        tenant_id=tenant_id,
+        olt_id=olt_id,
+        priority=Priority.USER,
+        access="write",
+        on_error="stop",
+        target=target,
+        session=driver.session,
+        steps=driver.build_cli_steps(calls, model=model, firmware=firmware),
+    )
+    sealed = seal(executor_public_key, credential.reveal_json(), plan.seal_context())
+    return plan.model_copy(update={"credential": sealed})
+
+
 def pair_outputs(
     call_commands: Sequence[str], step_commands: Sequence[str], steps: Sequence[StepResult]
 ) -> list[tuple[int, StepResult]]:

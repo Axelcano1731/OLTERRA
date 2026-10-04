@@ -112,7 +112,7 @@ class PlanRunner:
                             )
                             stop_reason = "No se ejecutó: no hubo sesión CLI"
                             continue
-                    result = await self._run_cli(session, step, index, secrets)
+                    result = await self._run_cli(session, step, index, secrets, credential)
                 else:
                     result = await self._run_snmp(plan, step, index, credential, secrets)
                 result.elapsed_ms = int((time.monotonic() - t0) * 1000)
@@ -153,10 +153,21 @@ class PlanRunner:
 
     @staticmethod
     async def _run_cli(
-        session: CliSession, step: CliCommand, index: int, secrets: list[str]
+        session: CliSession,
+        step: CliCommand,
+        index: int,
+        secrets: list[str],
+        credential: Credential | None,
     ) -> StepResult:
         try:
-            output = await session.run(step.command, timeout=step.timeout_s)
+            command = step.command
+            if step.uses_secrets():
+                if credential is None:
+                    raise ValueError("El paso lleva claves y el plan no trae credencial")
+                command = credential.resolve_secrets(step.command)
+            output = await session.run(command, timeout=step.timeout_s)
+        except ValueError as exc:
+            return StepResult(index=index, ok=False, error=redact(str(exc), secrets))
         except CliTimeout as exc:
             return StepResult(
                 index=index, ok=False, output=redact(exc.partial_output, secrets), error=str(exc)
