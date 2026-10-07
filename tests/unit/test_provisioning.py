@@ -53,7 +53,8 @@ def rendered(template: TemplateBody, data: ClientData) -> list[str]:
 def test_copy_a_real_onu_into_a_template() -> None:
     copied = parse_onu_running_config(running(3))
     template = TemplateBody.model_validate(copied.template)
-    assert template.auth_profile == "default" and template.onu_profile == "default"
+    # "onu N profile onu default" repite el perfil de "onu add": la V1600G0-B lo rechaza.
+    assert template.auth_profile == "default" and template.onu_profile is None
     assert [(t.id, t.name, t.dba) for t in template.tconts] == [(1, "INTERNET", "default1")]
     assert template.gemports[0].limit_down == "default"
     assert [(s.vlan, s.gemport) for s in template.services] == [(111, 1)]

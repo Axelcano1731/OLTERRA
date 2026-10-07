@@ -184,6 +184,7 @@ _COMMANDS = [
         W,
         RUNNING_G0B,
         param_types={"profile": "name"},
+        notes="La V1600G0-B lo rechaza (% Unknown command): el perfil va en 'onu add'",
     ),
     _c(
         "onu.gemport_limit_down",

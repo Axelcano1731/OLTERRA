@@ -172,8 +172,44 @@ def parse_onu_list(text: str, default_pon: int | None = None) -> list[OnuRow]:
     return result
 
 
+# V1600G0-B V1.4.8R: "Index<TAB>Sn   Equipment ID" y filas "1<TAB>sn:GPON005c9160<TAB><TAB>VSOLV422".
+# Tabulaciones y el prefijo "sn:" (con el hexadecimal en minúscula): no es una tabla de columnas.
+_AUTOFIND_G0B_HEADER = re.compile(r"(?im)^\s*index\s+sn\s+equipment\s+id\s*$")
+_AUTOFIND_G0B_ROW = re.compile(r"^\s*(\d+)\s+sn:(\S+)(?:\s+(\S+))?\s*$")
+
+
+def _parse_autofind_g0b(text: str, default_pon: int | None) -> list[AutofindRow]:
+    rows = []
+    for line in text.splitlines():
+        match = _AUTOFIND_G0B_ROW.match(line)
+        if match is None:
+            continue
+        serial = normalize_gpon_serial(match.group(2))
+        if serial is None:
+            raise UnrecognizedOutput(
+                "vsol.onu.autofind", f"serial inválido: {match.group(2)}", text
+            )
+        rows.append(
+            AutofindRow(
+                pon=default_pon,
+                serial=serial,
+                # Es el orden en la lista de autofind, no un índice de ONU: no se usa como tal.
+                index=None,
+                model=match.group(3),
+                raw={
+                    "index": match.group(1),
+                    "sn": match.group(2),
+                    "equipment_id": match.group(3) or "",
+                },
+            )
+        )
+    return rows
+
+
 def parse_autofind(text: str, default_pon: int | None = None) -> list[AutofindRow]:
     """Salida de ``show onu auto-find``: ONUs conectadas sin autorizar."""
+    if _AUTOFIND_G0B_HEADER.search(text):
+        return _parse_autofind_g0b(text, default_pon)
     result: list[AutofindRow] = []
     tables = _tables_or_empty(text, "vsol.onu.autofind")
     for table in tables:

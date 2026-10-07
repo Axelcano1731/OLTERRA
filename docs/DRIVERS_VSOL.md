@@ -49,7 +49,7 @@ La receta de un alta sale de cómo la propia OLT guarda sus ONU (`show running-c
 ```
 onu add N profile <perfil> sn <serial>
 onu N desc <descripción>
-onu N profile onu <perfil>
+onu N profile onu <perfil>                              (solo si difiere del de 'onu add'; la G0-B lo rechaza)
 onu N tcont 1 name INTERNET dba <perfil DBA>
 onu N gemport 1 tcont 1 gemport_name INTERNET          (la OLT agrega "portid")
 onu N gemport 1 traffic-limit downstream <perfil>
@@ -73,6 +73,9 @@ write
   tampoco lleva espacios.
 - La OLT guarda la clave PPPoE tapada (`pwd ******`) pero la WiFi **en claro** (`shared_key`):
   `redact` tapa las dos en cualquier salida.
+- Laboratorio 2026-10-07: `onu add` y `onu N desc` entraron bien; `onu N profile onu default`
+  dio `% Unknown command` (es lo que ya deja `onu add … profile default`). `show onu auto-find`
+  responde `Index / Sn / Equipment ID` con filas `1<TAB>sn:GPON005c9160<TAB><TAB>VSOLV422`.
 - **Sin verificar todavía**: hasta ejecutarlos en la OLT del laboratorio. `onu.delete` (`no onu N`)
   es inferido del manual; confirmar cuál usa la V1600G0-B.
 
