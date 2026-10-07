@@ -118,7 +118,7 @@ def test_autofind_with_sn_prefix_and_tabs() -> None:
 def test_profile_already_given_by_onu_add_is_not_sent_again() -> None:
     from olterra.drivers.vsol_gpon.provisioning import ClientData, TemplateBody, authorize_calls
 
-    template = TemplateBody(auth_profile="default", onu_profile="default")
+    template = TemplateBody(auth_profile="default", onu_profile="default")  # sin WAN ni WiFi
     client = ClientData(pon=1, onu=1, serial="GPON00AB12CD", description="X")
     keys = [c.key for c in authorize_calls(template, client)]
     assert "onu.bind_onu_profile" not in keys

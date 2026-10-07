@@ -1,7 +1,7 @@
 """Aprovisionamiento: plantillas, alta de ONU, reinicio y borrado.
 
-Cada escritura es un plan que se detiene al primer error, guarda en flash y termina leyendo el
-estado del PON para verificar. Las claves del cliente (PPPoE, WiFi) van solo en la credencial
+Cada escritura es un plan que se detiene al primer error y guarda en flash. El estado del PON se
+consulta aparte, en otra sesión (``onu.state``). Las claves del cliente (PPPoE, WiFi) van solo en la credencial
 sellada al ejecutor: ni el plan guardado, ni NATS, ni la bitácora las ven.
 
 Mientras un comando no tenga captura de laboratorio (``verified=False``) la API se niega a
@@ -19,12 +19,19 @@ from sqlalchemy.exc import IntegrityError
 
 from olterra.api.deps import State, Tenant
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
-from olterra.api.schemas import AuthorizeRequest, OnuRef, TemplateIn, TemplateOut, WritePlanOut
+from olterra.api.schemas import (
+    AuthorizeRequest,
+    ConfigureRequest,
+    OnuRef,
+    TemplateIn,
+    TemplateOut,
+    WritePlanOut,
+)
 from olterra.api.state import audit
 from olterra.db.models import ProvisionTemplate
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall
-from olterra.drivers.vsol_gpon.provisioning import TemplateBody, authorize_calls
+from olterra.drivers.vsol_gpon.provisioning import TemplateBody, authorize_calls, configure_calls
 from olterra.executor.plan import Credential
 from olterra.orchestrator import build_write_plan, unverified_writes
 
@@ -222,13 +229,49 @@ async def authorize_onu(
         state,
         action="onu.authorize",
         calls=calls,
-        verify=[CommandCall("onu.state", {"pon": body.pon})],
+        # El estado se consulta aparte, en otra sesión: en la V1600G0-B "configure terminal"
+        # falló después de "write" dentro del mismo plan, y la ONU tarda en registrarse.
+        verify=[],
         audit_after={
             "pon": body.pon,
             "onu": body.onu,
             "serial": body.serial,
             "description": body.description,
             "template_id": str(body.template_id),
+            "equipment_id": body.equipment_id,
+            "pppoe_user": body.pppoe_user,
+            "wifi_ssid": body.wifi_ssid,
+        },
+        secrets={"pppoe_password": body.pppoe_password, "wifi_key": body.wifi_key},
+        template_id=body.template_id,
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/configure",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def configure_onu(
+    olt_id: UUID, body: ConfigureRequest, ctx: Tenant, state: State
+) -> WritePlanOut:
+    """WAN PPPoE y WiFi de una ONU ya autorizada, con la plantilla. No la vuelve a autorizar."""
+    async with ctx.session() as session:
+        template = TemplateBody.model_validate(
+            (await _get_template(session, body.template_id)).body
+        )
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.configure",
+        calls=configure_calls(template, body),
+        verify=[],
+        audit_after={
+            "pon": body.pon,
+            "onu": body.onu,
+            "template_id": str(body.template_id),
+            "equipment_id": body.equipment_id,
             "pppoe_user": body.pppoe_user,
             "wifi_ssid": body.wifi_ssid,
         },
@@ -269,6 +312,6 @@ async def delete_onu(olt_id: UUID, body: OnuRef, ctx: Tenant, state: State) -> W
         state,
         action="onu.delete",
         calls=[CommandCall("onu.delete", where), CommandCall("config.save")],
-        verify=[CommandCall("onu.state", {"pon": body.pon})],
+        verify=[],
         audit_after=where,
     )
