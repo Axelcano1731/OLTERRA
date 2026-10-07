@@ -16,6 +16,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import (
     ARRAY,
     BigInteger,
+    Boolean,
     DateTime,
     FetchedValue,
     ForeignKey,
@@ -137,6 +138,7 @@ class Olt(Base):
         UUID(as_uuid=True), ForeignKey("credentials.id", ondelete="SET NULL")
     )
     status: Mapped[str] = mapped_column(Text, server_default="pending")
+    pon_ports: Mapped[int | None] = mapped_column(SmallInteger)
     capabilities: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     location: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -181,6 +183,60 @@ class PlanRun(Base):
     status: Mapped[str] = mapped_column(Text, server_default="queued")
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    username: Mapped[str] = mapped_column(Text)
+    display_name: Mapped[str] = mapped_column(Text)
+    password_hash: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(Text, server_default="admin")
+    must_change_password: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    failed_logins: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created()
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    secret_hash: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = _created()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_ip: Mapped[str | None] = mapped_column(INET)
+
+
+class ProvisionJob(Base):
+    __tablename__ = "provision_jobs"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="running")
+    step: Mapped[str] = mapped_column(Text)
+    template: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    template_name: Mapped[str | None] = mapped_column(Text)
+    request: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    secrets: Mapped[bytes | None] = mapped_column(LargeBinary)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    current_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    attempts: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+    requested_by: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

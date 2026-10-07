@@ -225,3 +225,24 @@ def test_write_plan_is_refused_until_the_lab_validates_it() -> None:
     commands = [s.command for s in plan.steps if isinstance(s, CliCommand)]
     assert commands[:2] == ["configure terminal", "interface gpon 0/1"]
     assert "write" in commands
+
+
+def test_names_are_cleaned_for_the_olt() -> None:
+    from olterra.drivers.vsol_gpon.provisioning import clean_label
+
+    assert clean_label("José Pérez  Ñuñez", limit=64) == "Jose_Perez_Nunez"
+    assert clean_label("  Casa de Ana #2 ", limit=32) == "Casa_de_Ana_2"
+    assert clean_label("x" * 80, limit=64) == "x" * 64
+    with pytest.raises(ParamError):
+        clean_label("¿?¡!", limit=10)
+
+
+def test_wan_ports_follow_the_onu_model() -> None:
+    from olterra.drivers.vsol_gpon.provisioning import adapt_binds
+
+    binds = ["lan1", "lan2", "lan3", "lan4", "ssid1", "ssid2"]
+    assert adapt_binds(binds, 2, 1) == ["lan1", "lan2", "ssid1", "ssid2"]  # V422: 2 LAN
+    assert adapt_binds(binds, 4, 1) == binds  # V824: 4 LAN
+    assert adapt_binds(binds, 4, 0) == ["lan1", "lan2", "lan3", "lan4"]  # sin WiFi
+    assert adapt_binds(["ssid1"], 1, 1) == ["lan1", "ssid1"]  # siempre al menos una LAN
+    assert adapt_binds(binds, None, None) == binds  # sin dato, como dice la plantilla

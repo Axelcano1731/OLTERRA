@@ -10,13 +10,15 @@ por HTTP; no tiene lógica de negocio propia.
 
 | Ruta | Pantalla | Usa |
 |---|---|---|
-| `/conectar` | Entrar con la llave de API del ISP | `GET /v1/me` |
+| `/entrar` (antes `/conectar`) | Entrar con usuario y contraseña (o con una llave de API, para integraciones) | `POST /v1/auth/login`, `GET /v1/me` |
+| `/cambiar-clave` | Cambiar la contraseña; obligatoria con la inicial | `POST /v1/auth/password` |
+| `/aprovisionar` | Entrada del menú: con una sola OLT va directo a su pantalla; con varias, se elige | `GET /v1/olts` |
 | `/` | Panel: cuántas OLT, routers y la última conciliación; primeros pasos; estado de la plataforma | `/health`, listas |
 | `/olts`, `/olts/nueva` | OLT del ISP con su estado (**Sin consultar**, **Responde** o **Sin respuesta**: lo actualiza cada consulta o escritura), con **Consultar**, **Aprovisionar**, **Editar** y **Eliminar** en cada fila (el borrado pide confirmación y dice si hay que rotar el MikroTik), y alta (credenciales cifradas, nunca se vuelven a mostrar). Con una OLT nueva se dejan usuario y clave vacíos y el servidor usa los de fábrica (aviso para cambiarlos); la clave de enable la pone el cliente | `GET/POST /v1/olts`, `GET /v1/olts/defaults`, `DELETE /v1/olts/{id}` |
 | `/olts/:id/editar` | Corregir modelo, firmware, IP, puertos y credenciales (incluida la de enable); las claves se vuelven a cifrar y la bitácora solo anota cuáles cambiaron | `PATCH /v1/olts/{id}` |
 | `/olts/:id` | Detalle: consultas de solo lectura con atajos, resultado interpretado, historial | `/v1/olts/{id}/commands`, `/queries`, `/plans`, `/v1/plans/{id}` |
-| `/olts/:id/aprovisionar` | Buscar ONU sin autorizar en un PON (autofind, con el siguiente índice libre), autorizar con una plantilla (PPPoE y WiFi si la plantilla los lleva; pide el Equipment ID del autofind, que «Usar» rellena), configurar solo la WAN y el WiFi de una ONU ya autorizada, verificar el estado del PON en una consulta aparte, reiniciar y borrar (pide escribir `PON:ONU`). Los pasos de cambio de modo que fallan se muestran en el resultado. Las claves se borran del formulario al enviarlas y no se vuelven a mostrar | `POST /v1/olts/{id}/onus/authorize`, `/configure`, `/reboot`, `/delete`, `/queries` |
-| `/plantillas`, `/plantillas/nueva`, `/plantillas/:id` | Plantillas de aprovisionamiento: se copian de una ONU que ya funciona (lee `show running-config onu N`) o se llenan a mano; formulario para el caso de una VLAN y JSON para lo demás | `/v1/provision-templates`, `/queries` |
+| `/olts/:id/aprovisionar` | Al abrir busca sola en todos los PON (ONU nuevas) y lee la lista de clientes. **Autorizar** pide solo nombre del cliente (tildes y espacios se arreglan), plan, PPPoE y WiFi: el resto lo hace el trabajo de alta y se ven los pasos con ✓. **Últimas altas** guarda el resultado. Cada cliente (buscador por nombre) tiene Internet y WiFi, Reiniciar, Copiar como plan y Desautorizar | `POST /v1/olts/{id}/onus/scan`, `/onus/authorize`, `/onus/configure`, `/onus/reboot`, `/onus/delete`, `/v1/provision-jobs/{id}`, `/v1/olts/{id}/provision-jobs` |
+| `/plantillas`, `/plantillas/nueva`, `/plantillas/:id` | **Planes** (plantillas de aprovisionamiento): se copian de un cliente que ya navega ("Copiar como plan" en Aprovisionar abre esta pantalla y lee la ONU sola) o se llenan a mano; formulario para el caso de una VLAN y JSON para lo demás | `/v1/provision-templates`, `/queries` |
 | `/tunel` | MikroTik en el túnel: alta con su versión de RouterOS (7 → WireGuard, 6 → SSTP), rotación y cambio de versión; el script se muestra una sola vez | `/v1/tunnel/routers` |
 | `/conciliacion`, `/conciliacion/nueva`, `/conciliacion/:id` | Historial, nueva (archivos o demo) y detalle con filtros y CSV | `/v1/reconciliations` |
 
@@ -35,17 +37,22 @@ mapa FTTH).
 - **Consultas a la OLT.** `POST /queries` responde 202 con el id del plan; la interfaz pregunta
   por el plan cada 1 a 3 s hasta que el ejecutor devuelve el resultado, y avisa si tarda.
 
-## Sesión (fase 0)
+## Sesión
 
-No hay usuarios todavía: falta decidir el proveedor de identidad común a ISPWatch, Converza y
-Olterra (ARQUITECTURA, A.10). Mientras tanto se entra con la llave de API del ISP:
+Se entra con **usuario y contraseña** (`/entrar`). La llave de API sigue sirviendo para
+integraciones (n8n, scripts): en la misma pantalla, "Entrar con una llave de API".
 
-- Queda en `sessionStorage` (se olvida al cerrar la pestaña) o, si se marca "recordar", en
-  `localStorage`.
-- La llave da todo lo que sus permisos (`scopes`) dan. La interfaz oculta lo que la llave no
-  puede hacer, pero quien manda es la API.
-- Cuando haya usuarios, la sesión pasa a cookie `HttpOnly` y llegan los roles y el 2FA del
-  plan. Este es el punto más débil de hoy: la llave en el navegador.
+- Los usuarios los crea el administrador (`./olterra.sh usuario`, ver DESPLIEGUE.md) con una
+  contraseña inicial que **hay que cambiar al entrar**: mientras tanto la API solo deja ver quién
+  es, cambiarla o salir, y la interfaz manda a `/cambiar-clave`.
+- La sesión es un token `ols_…` (mismo diseño que las llaves: el tenant va adentro y se valida
+  bajo RLS). Dura 12 horas, o 30 días con "mantener la sesión"; queda en `sessionStorage` o
+  `localStorage` como la llave. Salir la cierra también en el servidor.
+- Roles: `admin` (todo), `tecnico` (consultar y aprovisionar) y `lectura` (solo consultar).
+- Contraseñas con scrypt; 5 intentos fallidos bloquean la cuenta 15 minutos y hay un tope de
+  intentos por IP. Usuario inexistente y contraseña equivocada responden igual.
+- Pendiente: cookie `HttpOnly` en vez de almacenamiento del navegador, 2FA e identidad común con
+  ISPWatch y Converza (ARQUITECTURA, A.10).
 
 ## Seguridad
 

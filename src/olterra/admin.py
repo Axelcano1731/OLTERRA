@@ -8,7 +8,13 @@ los tenants. La API y el ejecutor nunca usan ese rol.
     olterra-admin migrar
     olterra-admin crear-tenant --slug isp-piloto --nombre "ISP Piloto"
     olterra-admin crear-llave --tenant isp-piloto --nombre integracion
+    olterra-admin crear-usuario --tenant isp-piloto --usuario Ana --nombre "Ana Pérez"
+    olterra-admin restablecer-clave --usuario Ana
     olterra-admin concentrador --ip 198.18.0.1
+
+La contraseña de ``crear-usuario`` y ``restablecer-clave`` se pide sin eco o se lee de la
+entrada estándar (una línea), nunca de la línea de comandos. Es una contraseña inicial: el
+usuario la tiene que cambiar al entrar.
 """
 
 from __future__ import annotations
@@ -16,23 +22,28 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import getpass
 import os
 import re
+import sys
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from olterra.config import ConfigError, get_settings
-from olterra.db.models import ApiKey, Tenant, TenantKey
+from olterra.db.models import ApiKey, Tenant, TenantKey, User
 from olterra.db.session import create_engine, session_factory, tenant_session
-from olterra.security import apikeys, sealed
+from olterra.security import apikeys, passwords, sealed
 from olterra.security.vault import Vault
 from olterra.tunnel.routeros import ScriptError, render_hub_bootstrap
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
+_USERNAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{2,31}$")
+ROLES = ("admin", "tecnico", "lectura")
+MIN_INITIAL_PASSWORD = 6
 
 
 class AdminError(ValueError):
@@ -90,6 +101,75 @@ async def tenant_by_slug(factory: async_sessionmaker[AsyncSession], slug: str) -
     return tenant
 
 
+def read_initial_password() -> str:
+    """Sin eco si hay terminal; si no, la primera línea de la entrada estándar."""
+    if sys.stdin.isatty():
+        first = getpass.getpass("Contraseña inicial: ")
+        if getpass.getpass("Repítela: ") != first:
+            raise AdminError("Las dos contraseñas no coinciden")
+        password = first
+    else:
+        # PowerShell antepone la marca BOM al pasar texto por la tubería: no es parte de la clave.
+        password = sys.stdin.readline().rstrip("\r\n").lstrip("﻿")
+    if len(password) < MIN_INITIAL_PASSWORD:
+        raise AdminError(
+            f"La contraseña inicial necesita al menos {MIN_INITIAL_PASSWORD} caracteres"
+        )
+    return password
+
+
+async def create_user(
+    factory: async_sessionmaker[AsyncSession],
+    tenant_id: UUID,
+    *,
+    username: str,
+    display_name: str,
+    password: str,
+    role: str = "admin",
+    must_change_password: bool = True,
+) -> User:
+    if not _USERNAME.fullmatch(username):
+        raise AdminError("Usuario de 3 a 32 caracteres: letras, números, punto, guion o guion bajo")
+    if role not in ROLES:
+        raise AdminError(f"Rol desconocido: {role} ({', '.join(ROLES)})")
+    async with factory() as check:
+        taken = await check.execute(
+            select(User.id).where(func.lower(User.username) == username.lower())
+        )
+        if taken.first() is not None:
+            raise AdminError(f"Ya existe un usuario {username}")
+    async with tenant_session(factory, tenant_id) as session:
+        user = User(
+            tenant_id=tenant_id,
+            username=username,
+            display_name=display_name.strip() or username,
+            password_hash=passwords.hash_password(password),
+            role=role,
+            must_change_password=must_change_password,
+        )
+        session.add(user)
+        await session.flush()
+        await session.refresh(user)
+    return user
+
+
+async def reset_password(
+    factory: async_sessionmaker[AsyncSession], *, username: str, password: str
+) -> User:
+    """Contraseña inicial nueva (hay que cambiarla al entrar) y la cuenta desbloqueada."""
+    async with factory() as session, session.begin():
+        user = (
+            await session.execute(select(User).where(func.lower(User.username) == username.lower()))
+        ).scalar_one_or_none()
+        if user is None:
+            raise AdminError(f"No existe el usuario {username}")
+        user.password_hash = passwords.hash_password(password)
+        user.must_change_password = True
+        user.failed_logins = 0
+        user.locked_until = None
+    return user
+
+
 def run_migrations() -> None:
     from alembic import command
     from alembic.config import Config
@@ -116,6 +196,23 @@ async def _with_owner(action: str, args: argparse.Namespace) -> None:
             token = await create_api_key(factory, tenant.id, name=args.nombre)
             print("Llave de API (se muestra una sola vez; guárdela en el gestor de secretos):")
             print(token)
+        elif action == "crear-usuario":
+            tenant = await tenant_by_slug(factory, args.tenant)
+            user = await create_user(
+                factory,
+                tenant.id,
+                username=args.usuario,
+                display_name=args.nombre or args.usuario,
+                password=read_initial_password(),
+                role=args.rol,
+            )
+            print(f"Usuario {user.username} creado en {tenant.slug} (rol {user.role}).")
+            print("La contraseña es inicial: se cambia la primera vez que entre.")
+        elif action == "restablecer-clave":
+            user = await reset_password(
+                factory, username=args.usuario, password=read_initial_password()
+            )
+            print(f"Contraseña de {user.username} restablecida: la cambia al entrar.")
     finally:
         await engine.dispose()
 
@@ -134,6 +231,13 @@ def main(argv: list[str] | None = None) -> None:
     key = sub.add_parser("crear-llave")
     key.add_argument("--tenant", required=True, help="slug del tenant")
     key.add_argument("--nombre", required=True)
+    user = sub.add_parser("crear-usuario", help="Usuario para entrar a la interfaz")
+    user.add_argument("--tenant", required=True, help="slug del tenant")
+    user.add_argument("--usuario", required=True)
+    user.add_argument("--nombre", help="Nombre para mostrar")
+    user.add_argument("--rol", default="admin", choices=ROLES)
+    reset = sub.add_parser("restablecer-clave", help="Contraseña inicial nueva para un usuario")
+    reset.add_argument("--usuario", required=True)
     hub = sub.add_parser("concentrador", help="Script inicial del concentrador RouterOS")
     hub.add_argument(
         "--ip", default="198.18.0.1", help="IP del concentrador dentro del prefijo de la plataforma"

@@ -124,3 +124,38 @@ def test_profile_already_given_by_onu_add_is_not_sent_again() -> None:
     assert "onu.bind_onu_profile" not in keys
     other = TemplateBody(auth_profile="default", onu_profile="hgu")
     assert "onu.bind_onu_profile" in [c.key for c in authorize_calls(other, client)]
+
+
+def test_interfaces_brief_gives_pons_and_customers() -> None:
+    from pathlib import Path
+
+    text = Path(
+        "tests/fixtures/vsol-gpon/V1600G0-B/V1.4.8R/20261003/cli/interfaces.brief.txt"
+    ).read_text(encoding="utf-8")
+    brief = parsers.parse_interfaces_brief(text)
+    assert brief.pons == [1, 2, 3, 4]
+    assert len(brief.onus) == 145
+    # Una descripción larga empuja la columna de estado: se lee desde el final de la línea.
+    pushed = parsers.parse_interfaces_brief(
+        "GPON0/1                          up                          GPON\n"
+        "GPON0/1:2    JUAN-ORLANDO-JIMENEZ-HELADERIAup                          GPON-ONUID\n"
+        "GPON0/2:3    ANA_GOMEZ           down                        GPON-ONUID\n"
+        "GPON0/2:4                        up                          GPON-ONUID\n"
+    )
+    assert [(o.pon, o.onu, o.description, o.up) for o in pushed.onus] == [
+        (1, 2, "JUAN-ORLANDO-JIMENEZ-HELADERIA", True),
+        (2, 3, "ANA_GOMEZ", False),
+        (2, 4, None, True),
+    ]
+
+
+def test_capability_and_equipment_id() -> None:
+    from pathlib import Path
+
+    base = Path("tests/fixtures/vsol-gpon/V1600G0-B/V1.4.8R/20261003/cli")
+    capability = parsers.parse_onu_capability(
+        (base / "onu.capability_pon1_onu2.txt").read_text(encoding="utf-8")
+    )
+    assert (capability.ethernet_ports, capability.wifi_ports, capability.onu_type) == (4, 1, "HGU")
+    detail = (base / "onu.detail_pon1_onu2.txt").read_text(encoding="utf-8")
+    assert parsers.parse_equipment_id(detail) == "VSOLV824"

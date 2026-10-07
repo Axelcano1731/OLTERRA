@@ -40,6 +40,8 @@ class SimOnu:
     rx_dbm: float = -19.5
     # Lo que devuelve "show running-config onu N": se llena con cada comando de aprovisionamiento.
     config: list[str] = field(default_factory=list)
+    ethernet_ports: int = 4
+    equipment_id: str = "VSOLV824"
 
 
 @dataclass
@@ -245,6 +247,8 @@ class _Cli:
             return "", True
         if cmd in ("write", "write memory"):
             return "Saving current configuration...\nOK!", False
+        if cmd == "show interface brief":
+            return self._interfaces_brief(), False
         if cmd == "show version":
             return (
                 f"Device Type          : {self.c.model}\n"
@@ -297,7 +301,47 @@ class _Cli:
         onu.config.append(saved)
         return ""
 
+    def _interfaces_brief(self) -> str:
+        """Como la V1600G0-B: los puertos y cada ONU con su descripción (la larga empuja el estado)."""
+        lines = [
+            "Port         Description         Status    Duplex  Speed     Type",
+            "---          -----------         -----     ------  -----     ---",
+        ]
+        lines += [
+            f"{f'GPON0/{pon}':<33}up                          GPON"
+            for pon in range(1, self.c.pon_ports + 1)
+        ]
+        for o in sorted(self.c.onus, key=lambda x: (x.pon, x.onu)):
+            status = "up" if o.state == "working" else "down"
+            lines.append(f"{f'GPON0/{o.pon}:{o.onu}':<13}{o.description:<20}{status:<28}GPON-ONUID")
+        return "\n".join(lines)
+
+    def _onu(self, onu: int) -> SimOnu | None:
+        return next((o for o in self._onus() if o.onu == onu), None)
+
     def _pon_command(self, cmd: str) -> str:
+        match = re.fullmatch(r"show onu (\d+) capability", cmd)
+        if match:
+            found = self._onu(int(match.group(1)))
+            if found is None:
+                return "Error: onu is not exist"
+            return (
+                f"------------onu {found.onu} capability------------\n"
+                f"Ethernet UNI number:               {found.ethernet_ports}\n"
+                "WIFI UNI number:                   1\n"
+                "ONU type:                          HGU"
+            )
+        match = re.fullmatch(r"show onu detail-info (\d+)", cmd)
+        if match:
+            found = self._onu(int(match.group(1)))
+            if found is None:
+                return "Error: onu is not exist"
+            return (
+                f"---------onu {found.onu} defail-info---------\n"
+                "Vendor ID:                    VSOL\n"
+                f"SN:                           {found.serial}\n"
+                f"Equipment ID:                 {found.equipment_id}"
+            )
         if cmd == "show onu info":
             return self._onu_info()
         if cmd == "show onu state":
@@ -312,7 +356,7 @@ class _Cli:
             return self._autofind()
         if cmd == "show pon onu all rx-power":
             return self._rx_power()
-        match = re.fullmatch(r"show onu (\d+) optical-info", cmd)
+        match = re.fullmatch(r"show onu (\d+) optical[-_]info", cmd)
         if match:
             return self._optical(int(match.group(1))) or "Error: onu is not exist"
         match = re.fullmatch(r"onu add (\d+) profile (\S+) sn (\S+)", cmd)
@@ -321,7 +365,16 @@ class _Cli:
             if any(o.onu == onu for o in self._onus()) or self.pon is None:
                 return f"Error: onu {onu} is already exist"
             self.c.onus.append(
-                SimOnu(self.pon, onu, serial, profile=profile, config=[cmd], state="working")
+                SimOnu(
+                    self.pon,
+                    onu,
+                    serial,
+                    profile=profile,
+                    config=[cmd],
+                    state="working",
+                    ethernet_ports=2,
+                    equipment_id="VSOLV422",
+                )
             )
             self.c.autofind = [(p, s) for p, s in self.c.autofind if s != serial]
             return ""

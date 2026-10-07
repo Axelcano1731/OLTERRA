@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
-import { isConnected, loadMe } from '@/session'
+import { isConnected, loadMe, mustChangePassword } from '@/session'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -15,10 +15,17 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
-      path: '/conectar',
+      path: '/entrar',
+      alias: '/conectar',
       name: 'connect',
       component: () => import('@/views/ConnectView.vue'),
       meta: { title: 'Entrar', public: true },
+    },
+    {
+      path: '/cambiar-clave',
+      name: 'change-password',
+      component: () => import('@/views/ChangePasswordView.vue'),
+      meta: { title: 'Cambiar contraseña' },
     },
     {
       path: '/',
@@ -57,6 +64,12 @@ export const router = createRouter({
           meta: { title: 'OLT' },
         },
         {
+          path: 'aprovisionar',
+          name: 'provision',
+          component: () => import('@/views/ProvisionHomeView.vue'),
+          meta: { title: 'Aprovisionar' },
+        },
+        {
           path: 'olts/:id/aprovisionar',
           name: 'olt-provision',
           component: () => import('@/views/OltProvisionView.vue'),
@@ -67,20 +80,20 @@ export const router = createRouter({
           path: 'plantillas',
           name: 'templates',
           component: () => import('@/views/TemplatesView.vue'),
-          meta: { title: 'Plantillas' },
+          meta: { title: 'Planes' },
         },
         {
           path: 'plantillas/nueva',
           name: 'template-new',
           component: () => import('@/views/TemplateEditView.vue'),
-          meta: { title: 'Nueva plantilla' },
+          meta: { title: 'Nuevo plan' },
         },
         {
           path: 'plantillas/:id',
           name: 'template-edit',
           component: () => import('@/views/TemplateEditView.vue'),
           props: true,
-          meta: { title: 'Editar plantilla' },
+          meta: { title: 'Editar plan' },
         },
         {
           path: 'tunel',
@@ -128,6 +141,10 @@ router.beforeEach(async (to) => {
   } catch {
     // Un 401 ya cerró la sesión; otro error (API caída) lo muestra cada vista.
     if (!isConnected.value) return { name: 'connect', query: { motivo: 'expirada' } }
+  }
+  // Con la contraseña inicial solo se puede cambiarla.
+  if (mustChangePassword.value && to.name !== 'change-password') {
+    return { name: 'change-password' }
   }
   return true
 })

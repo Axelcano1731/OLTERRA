@@ -379,7 +379,21 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - **Claves del cliente selladas.** PPPoE y WiFi viajan en la credencial sellada al ejecutor; los
   pasos llevan `{{secret:campo}}`, que el ejecutor resuelve justo al escribir en la OLT. Ni NATS,
   ni `plan_runs`, ni la bitácora, ni la API las ven.
+- **El operador no ve nada técnico.** Un alta es un trabajo (`provision_jobs`, `api/jobs.py`)
+  que avanza solo: busca la posición libre y el Equipment ID, autoriza y guarda el servicio,
+  espera a que la ONU se conecte (en la V1600G0-B la WAN y el WiFi responden "Unsupport private
+  protocol" si no), lee cuántos puertos tiene ese modelo, pone PPPoE y WiFi y comprueba la señal.
+  Lo empuja cada resultado de plan y un reloj en la API; si la API se reinicia, el reloj lo
+  retoma. El nombre del cliente y del WiFi se limpian solos (tildes y espacios).
 - Pendiente: acciones masivas, mover de puerto, ligar la ONU al cliente de ISPWatch y a su NAP.
+
+### A.15 Usuarios
+
+- Usuario y contraseña propios de Olterra mientras no haya identidad común con ISPWatch y
+  Converza (A.10). El usuario es único en toda la plataforma: quien entra no escribe su ISP.
+- Contraseñas con scrypt; contraseña inicial que se cambia al entrar; bloqueo por intentos;
+  sesiones `ols_…` con el tenant adentro (como las llaves) y vencimiento.
+- Las personas entran con usuario; las llaves de API quedan para integraciones.
 
 ### A.13 Base de datos compartida con ISPWatch y Converza
 

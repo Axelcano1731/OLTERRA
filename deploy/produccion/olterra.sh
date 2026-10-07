@@ -9,6 +9,8 @@
 #   ./olterra.sh auto activar|desactivar|estado   actualización automática desde main (cada 5 min)
 #   ./olterra.sh isp <slug> "<Nombre>"        crea un ISP y su primera llave de API
 #   ./olterra.sh llave <slug> <nombre>        otra llave de API para un ISP
+#   ./olterra.sh usuario <slug> <usuario> ["<Nombre>"]   usuario para entrar a la interfaz
+#   ./olterra.sh clave <usuario>              contraseña inicial nueva (y desbloquea la cuenta)
 #   ./olterra.sh respaldo                     un respaldo ahora (además del diario)
 #   ./olterra.sh probar-respaldo              restaura el último respaldo aparte y lo revisa
 #   ./olterra.sh estado                       contenedores y /health
@@ -351,6 +353,43 @@ llave() {
     compose run --rm -T migrate olterra-admin crear-llave --tenant "$slug" --nombre "$nombre"
 }
 
+# La contraseña se pide sin eco y viaja por la entrada estándar: nunca en la línea de comandos.
+leer_clave() {
+    local una dos
+    if [ -t 0 ]; then
+        read -rsp "Contraseña inicial (se cambia al entrar): " una
+        echo >&2
+        read -rsp "Repítela: " dos
+        echo >&2
+        [ "$una" = "$dos" ] || die "las dos contraseñas no coinciden"
+    else
+        IFS= read -r una
+    fi
+    printf '%s' "$una"
+}
+
+usuario() {
+    local slug="${1:-}" nombre_usuario="${2:-}" nombre="${3:-}"
+    if [ -z "$slug" ] || [ -z "$nombre_usuario" ]; then
+        die 'uso: ./olterra.sh usuario <slug> <usuario> ["<Nombre>"]'
+    fi
+    verificar_env
+    local clave
+    clave="$(leer_clave)"
+    printf '%s\n' "$clave" | compose run --rm -T migrate olterra-admin crear-usuario \
+        --tenant "$slug" --usuario "$nombre_usuario" --nombre "${nombre:-$nombre_usuario}"
+}
+
+clave() {
+    local nombre_usuario="${1:-}"
+    [ -n "$nombre_usuario" ] || die "uso: ./olterra.sh clave <usuario>"
+    verificar_env
+    local nueva
+    nueva="$(leer_clave)"
+    printf '%s\n' "$nueva" | compose run --rm -T migrate olterra-admin restablecer-clave \
+        --usuario "$nombre_usuario"
+}
+
 respaldo() {
     compose exec -T backup sh /respaldo.sh
 }
@@ -418,12 +457,14 @@ despachar() {
     auto) auto "$@" ;;
     isp) isp "$@" ;;
     llave) llave "$@" ;;
+    usuario) usuario "$@" ;;
+    clave) clave "$@" ;;
     respaldo) respaldo ;;
     probar-respaldo) probar_respaldo ;;
     estado) estado ;;
     registros) compose logs --tail 200 "$@" ;;
     *)
-        sed -n '2,18p' "$0"
+        sed -n '2,20p' "$0"
         exit 1
         ;;
     esac

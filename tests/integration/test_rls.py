@@ -12,7 +12,17 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from olterra.admin import create_api_key, create_tenant
-from olterra.db.models import ApiKey, AuditLog, Olt, ProvisionTemplate, Tenant, TunnelRouter
+from olterra.db.models import (
+    ApiKey,
+    AuditLog,
+    Olt,
+    ProvisionJob,
+    ProvisionTemplate,
+    Tenant,
+    TunnelRouter,
+    User,
+    UserSession,
+)
 from olterra.db.session import create_engine, session_factory, tenant_session
 from olterra.security.vault import Vault
 from tests.conftest import PgDatabase
@@ -94,6 +104,84 @@ async def test_provision_templates_are_isolated(world: World) -> None:
     with pytest.raises(DBAPIError, match="row-level security"):
         async with tenant_session(world.app, world.a) as session:
             session.add(ProvisionTemplate(tenant_id=world.b, name="intrusa", body=body))
+
+
+async def test_users_sessions_and_provision_jobs_are_isolated(world: World) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    name = f"user{uuid4().hex[:8]}"
+    # Los usuarios los crea olterra-admin (rol dueño): la API solo los lee y cambia contadores.
+    async with tenant_session(world.owner, world.b) as session:
+        user = User(tenant_id=world.b, username=name, display_name="B", password_hash="scrypt$x")
+        session.add(user)
+        await session.flush()
+        user_id = user.id
+    with pytest.raises(DBAPIError, match="permission denied"):
+        async with tenant_session(world.app, world.b) as session:
+            session.add(
+                User(tenant_id=world.b, username=f"x{name}", display_name="X", password_hash="h")
+            )
+
+    async with tenant_session(world.app, world.b) as session:
+        olt_b = (await session.execute(select(Olt.id).where(Olt.name == "OLT-B"))).scalar_one()
+        session.add(
+            UserSession(
+                id=uuid4(),
+                tenant_id=world.b,
+                user_id=user_id,
+                secret_hash=b"h",
+                expires_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+        )
+        job = ProvisionJob(
+            tenant_id=world.b,
+            olt_id=olt_b,
+            kind="authorize",
+            step="discover",
+            template={},
+            request={"pon": 1},
+            requested_by="prueba",
+            next_run_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        session.add(job)
+        await session.flush()
+        job_id = job.id
+
+    async with tenant_session(world.app, world.a) as session:
+        assert (await session.execute(select(User.id))).all() == []
+        assert (await session.execute(select(UserSession.id))).all() == []
+        assert (await session.execute(select(ProvisionJob.id))).all() == []
+    with pytest.raises(DBAPIError, match="row-level security"):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                UserSession(
+                    id=uuid4(),
+                    tenant_id=world.b,
+                    user_id=user_id,
+                    secret_hash=b"h",
+                    expires_at=datetime.now(UTC),
+                )
+            )
+    # La sesión no puede apuntar a un usuario de otro tenant (FK compuesta).
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                UserSession(
+                    id=uuid4(),
+                    tenant_id=world.a,
+                    user_id=user_id,
+                    secret_hash=b"h",
+                    expires_at=datetime.now(UTC),
+                )
+            )
+    # El reloj de los trabajos ve, sin tenant, solo identificadores de los que tocan.
+    async with world.app() as session:
+        due = (
+            await session.execute(
+                text("SELECT tenant_id, job_id FROM olterra_due_provision_jobs()")
+            )
+        ).all()
+    assert (world.b, job_id) in [tuple(row) for row in due]
 
 
 async def test_foreign_keys_cannot_point_to_another_tenant(world: World) -> None:

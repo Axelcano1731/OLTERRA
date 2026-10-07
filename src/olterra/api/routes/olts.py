@@ -29,6 +29,7 @@ from olterra.api.state import audit
 from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Olt, PlanRun, TunnelRouter
 from olterra.db.models import Tenant as TenantRow
+from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
 from olterra.drivers.base import Access, CliMode, CommandCall, CommandTemplate
 from olterra.executor.plan import Credential, Plan, Priority, Target
@@ -439,7 +440,7 @@ def executor_key(state: Any) -> str:
 
 
 async def olt_access(
-    session: Any, ctx: Any, state: Any, olt_id: UUID
+    session: Any, tenant_id: UUID, state: Any, olt_id: UUID
 ) -> tuple[Olt, Credential, Target]:
     """La OLT, su credencial descifrada (solo en memoria) y a dónde conectarse."""
     olt = await _get_olt(session, olt_id)
@@ -449,9 +450,9 @@ async def olt_access(
     row = await session.get(CredentialRow, olt.credential_id)
     if row is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "La credencial de la OLT no existe")
-    dek = await state.tenant_dek(session, ctx.tenant_id)
+    dek = await state.tenant_dek(session, tenant_id)
     credential = Credential.model_validate_json(
-        Vault.decrypt(ctx.tenant_id, dek, f"credential:{row.id}", row.ciphertext)
+        Vault.decrypt(tenant_id, dek, f"credential:{row.id}", row.ciphertext)
     )
     target = Target(
         host=str(host).split("/")[0],
@@ -463,15 +464,15 @@ async def olt_access(
 
 
 async def record_plan(
-    session: Any, ctx: Any, olt: Olt, plan: Plan, calls: list[CommandCall]
+    session: Any, tenant_id: UUID, actor: str, olt: Olt, plan: Plan, calls: list[CommandCall]
 ) -> datetime:
     """Guarda el plan (sin claves: los pasos llevan marcadores) antes de encolarlo."""
     driver = get_driver(olt.driver)
     run = PlanRun(
         id=plan.plan_id,
-        tenant_id=ctx.tenant_id,
+        tenant_id=tenant_id,
         olt_id=olt.id,
-        requested_by=ctx.actor,
+        requested_by=actor,
         priority=int(plan.priority),
         access=plan.access,
         calls=json.loads(
@@ -496,13 +497,13 @@ async def record_plan(
     return run.created_at
 
 
-async def publish_plan(ctx: Any, state: Any, plan: Plan) -> None:
+async def publish_plan(state: Any, plan: Plan) -> None:
     """Se publica DESPUÉS de confirmar la fila: así el resultado siempre encuentra su plan."""
     bus = state.require_bus()
     try:
         await bus.publish_plan(plan, state.settings.executor_group)
     except Exception as exc:
-        async with ctx.session() as session:
+        async with tenant_session(state.sessions, plan.tenant_id) as session:
             failed = await session.get(PlanRun, plan.plan_id)
             if failed is not None:
                 failed.status = "rejected"
@@ -519,7 +520,7 @@ async def query_olt(olt_id: UUID, body: QueryRequest, ctx: Tenant, state: State)
     key = executor_key(state)
     state.require_bus()
     async with ctx.session() as session:
-        olt, credential, target = await olt_access(session, ctx, state, olt_id)
+        olt, credential, target = await olt_access(session, ctx.tenant_id, state, olt_id)
         calls = _calls_for(olt.driver, body, olt.model, olt.firmware)
         plan = build_read_plan(
             get_driver(olt.driver),
@@ -533,6 +534,6 @@ async def query_olt(olt_id: UUID, body: QueryRequest, ctx: Tenant, state: State)
             firmware=olt.firmware,
             priority=Priority.USER,
         )
-        created_at = await record_plan(session, ctx, olt, plan, calls)
-    await publish_plan(ctx, state, plan)
+        created_at = await record_plan(session, ctx.tenant_id, ctx.actor, olt, plan, calls)
+    await publish_plan(state, plan)
     return PlanOut(plan_id=plan.plan_id, olt_id=olt_id, status="queued", created_at=created_at)

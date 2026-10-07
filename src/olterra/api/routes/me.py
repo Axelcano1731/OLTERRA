@@ -5,8 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from olterra.api.deps import Tenant
-from olterra.api.schemas import MeOut, TenantOut
+from olterra.api.schemas import MeOut, TenantOut, UserOut
 from olterra.db.models import Tenant as TenantRow
+from olterra.db.models import User
 
 router = APIRouter(prefix="/v1", tags=["Plataforma"])
 
@@ -17,8 +18,17 @@ async def me(ctx: Tenant) -> MeOut:
         tenant = await session.get(TenantRow, ctx.tenant_id)
         if tenant is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant no encontrado")
+        user = await session.get(User, ctx.user_id) if ctx.user_id else None
         return MeOut(
             tenant=TenantOut(id=tenant.id, slug=tenant.slug, name=tenant.name),
             key_name=ctx.key_name,
             scopes=list(ctx.scopes),
+            user=UserOut(
+                username=user.username,
+                display_name=user.display_name,
+                role=user.role,  # type: ignore[arg-type]
+                must_change_password=user.must_change_password,
+            )
+            if user
+            else None,
         )

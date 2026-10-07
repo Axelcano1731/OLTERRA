@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Braces, Copy, LoaderCircle, Save, SlidersHorizontal } from '@lucide/vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   createTemplate,
@@ -20,6 +20,7 @@ import { usePlan } from '@/lib/usePlan'
 
 const props = defineProps<{ id?: string }>()
 const router = useRouter()
+const route = useRoute()
 
 const NAME = /^[A-Za-z0-9_. -]{1,48}$/
 const PROFILE = /^[A-Za-z0-9_.-]{1,32}$/
@@ -51,6 +52,15 @@ function setBody(body: TemplateBody): void {
 }
 
 onMounted(async () => {
+  // "Copiar como plan" desde la lista de clientes: llega con la ONU y se lee sola.
+  const { olt, pon, onu } = route.query
+  if (!props.id && typeof olt === 'string' && Number(pon) > 0 && Number(onu) > 0) {
+    copy.oltId = olt
+    copy.pon = Number(pon)
+    copy.onu = Number(onu)
+    void readOnu()
+    return
+  }
   if (!props.id) return
   try {
     const template = await getTemplate(props.id)
@@ -71,7 +81,7 @@ function switchMode(next: 'simple' | 'json'): void {
     const short = bodyToSimple(JSON.parse(json.value) as TemplateBody)
     if (!short) {
       saveError.value =
-        'Esta plantilla tiene más de una VLAN, T-CONT o GEM: solo se puede editar como JSON.'
+        'Este plan tiene más de una VLAN, T-CONT o GEM: solo se puede editar como JSON.'
       return
     }
     Object.assign(simple, short)
@@ -180,10 +190,10 @@ function toggleBind(port: string): void {
 
 <template>
   <PageHeader
-    :title="id ? 'Editar plantilla' : 'Nueva plantilla'"
+    :title="id ? 'Editar plan' : 'Nuevo plan'"
     description="Lo que es igual para todos los clientes de un plan: perfiles, VLAN y si la ONU marca PPPoE y lleva WiFi. Lo de cada cliente (serial, nombre, usuario y claves) se pide en cada alta."
     :back="{ name: 'templates' }"
-    back-label="Plantillas"
+    back-label="Planes"
   />
 
   <AlertBox v-if="loadError" tone="danger" class="mb-6">{{ loadError }}</AlertBox>
@@ -253,7 +263,7 @@ function toggleBind(port: string): void {
         Se copió la ONU {{ copied.onu }} ({{ copied.client.description ?? 'sin descripción' }}).
         Revisa los campos y guarda.
         <template v-if="copied.ignored.length">
-          Estas líneas no entran en la plantilla:
+          Estas líneas no entran en el plan:
           <ul class="mt-2 list-disc space-y-0.5 pl-5 font-mono text-xs">
             <li v-for="line in copied.ignored" :key="line">{{ line }}</li>
           </ul>
@@ -263,7 +273,7 @@ function toggleBind(port: string): void {
 
     <section class="card p-5 sm:p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="font-semibold">Plantilla</h2>
+        <h2 class="font-semibold">Plan</h2>
         <div class="flex gap-1">
           <button
             type="button"
@@ -414,7 +424,7 @@ function toggleBind(port: string): void {
       </div>
 
       <div v-else class="mt-4">
-        <label for="json" class="label">Cuerpo de la plantilla</label>
+        <label for="json" class="label">Cuerpo del plan</label>
         <textarea
           id="json"
           v-model="json"
@@ -438,7 +448,7 @@ function toggleBind(port: string): void {
       <button type="submit" class="btn-primary" :disabled="saving">
         <LoaderCircle v-if="saving" class="size-4 animate-spin" />
         <Save v-else class="size-4" />
-        Guardar plantilla
+        Guardar plan
       </button>
     </div>
   </form>
