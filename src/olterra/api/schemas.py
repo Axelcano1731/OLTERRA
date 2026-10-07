@@ -75,7 +75,8 @@ class OltOut(BaseModel):
     nat_ip: str | None
     ssh_port: int
     snmp_port: int
-    status: str
+    status: str = Field(description="pending (nunca consultada), online o unreachable")
+    last_seen_at: datetime | None = Field(None, description="Última vez que respondió")
     created_at: datetime
 
     _ips = field_validator("real_ip", "nat_ip", mode="before")(_ip_text)

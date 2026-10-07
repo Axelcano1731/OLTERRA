@@ -25,7 +25,9 @@ export interface Olt {
   nat_ip: string | null
   ssh_port: number
   snmp_port: number
+  /** pending (nunca consultada), online o unreachable: lo actualiza cada consulta. */
   status: string
+  last_seen_at: string | null
   created_at: string
 }
 

@@ -16,8 +16,10 @@ export function planStatus(status: string): { label: string; tone: Tone } {
 }
 
 export function oltStatus(status: string): { label: string; tone: Tone } {
-  // Hoy toda OLT queda 'pending' hasta que exista el descubrimiento (fase 1).
-  if (status === 'pending') return { label: 'Sin descubrir', tone: 'neutral' }
+  // Lo actualiza cada consulta o escritura: respondió (online) o no se pudo entrar.
+  if (status === 'pending') return { label: 'Sin consultar', tone: 'neutral' }
+  if (status === 'online') return { label: 'Responde', tone: 'success' }
+  if (status === 'unreachable') return { label: 'Sin respuesta', tone: 'danger' }
   return { label: status, tone: 'neutral' }
 }
 
