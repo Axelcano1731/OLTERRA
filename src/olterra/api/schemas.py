@@ -9,7 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from olterra.drivers.vsol_gpon.provisioning import ClientData, OnuServiceData, TemplateBody
+from olterra.drivers.vsol_gpon.provisioning import TemplateBody, check_cli_secret
+from olterra.identifiers import normalize_gpon_serial
 
 
 def _ip_text(value: Any) -> str | None:
@@ -88,12 +89,37 @@ class TenantOut(BaseModel):
     name: str
 
 
+class UserOut(BaseModel):
+    username: str
+    display_name: str
+    role: Literal["admin", "tecnico", "lectura"]
+    must_change_password: bool
+
+
 class MeOut(BaseModel):
-    """Quién llama: el ISP y la llave. La interfaz lo usa para saludar y ocultar acciones."""
+    """Quién llama: el ISP y la llave o el usuario. La interfaz lo usa para saludar y ocultar acciones."""
 
     tenant: TenantOut
     key_name: str
     scopes: list[str]
+    user: UserOut | None = Field(None, description="Solo si entró con usuario y contraseña")
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: SecretStr = Field(min_length=1, max_length=128)
+    remember: bool = Field(False, description="Sesión de 30 días en vez de 12 horas")
+
+
+class LoginOut(BaseModel):
+    token: str = Field(description="Va en Authorization: Bearer. Se entrega una sola vez")
+    expires_at: datetime
+    must_change_password: bool
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: SecretStr = Field(min_length=1, max_length=128)
+    new_password: SecretStr = Field(min_length=1, max_length=128)
 
 
 class CommandOut(BaseModel):
@@ -131,16 +157,91 @@ class TemplateOut(BaseModel):
     updated_at: datetime
 
 
-class AuthorizeRequest(ClientData):
-    """Alta de una ONU: plantilla + lo del cliente. Las claves solo viajan selladas."""
+class _CustomerService(BaseModel):
+    """PPPoE y WiFi del cliente. Las claves solo viajan selladas y no se devuelven nunca."""
 
     template_id: UUID
+    pppoe_user: str | None = Field(None, pattern=r"^[A-Za-z0-9_.@\-]{1,64}$")
+    pppoe_password: SecretStr | None = None
+    wifi_name: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="Como lo escribe el cliente; la OLT no acepta espacios",
+    )
+    wifi_key: SecretStr | None = None
+
+    @field_validator("pppoe_password")
+    @classmethod
+    def _pppoe_password(cls, value: SecretStr | None) -> SecretStr | None:
+        return check_cli_secret(value, low=1, label="Clave PPPoE")
+
+    @field_validator("wifi_key")
+    @classmethod
+    def _wifi_key(cls, value: SecretStr | None) -> SecretStr | None:
+        return check_cli_secret(value, low=8, label="Clave WiFi")
 
 
-class ConfigureRequest(OnuServiceData):
-    """WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente)."""
+class AuthorizeIn(_CustomerService):
+    """Alta de una ONU nueva: lo que sabe quien aprovisiona. Lo técnico lo resuelve Olterra."""
 
-    template_id: UUID
+    pon: int = Field(ge=1, le=16)
+    serial: str
+    customer: str = Field(
+        min_length=1,
+        max_length=80,
+        description="Nombre del cliente (tildes y espacios se arreglan)",
+    )
+    equipment_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_.\-]{1,32}$")
+    onu: int | None = Field(None, ge=1, le=128, description="Vacío: la primera posición libre")
+
+    @field_validator("serial")
+    @classmethod
+    def _serial(cls, value: str) -> str:
+        canonical = normalize_gpon_serial(value)
+        if canonical is None:
+            raise ValueError("Serial GPON inválido (VSOL0008D09C o su forma hexadecimal)")
+        return canonical
+
+
+class ConfigureIn(_CustomerService):
+    """Internet y WiFi de una ONU ya autorizada."""
+
+    pon: int = Field(ge=1, le=16)
+    onu: int = Field(ge=1, le=128)
+
+
+class JobStep(BaseModel):
+    key: str
+    label: str
+    status: Literal["pending", "running", "done", "failed", "skipped"]
+    message: str | None = None
+
+
+class JobOut(BaseModel):
+    id: UUID
+    olt_id: UUID
+    kind: Literal["authorize", "configure"]
+    status: Literal["running", "done", "failed"]
+    step: str
+    template_name: str | None
+    pon: int | None
+    onu: int | None
+    serial: str | None
+    description: str | None
+    pppoe_user: str | None
+    wifi_ssid: str | None
+    equipment_id: str | None
+    phase: str | None
+    rx_dbm: float | None
+    unverified: list[str] = Field(
+        default_factory=list,
+        description="Comandos sin validar que corre (solo en modo laboratorio)",
+    )
+    steps: list[JobStep]
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
 
 
 class OnuRef(BaseModel):

@@ -66,10 +66,14 @@ cd /opt/olterra/deploy/produccion
 Después:
 
 ```bash
-./olterra.sh isp mi-isp "Mi ISP"     # crea el ISP y su primera llave de API (se muestra una vez)
+./olterra.sh isp mi-isp "Mi ISP"                 # el ISP y su primera llave de API (se muestra una vez)
+./olterra.sh usuario mi-isp ana "Ana Pérez"      # un usuario para entrar a la interfaz
 ```
 
-Con esa llave se entra a `https://olterra.tuisp.co`.
+`usuario` pide la contraseña inicial sin mostrarla (nunca va en la línea de comandos); al entrar
+la primera vez la interfaz obliga a cambiarla. `./olterra.sh clave ana` pone otra contraseña
+inicial y desbloquea la cuenta (5 intentos fallidos la bloquean 15 minutos). La llave de API
+queda para integraciones.
 
 > **Guarda `.env` en un gestor de claves** apenas se cree. Si se pierde `OLTERRA_MASTER_KEY`,
 > las credenciales guardadas (OLT, PPPoE) no se pueden volver a leer, ni desde un respaldo.
@@ -364,8 +368,9 @@ y `./olterra.sh actualizar`. Cada plan que corre así lo dice en la pantalla y e
 - `.env` con permisos 600; las claves nunca en la línea de comandos ni en los registros.
 - La interfaz va con CSP estricta (solo recursos propios), HSTS y `nosniff`.
 - Subidas a la API de 30 MB como máximo (lo corta Caddy).
-- Mientras no haya usuarios (ver INTERFAZ.md), la llave de API es la llave de la casa: una
-  por persona. Todavía no hay comando para revocar; hoy es por SQL:
+- Las personas entran con usuario y contraseña (scrypt, bloqueo por intentos, sesión que
+  vence); la contraseña inicial se cambia al entrar. Las llaves de API son para integraciones:
+  una por integración. Todavía no hay comando para revocar una llave; hoy es por SQL:
 
   ```bash
   docker compose exec -T db psql -U postgres -d olterra -c "UPDATE api_keys SET revoked_at = now()

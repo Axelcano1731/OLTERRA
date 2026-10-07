@@ -451,3 +451,81 @@ def parse_pon_statistics(text: str) -> dict[str, int]:
     if not values:
         raise UnrecognizedOutput("vsol.pon.statistics", "no hay contadores 'clave: número'", text)
     return values
+
+
+@dataclass(frozen=True)
+class OnuPort:
+    pon: int
+    onu: int
+    description: str | None
+    up: bool
+
+
+@dataclass(frozen=True)
+class InterfacesBrief:
+    pons: list[int]
+    onus: list[OnuPort]
+
+
+_BRIEF_PON = re.compile(r"^\s*GPON\d+/(\d+)\s+(?:up|down)\b", re.IGNORECASE)
+# La descripción larga empuja la columna de estado ("JUAN_PEREZ_GOMEZup"): se lee desde el final.
+_BRIEF_ONU = re.compile(r"^\s*GPON\d+/(\d+):(\d+)\s+(.*?)\s*(up|down)\s+GPON-ONUID\s*$")
+
+
+def parse_interfaces_brief(text: str) -> InterfacesBrief:
+    """``show interface brief``: los PON del equipo y cada ONU con su descripción y si está arriba."""
+    pons: list[int] = []
+    onus: list[OnuPort] = []
+    for line in text.splitlines():
+        onu = _BRIEF_ONU.match(line)
+        if onu is not None:
+            onus.append(
+                OnuPort(
+                    pon=int(onu.group(1)),
+                    onu=int(onu.group(2)),
+                    description=onu.group(3).strip() or None,
+                    up=onu.group(4) == "up",
+                )
+            )
+            continue
+        pon = _BRIEF_PON.match(line)
+        if pon is not None and "GPON-ONUID" not in line:
+            pons.append(int(pon.group(1)))
+    if not pons and not onus:
+        raise UnrecognizedOutput("vsol.interfaces.brief", "no hay puertos GPON", text)
+    return InterfacesBrief(pons=sorted(set(pons)), onus=onus)
+
+
+@dataclass(frozen=True)
+class OnuCapability:
+    ethernet_ports: int | None
+    wifi_ports: int | None
+    onu_type: str | None
+
+
+def parse_onu_capability(text: str) -> OnuCapability:
+    """``show onu <n> capability``: puertos LAN y WiFi que tiene la ONU (para la WAN)."""
+    kv = parse_key_values(text)
+
+    def number(*needles: str) -> int | None:
+        raw = _kv_find(kv, *needles)
+        value = parse_number(raw) if raw is not None else None
+        return int(value) if value is not None else None
+
+    capability = OnuCapability(
+        ethernet_ports=number("ethernet", "uni"),
+        wifi_ports=number("wifi", "uni"),
+        onu_type=_kv_find(kv, "onu", "type"),
+    )
+    if capability.ethernet_ports is None and capability.wifi_ports is None:
+        raise UnrecognizedOutput("vsol.onu.capability", "no hay 'Ethernet UNI number'", text)
+    return capability
+
+
+_EQUIPMENT_ID = re.compile(r"(?im)^\s*equipment\s*id\s*:\s*(\S+)")
+
+
+def parse_equipment_id(text: str) -> str | None:
+    """El ``Equipment ID`` de ``show onu detail-info <n>`` (VSOLV422), o None si no está."""
+    match = _EQUIPMENT_ID.search(text)
+    return match.group(1) if match else None

@@ -35,13 +35,13 @@ async function remove(template: ProvisionTemplate): Promise<void> {
 
 <template>
   <PageHeader
-    title="Plantillas"
-    description="Cómo se aprovisiona cada plan de servicio. Se copian de una ONU que ya funciona o se llenan a mano."
+    title="Planes"
+    description="Cómo se configura cada plan de servicio en la ONU (VLAN, velocidad, PPPoE, WiFi). Se copian de un cliente que ya navega o se llenan a mano."
   >
     <template v-if="can('olt:write')" #actions>
       <RouterLink :to="{ name: 'template-new' }" class="btn-primary">
         <Plus class="size-4" />
-        Nueva plantilla
+        Nuevo plan
       </RouterLink>
     </template>
   </PageHeader>
@@ -52,8 +52,8 @@ async function remove(template: ProvisionTemplate): Promise<void> {
   <EmptyState
     v-else-if="!templates.data.value?.length"
     :icon="LayoutTemplate"
-    title="Todavía no hay plantillas"
-    text="La forma más rápida: copiar la configuración de una ONU de un cliente que ya navega."
+    title="Todavía no hay planes"
+    text="La forma más rápida: en Aprovisionar, abre un cliente que ya navega y pulsa «Copiar como plan»."
   />
   <div v-else class="card divide-y divide-line">
     <div
@@ -73,7 +73,7 @@ async function remove(template: ProvisionTemplate): Promise<void> {
       </div>
       <div v-if="can('olt:write')" class="flex items-center gap-1">
         <template v-if="confirming === template.id">
-          <span class="text-xs text-danger">¿Eliminarla?</span>
+          <span class="text-xs text-danger">¿Eliminarlo?</span>
           <button
             type="button"
             class="btn px-2.5 py-1 text-xs bg-danger text-on-accent hover:opacity-90"

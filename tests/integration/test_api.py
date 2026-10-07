@@ -20,7 +20,7 @@ from sqlalchemy import select
 from olterra.admin import create_api_key, create_tenant
 from olterra.api.app import create_app
 from olterra.config import Settings
-from olterra.db.models import AuditLog, Credential, Olt, PlanRun, TenantKey
+from olterra.db.models import AuditLog, Credential, Olt, ProvisionJob, TenantKey
 from olterra.db.session import create_engine, session_factory
 from olterra.devtools.demo_recon import demo_input
 from olterra.devtools.vsol_sim import VsolSimulator
@@ -734,17 +734,15 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
     alta = {
         "template_id": template["id"],
         "pon": 1,
-        "onu": 60,
         "serial": "GPON00AABBCC",
-        "equipment_id": "VSOLV422",
-        "description": "CLIENTE-NUEVO",
+        "customer": "Cliente Nuevo",
         "pppoe_user": "cliente.nuevo",
         "pppoe_password": "Ppp#Secreta-77",
-        "wifi_ssid": "CASA-NUEVA",
+        "wifi_name": "Casa Nueva",
         "wifi_key": "Wifi#Secreta-77",
     }
     url = f"/v1/olts/{olt['id']}/onus/authorize"
-    # Sin captura de laboratorio, la API se niega y dice qué falta validar.
+    # Sin captura de laboratorio, la API se niega de entrada y dice qué falta validar.
     refused = env.client.post(url, json=alta, headers=env.headers())
     assert refused.status_code == 400 and "onu.authorize" in refused.text
     assert env.publisher.plans == []
@@ -755,22 +753,21 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
     finally:
         env.client.app.state.olterra.settings.allow_unverified_writes = False  # type: ignore[attr-defined]
     assert response.status_code == 202, response.text
-    assert "onu.authorize" in response.json()["unverified"]
+    job = response.json()
+    assert "onu.authorize" in job["unverified"]
+    assert job["status"] == "running" and job["steps"][0]["status"] == "running"
+    assert job["description"] == "Cliente_Nuevo" and job["wifi_ssid"] == "Casa_Nueva"
+    # El primer paso solo lee (qué posiciones están libres); escribir viene después.
     [plan] = env.publisher.plans
-    assert plan.access == "write" and plan.on_error == "stop"
+    assert plan.access == "read"
     for secret in ("Ppp#Secreta-77", "Wifi#Secreta-77"):
         assert secret not in plan.model_dump_json()
         assert secret not in response.text
 
-    async def stored() -> tuple[list[Any], list[Any]]:
+    async def stored() -> tuple[list[Any], bytes | None]:
         engine = create_engine(env.pg.owner_url)
         try:
             async with session_factory(engine)() as session:
-                runs = (
-                    await session.execute(
-                        select(PlanRun.calls, PlanRun.commands).where(PlanRun.id == plan.plan_id)
-                    )
-                ).all()
                 audits = (
                     (
                         await session.execute(
@@ -780,14 +777,17 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
                     .scalars()
                     .all()
                 )
-            return list(runs), list(audits)
+                row = await session.get(ProvisionJob, UUID(job["id"]))
+                return list(audits), row.secrets if row else None
         finally:
             await engine.dispose()
 
-    runs, audits = asyncio.run(stored())
-    dumped = json.dumps([list(map(str, r)) for r in runs]) + json.dumps(audits)
-    assert "Ppp#Secreta-77" not in dumped and "Wifi#Secreta-77" not in dumped
-    assert "{{secret:pppoe_password}}" in dumped  # el plan guardado lleva el marcador
+    audits, sealed = asyncio.run(stored())
+    assert "Ppp#Secreta-77" not in json.dumps(audits) and "Wifi#Secreta-77" not in json.dumps(
+        audits
+    )
+    # Mientras el trabajo las necesita, las claves van cifradas con la llave del ISP.
+    assert sealed is not None and b"Ppp#Secreta-77" not in sealed
     [after] = audits
     assert after["serial"] == "GPON00AABBCC" and after["pppoe_user"] == "cliente.nuevo"
 

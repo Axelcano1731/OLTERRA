@@ -19,8 +19,8 @@ Estado: **fase 0** (esqueleto técnico, laboratorio y pilotos). Plan completo en
 | Túnel + NAT 1:1 para MikroTik | WireGuard para RouterOS 7 y SSTP para RouterOS 6. Concentrador andando en el CHR (compartido con ISPWatch) y la plataforma conectada |
 | API FastAPI + PostgreSQL/PostGIS con RLS | Esqueleto: OLT, consultas de lectura con su catálogo e historial, túnel, conciliación (JSON, archivos o demo), planes |
 | Despliegue (`deploy/produccion/`) | Andando en un droplet de DigitalOcean: Caddy con HTTPS, respaldos diarios que se prueban restaurando; todo con `./olterra.sh`. Se actualiza solo desde `main` cuando el CI queda en verde. La base es la de Supabase de ISPWatch y Converza, en el esquema propio `olterra` (ARQUITECTURA A.13). CI lo instala de punta a punta en cada PR |
-| Interfaz web (`web/`) | Lista para pilotos: panel, alta y consultas de OLT, túnel, conciliación desde archivos o con la demo. Entra con la llave de API (aún sin usuarios) |
-| Aprovisionamiento de ONU | Plantillas (copiadas de una ONU real o a mano), autorizar con VLAN, PPPoE y WiFi, reiniciar y borrar, con las claves selladas. Probado contra el simulador; **falta validarlo en la OLT del laboratorio** |
+| Interfaz web (`web/`) | Lista para pilotos: entrar con usuario y contraseña, aprovisionar, planes, OLT, túnel, conciliación |
+| Aprovisionamiento de ONU | En un solo flujo: Olterra busca las ONU nuevas en todos los PON; el operador pone nombre del cliente, plan y PPPoE, y el alta (posición libre, servicio, esperar la conexión, WAN y WiFi según el modelo, señal) avanza sola. Planes copiados de un cliente que ya navega. Validándose en la OLT del laboratorio |
 | Mapa FTTH, monitoreo, app de campo | Fases 1 a 3 |
 
 ## Probarlo en un minuto

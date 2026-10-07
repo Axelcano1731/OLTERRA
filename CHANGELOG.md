@@ -4,6 +4,15 @@
 
 ### Agregado
 
+- Usuarios: entrar con usuario y contraseña (scrypt, contraseña inicial que se cambia al entrar,
+  bloqueo tras 5 intentos, sesiones que vencen, roles admin/tecnico/lectura).
+  `./olterra.sh usuario` y `./olterra.sh clave`; migración `0005`. La llave de API queda para
+  integraciones.
+- Aprovisionamiento sin nada técnico: la pantalla busca sola las ONU nuevas en todos los PON y
+  lista los clientes (`show interface brief`). Autorizar pide nombre del cliente, plan, PPPoE y
+  WiFi; un trabajo de alta (`provision_jobs`) busca la posición libre, autoriza y guarda, espera
+  a que la ONU se conecte, pone WAN y WiFi con los puertos de ese modelo y comprueba la señal.
+  "Internet y WiFi", "Reiniciar", "Copiar como plan" y "Desautorizar" desde la lista de clientes.
 - Alta en la V1600G0-B con WAN y WiFi: el alta manda `onu N pri equid <Equipment ID>` antes de
   los comandos `pri` (sin él la OLT respondía `Unsupport private protocol` y el paso salía
   «OK»). `POST /v1/olts/{id}/onus/configure` configura WAN y WiFi de una ONU ya autorizada sin

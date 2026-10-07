@@ -71,6 +71,13 @@ write
 - Las claves PPPoE y WiFi van en la credencial sellada; el paso lleva `{{secret:pppoe_password}}`
   y `{{secret:wifi_key}}`. No pueden llevar espacios ni `?` (la CLI abriría la ayuda); el SSID
   tampoco lleva espacios.
+- **Dos fases** (laboratorio 2026-10-07): `pri equid` entra con la ONU recién autorizada, pero la
+  WAN responde `Unsupport private protocol` hasta que la ONU se conecta. El alta de la interfaz
+  autoriza y guarda primero; la WAN y el WiFi van cuando `show onu state` dice `working`.
+- Los puertos de la WAN se adaptan al modelo con `show onu N capability` (`Ethernet UNI
+  number`): una V422 tiene 2 LAN, una V824 4. `show onu detail-info N` da el `Equipment ID`.
+- `show interface brief` da en una lectura los PON de la OLT y cada ONU con su descripción y si
+  está arriba (la descripción larga empuja la columna de estado: se lee desde el final).
 - La OLT guarda la clave PPPoE tapada (`pwd ******`) pero la WiFi **en claro** (`shared_key`):
   `redact` tapa las dos en cualquier salida.
 - Laboratorio 2026-10-07: `onu add` y `onu N desc` entraron bien; `onu N profile onu default`

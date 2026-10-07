@@ -8,10 +8,26 @@ export interface Health {
   vault: 'lista' | 'sin llave maestra'
 }
 
+export interface UserInfo {
+  username: string
+  display_name: string
+  role: 'admin' | 'tecnico' | 'lectura'
+  must_change_password: boolean
+}
+
 export interface Me {
   tenant: { id: string; slug: string; name: string }
   key_name: string
   scopes: string[]
+  /** Solo si entró con usuario y contraseña (no con una llave de API). */
+  user: UserInfo | null
+}
+
+export interface LoginOut {
+  /** Va en Authorization: Bearer, igual que una llave de API. */
+  token: string
+  expires_at: string
+  must_change_password: boolean
 }
 
 export interface Olt {
@@ -249,31 +265,86 @@ export interface TemplateIn {
   body: TemplateBody
 }
 
-/** Alta de una ONU. Las claves solo viajan selladas al ejecutor; la API no las devuelve. */
-export interface AuthorizeRequest {
+/** PPPoE y WiFi del cliente. Las claves solo viajan selladas; la API no las devuelve nunca. */
+interface CustomerService {
   template_id: string
-  pon: number
-  onu: number
-  serial: string
-  description: string
-  /** Equipment ID del autofind (VSOLV422): sin él la OLT no acepta la WAN ni el WiFi. */
-  equipment_id?: string
   pppoe_user?: string
   pppoe_password?: string
-  wifi_ssid?: string
+  /** Como lo escribe el cliente: tildes y espacios los arregla Olterra (la OLT no los acepta). */
+  wifi_name?: string
   wifi_key?: string
 }
 
-/** WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente). */
-export interface ConfigureRequest {
-  template_id: string
+/** Alta de una ONU nueva: lo que sabe quien aprovisiona. Lo técnico lo resuelve Olterra. */
+export interface AuthorizeIn extends CustomerService {
+  pon: number
+  serial: string
+  /** Nombre del cliente tal cual (José Pérez → Jose_Perez en la OLT). */
+  customer: string
+  equipment_id?: string
+  /** Vacío: la primera posición libre del PON. */
+  onu?: number
+}
+
+/** Internet y WiFi de una ONU ya autorizada. */
+export interface ConfigureIn extends CustomerService {
   pon: number
   onu: number
-  equipment_id?: string
-  pppoe_user?: string
-  pppoe_password?: string
-  wifi_ssid?: string
-  wifi_key?: string
+}
+
+export type JobStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+
+export interface JobStep {
+  key: string
+  label: string
+  status: JobStepStatus
+  message: string | null
+}
+
+/** Un alta (o "configurar internet") que avanza sola en el servidor. */
+export interface ProvisionJob {
+  id: string
+  olt_id: string
+  kind: 'authorize' | 'configure'
+  status: 'running' | 'done' | 'failed'
+  step: string
+  template_name: string | null
+  pon: number | null
+  onu: number | null
+  serial: string | null
+  description: string | null
+  pppoe_user: string | null
+  wifi_ssid: string | null
+  equipment_id: string | null
+  phase: string | null
+  rx_dbm: number | null
+  /** Comandos sin validar que corre (solo en modo laboratorio). */
+  unverified: string[]
+  steps: JobStep[]
+  error: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+/** Una ONU de la OLT según "show interface brief": dónde está, de quién es y si está arriba. */
+export interface OnuPort {
+  pon: number
+  onu: number
+  description: string | null
+  up: boolean
+}
+
+export interface InterfacesBrief {
+  pons: number[]
+  onus: OnuPort[]
+}
+
+/** Una ONU conectada que la OLT todavía no autoriza. */
+export interface AutofindRow {
+  pon: number | null
+  serial: string
+  index: number | null
+  model: string | null
 }
 
 export interface OnuRef {

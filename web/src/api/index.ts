@@ -11,8 +11,10 @@ import type {
   OnuRef,
   ProvisionTemplate,
   TemplateIn,
-  AuthorizeRequest,
-  ConfigureRequest,
+  AuthorizeIn,
+  ConfigureIn,
+  LoginOut,
+  ProvisionJob,
   WritePlan,
   Plan,
   PlanSummary,
@@ -28,6 +30,13 @@ export type * from './types'
 
 export const getHealth = () => api<Health>('/health', { auth: false })
 export const getMe = (key?: string) => api<Me>('/v1/me', { key })
+export const login = (username: string, password: string, remember: boolean) =>
+  api<LoginOut>('/v1/auth/login', { json: { username, password, remember }, auth: false })
+export const logout = () => api<void>('/v1/auth/logout', { method: 'POST' })
+export const changePassword = (current: string, next: string) =>
+  api<void>('/v1/auth/password', {
+    json: { current_password: current, new_password: next },
+  })
 
 export const listOlts = () => api<Olt[]>('/v1/olts')
 export const getOlt = (id: string) => api<Olt>(`/v1/olts/${encodeURIComponent(id)}`)
@@ -59,10 +68,17 @@ export const updateTemplate = (id: string, body: TemplateIn) =>
 export const deleteTemplate = (id: string) =>
   api<void>(`/v1/provision-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
-export const authorizeOnu = (oltId: string, body: AuthorizeRequest) =>
-  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/authorize`, { json: body })
-export const configureOnu = (oltId: string, body: ConfigureRequest) =>
-  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/configure`, { json: body })
+/** ONU nuevas en todos los PON y la lista de ONU con su cliente, en una sola lectura. */
+export const scanOnus = (oltId: string) =>
+  api<Plan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/scan`, { method: 'POST' })
+export const authorizeOnu = (oltId: string, body: AuthorizeIn) =>
+  api<ProvisionJob>(`/v1/olts/${encodeURIComponent(oltId)}/onus/authorize`, { json: body })
+export const configureOnu = (oltId: string, body: ConfigureIn) =>
+  api<ProvisionJob>(`/v1/olts/${encodeURIComponent(oltId)}/onus/configure`, { json: body })
+export const getJob = (id: string, signal?: AbortSignal) =>
+  api<ProvisionJob>(`/v1/provision-jobs/${encodeURIComponent(id)}`, { signal })
+export const listJobs = (oltId: string) =>
+  api<ProvisionJob[]>(`/v1/olts/${encodeURIComponent(oltId)}/provision-jobs`)
 export const rebootOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
 export const deleteOnu = (oltId: string, body: OnuRef) =>

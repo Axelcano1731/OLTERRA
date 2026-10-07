@@ -3,6 +3,7 @@ import {
   Activity,
   GitCompareArrows,
   LayoutTemplate,
+  RadioTower,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -14,7 +15,7 @@ import {
 import { ref, watch, type Component } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 
-import { disconnect, session } from '@/session'
+import { session, signOut } from '@/session'
 
 import Logo from './Logo.vue'
 
@@ -28,14 +29,20 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: { name: 'panel' }, label: 'Panel', icon: LayoutDashboard, routes: ['panel'] },
   {
+    to: { name: 'provision' },
+    label: 'Aprovisionar',
+    icon: RadioTower,
+    routes: ['provision', 'olt-provision'],
+  },
+  {
     to: { name: 'olts' },
     label: 'OLT',
     icon: Server,
-    routes: ['olts', 'olt-new', 'olt', 'olt-edit', 'olt-provision'],
+    routes: ['olts', 'olt-new', 'olt', 'olt-edit'],
   },
   {
     to: { name: 'templates' },
-    label: 'Plantillas',
+    label: 'Planes',
     icon: LayoutTemplate,
     routes: ['templates', 'template-new', 'template-edit'],
   },
@@ -67,9 +74,9 @@ function isActive(item: NavItem): boolean {
   return item.routes.includes(String(route.name))
 }
 
-function logout(): void {
-  disconnect()
-  void router.push({ name: 'connect' })
+async function logout(): Promise<void> {
+  await signOut()
+  await router.push({ name: 'connect' })
 }
 </script>
 
@@ -146,9 +153,17 @@ function logout(): void {
 
       <div class="border-t border-white/10 p-4">
         <p class="truncate text-sm font-medium text-white">
-          {{ session.me?.tenant.name ?? '…' }}
+          {{ session.me?.user?.display_name ?? session.me?.tenant.name ?? '…' }}
         </p>
-        <p class="truncate text-xs text-sidebar-muted">Llave: {{ session.me?.key_name ?? '…' }}</p>
+        <p class="truncate text-xs text-sidebar-muted">
+          <template v-if="session.me?.user">
+            {{ session.me.tenant.name }} ·
+            <RouterLink :to="{ name: 'change-password' }" class="hover:text-white hover:underline">
+              cambiar contraseña
+            </RouterLink>
+          </template>
+          <template v-else>Llave: {{ session.me?.key_name ?? '…' }}</template>
+        </p>
         <button
           type="button"
           class="mt-3 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-white"

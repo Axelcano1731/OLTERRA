@@ -1,8 +1,9 @@
-"""Aprovisionamiento: plantillas, alta de ONU, reinicio y borrado.
+"""Aprovisionamiento: planes (plantillas), búsqueda de ONU, alta, internet/WiFi, reinicio y borrado.
 
-Cada escritura es un plan que se detiene al primer error y guarda en flash. El estado del PON se
-consulta aparte, en otra sesión (``onu.state``). Las claves del cliente (PPPoE, WiFi) van solo en la credencial
-sellada al ejecutor: ni el plan guardado, ni NATS, ni la bitácora las ven.
+El alta y "configurar internet" son trabajos (``api/jobs.py``) que avanzan solos. Reiniciar y
+borrar son un plan cada uno, que se detiene al primer error y guarda en flash. Las claves del
+cliente (PPPoE, WiFi) viajan solo en la credencial sellada al ejecutor y, mientras el trabajo las
+necesita, cifradas con la llave del ISP: ni el plan guardado, ni NATS, ni la bitácora las ven.
 
 Mientras un comando no tenga captura de laboratorio (``verified=False``) la API se niega a
 correrlo y dice cuál falta, salvo con ``OLTERRA_ALLOW_UNVERIFIED_WRITES`` (laboratorio).
@@ -14,26 +15,39 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from olterra.api import jobs
 from olterra.api.deps import State, Tenant
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
 from olterra.api.schemas import (
-    AuthorizeRequest,
-    ConfigureRequest,
+    AuthorizeIn,
+    ConfigureIn,
+    JobOut,
+    JobStep,
     OnuRef,
+    PlanOut,
     TemplateIn,
     TemplateOut,
     WritePlanOut,
 )
 from olterra.api.state import audit
-from olterra.db.models import ProvisionTemplate
+from olterra.db.models import Olt, ProvisionJob, ProvisionTemplate
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall
-from olterra.drivers.vsol_gpon.provisioning import TemplateBody, authorize_calls, configure_calls
-from olterra.executor.plan import Credential
-from olterra.orchestrator import build_write_plan, unverified_writes
+from olterra.drivers.vsol_gpon.provisioning import (
+    ClientData,
+    TemplateBody,
+    base_calls,
+    clean_label,
+    service_calls,
+)
+from olterra.executor.plan import Credential, Priority
+from olterra.orchestrator import build_read_plan, build_write_plan, unverified_writes
+
+DEFAULT_PON_PORTS = 4
 
 router = APIRouter(tags=["Aprovisionamiento"])
 
@@ -164,7 +178,7 @@ async def _write(
     state.require_bus()
     allow = bool(state.settings.allow_unverified_writes)
     async with ctx.session() as session:
-        olt, credential, target = await olt_access(session, ctx, state, olt_id)
+        olt, credential, target = await olt_access(session, ctx.tenant_id, state, olt_id)
         if template_id is not None:
             template = await _get_template(session, template_id)
             if template.driver != olt.driver:
@@ -187,7 +201,9 @@ async def _write(
             allow_unverified=allow,
         )
         pending = unverified_writes(driver, calls, olt.model, olt.firmware)
-        created_at = await record_plan(session, ctx, olt, plan, [*calls, *verify])
+        created_at = await record_plan(
+            session, ctx.tenant_id, ctx.actor, olt, plan, [*calls, *verify]
+        )
         await audit(
             session,
             tenant_id=ctx.tenant_id,
@@ -199,7 +215,7 @@ async def _write(
             after={**audit_after, "plan_id": str(plan.plan_id), "sin_verificar": pending},
             source_ip=ctx.client_ip,
         )
-    await publish_plan(ctx, state, plan)
+    await publish_plan(state, plan)
     return WritePlanOut(
         plan_id=plan.plan_id,
         olt_id=olt_id,
@@ -209,75 +225,245 @@ async def _write(
     )
 
 
+def _check_client(template: TemplateBody, body: AuthorizeIn | ConfigureIn) -> None:
+    """Lo que falta o no sirve, antes de tocar la OLT y en palabras del operador."""
+    if template.wan is not None and not (body.pppoe_user and body.pppoe_password):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Este plan configura internet: faltan el usuario y la clave PPPoE",
+        )
+    if bool(body.wifi_name) != bool(body.wifi_key):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Para el WiFi van el nombre y la clave, o ninguno de los dos",
+        )
+    if body.wifi_name and template.wifi is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este plan no configura WiFi")
+
+
+def _secrets(body: AuthorizeIn | ConfigureIn) -> dict[str, str]:
+    secrets = {}
+    if body.pppoe_password is not None:
+        secrets["pppoe_password"] = body.pppoe_password.get_secret_value()
+    if body.wifi_key is not None:
+        secrets["wifi_key"] = body.wifi_key.get_secret_value()
+    return secrets
+
+
+async def _job_out(session: Any, job_id: UUID) -> JobOut:
+    job = await session.get(ProvisionJob, job_id)
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trabajo no encontrado")
+    req = job.request or {}
+    detail = job.detail or {}
+    return JobOut(
+        id=job.id,
+        olt_id=job.olt_id,
+        kind=job.kind,
+        status=job.status,
+        step=job.step,
+        template_name=job.template_name,
+        pon=req.get("pon"),
+        onu=req.get("onu"),
+        serial=req.get("serial"),
+        description=req.get("description"),
+        pppoe_user=req.get("pppoe_user"),
+        wifi_ssid=req.get("wifi_ssid"),
+        equipment_id=req.get("equipment_id"),
+        phase=detail.get("phase"),
+        rx_dbm=detail.get("rx_dbm"),
+        unverified=detail.get("unverified", []),
+        steps=[JobStep(**step) for step in jobs.steps_view(job)],
+        error=job.error,
+        created_at=job.created_at,
+        finished_at=job.finished_at,
+    )
+
+
+def _unverified(olt: Olt, kind: str, template: TemplateBody, request: dict[str, Any]) -> list[str]:
+    """Comandos de escritura que el trabajo va a usar y que no tienen captura de laboratorio.
+
+    Se arman con un cliente de muestra los mismos comandos que armará el trabajo, para decirlo
+    ANTES de tocar la OLT y no a mitad del alta.
+    """
+    sample = ClientData(
+        pon=request["pon"],
+        onu=request.get("onu") or 1,
+        serial=request.get("serial") or "VSOL00000000",
+        description=request.get("description") or "x",
+        equipment_id="VSOLV000",
+        pppoe_user="muestra" if template.wan else None,
+        pppoe_password=SecretStr("muestra") if template.wan else None,
+        wifi_ssid=request.get("wifi_ssid"),
+        wifi_key=SecretStr("muestra-wifi") if request.get("wifi_ssid") else None,
+    )
+    calls = [
+        *(base_calls(template, sample) if kind == "authorize" else []),
+        *service_calls(template, sample),
+        CommandCall("config.save"),
+    ]
+    return unverified_writes(get_driver(olt.driver), calls, olt.model, olt.firmware)
+
+
+async def _start(
+    olt_id: UUID,
+    ctx: Any,
+    state: Any,
+    kind: str,
+    template_id: UUID,
+    request: dict[str, Any],
+    secrets: dict[str, str],
+) -> JobOut:
+    ctx.require("onu:write")
+    executor_key(state)
+    state.require_bus()
+    async with ctx.session() as session:
+        olt = await session.get(Olt, olt_id)
+        if olt is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "OLT no encontrada")
+        template = await _get_template(session, template_id)
+        if template.driver != olt.driver:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "El plan es de otro tipo de OLT")
+        name, body = template.name, template.body
+        pending = _unverified(olt, kind, TemplateBody.model_validate(body), request)
+    if pending and not state.settings.allow_unverified_writes:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Aprovisionar en este modelo y firmware todavía no está validado en laboratorio. "
+            "Falta: " + ", ".join(pending),
+        )
+    job_id = await jobs.create_job(
+        state,
+        tenant_id=ctx.tenant_id,
+        actor=ctx.actor,
+        source_ip=ctx.client_ip,
+        olt_id=olt_id,
+        kind=kind,
+        template_name=name,
+        template=body,
+        request=request,
+        secrets=secrets,
+    )
+    async with ctx.session() as session:
+        if pending:
+            job = await session.get(ProvisionJob, job_id)
+            if job is not None:
+                job.detail = {**(job.detail or {}), "unverified": pending}
+        return await _job_out(session, job_id)
+
+
 @router.post(
-    "/v1/olts/{olt_id}/onus/authorize",
-    response_model=WritePlanOut,
-    status_code=status.HTTP_202_ACCEPTED,
+    "/v1/olts/{olt_id}/onus/authorize", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED
 )
-async def authorize_onu(
-    olt_id: UUID, body: AuthorizeRequest, ctx: Tenant, state: State
-) -> WritePlanOut:
-    """Autoriza una ONU con una plantilla: VLAN, perfiles y, si la plantilla lo dice, PPPoE y WiFi."""
+async def authorize_onu(olt_id: UUID, body: AuthorizeIn, ctx: Tenant, state: State) -> JobOut:
+    """Alta completa de una ONU nueva. Devuelve el trabajo; su avance se consulta con su id.
+
+    Quien aprovisiona da la ONU (de la búsqueda), el nombre del cliente, el plan y su PPPoE/WiFi.
+    La posición libre, el Equipment ID, los puertos del modelo y esperar a que la ONU se conecte
+    antes de la WAN los resuelve el trabajo (``api/jobs.py``).
+    """
     async with ctx.session() as session:
         template = TemplateBody.model_validate(
             (await _get_template(session, body.template_id)).body
         )
-    calls = authorize_calls(template, body)
-    return await _write(
-        olt_id,
-        ctx,
-        state,
-        action="onu.authorize",
-        calls=calls,
-        # El estado se consulta aparte, en otra sesión: en la V1600G0-B "configure terminal"
-        # falló después de "write" dentro del mismo plan, y la ONU tarda en registrarse.
-        verify=[],
-        audit_after={
-            "pon": body.pon,
-            "onu": body.onu,
-            "serial": body.serial,
-            "description": body.description,
-            "template_id": str(body.template_id),
-            "equipment_id": body.equipment_id,
-            "pppoe_user": body.pppoe_user,
-            "wifi_ssid": body.wifi_ssid,
-        },
-        secrets={"pppoe_password": body.pppoe_password, "wifi_key": body.wifi_key},
-        template_id=body.template_id,
-    )
+    _check_client(template, body)
+    description = clean_label(body.customer, limit=64)
+    wifi_ssid = clean_label(body.wifi_name, limit=32) if body.wifi_name else None
+    request = {
+        "pon": body.pon,
+        "onu": body.onu,
+        "serial": body.serial,
+        "description": description,
+        "equipment_id": body.equipment_id,
+        "pppoe_user": body.pppoe_user,
+        "wifi_ssid": wifi_ssid,
+    }
+    return await _start(olt_id, ctx, state, "authorize", body.template_id, request, _secrets(body))
 
 
 @router.post(
-    "/v1/olts/{olt_id}/onus/configure",
-    response_model=WritePlanOut,
-    status_code=status.HTTP_202_ACCEPTED,
+    "/v1/olts/{olt_id}/onus/configure", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED
 )
-async def configure_onu(
-    olt_id: UUID, body: ConfigureRequest, ctx: Tenant, state: State
-) -> WritePlanOut:
-    """WAN PPPoE y WiFi de una ONU ya autorizada, con la plantilla. No la vuelve a autorizar."""
+async def configure_onu(olt_id: UUID, body: ConfigureIn, ctx: Tenant, state: State) -> JobOut:
+    """Internet (PPPoE) y WiFi de una ONU ya autorizada: espera a que esté conectada y los pone."""
     async with ctx.session() as session:
         template = TemplateBody.model_validate(
             (await _get_template(session, body.template_id)).body
         )
-    return await _write(
-        olt_id,
-        ctx,
-        state,
-        action="onu.configure",
-        calls=configure_calls(template, body),
-        verify=[],
-        audit_after={
-            "pon": body.pon,
-            "onu": body.onu,
-            "template_id": str(body.template_id),
-            "equipment_id": body.equipment_id,
-            "pppoe_user": body.pppoe_user,
-            "wifi_ssid": body.wifi_ssid,
-        },
-        secrets={"pppoe_password": body.pppoe_password, "wifi_key": body.wifi_key},
-        template_id=body.template_id,
-    )
+    _check_client(template, body)
+    if template.wan is None and not body.wifi_name:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Este plan no tiene internet ni WiFi que poner"
+        )
+    request = {
+        "pon": body.pon,
+        "onu": body.onu,
+        "pppoe_user": body.pppoe_user,
+        "wifi_ssid": clean_label(body.wifi_name, limit=32) if body.wifi_name else None,
+    }
+    return await _start(olt_id, ctx, state, "configure", body.template_id, request, _secrets(body))
+
+
+@router.get("/v1/provision-jobs/{job_id}", response_model=JobOut)
+async def get_job(job_id: UUID, ctx: Tenant) -> JobOut:
+    ctx.require("olt:read")
+    async with ctx.session() as session:
+        return await _job_out(session, job_id)
+
+
+@router.get("/v1/olts/{olt_id}/provision-jobs", response_model=list[JobOut])
+async def list_jobs(olt_id: UUID, ctx: Tenant) -> list[JobOut]:
+    ctx.require("olt:read")
+    async with ctx.session() as session:
+        ids = (
+            (
+                await session.execute(
+                    select(ProvisionJob.id)
+                    .where(ProvisionJob.olt_id == olt_id)
+                    .order_by(ProvisionJob.created_at.desc())
+                    .limit(20)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [await _job_out(session, job_id) for job_id in ids]
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/scan", response_model=PlanOut, status_code=status.HTTP_202_ACCEPTED
+)
+async def scan_onus(olt_id: UUID, ctx: Tenant, state: State) -> PlanOut:
+    """ONU nuevas en todos los PON y la lista de ONU con su cliente, en una sola lectura.
+
+    Si todavía no se sabe cuántos PON tiene la OLT se buscan 4; la respuesta de
+    ``show interface brief`` lo deja guardado para la próxima.
+    """
+    ctx.require("olt:read")
+    key = executor_key(state)
+    state.require_bus()
+    async with ctx.session() as session:
+        olt, credential, target = await olt_access(session, ctx.tenant_id, state, olt_id)
+        pons = range(1, (olt.pon_ports or DEFAULT_PON_PORTS) + 1)
+        calls = [
+            CommandCall("interfaces.brief"),
+            *(CommandCall("onu.autofind", {"pon": pon}) for pon in pons),
+        ]
+        plan = build_read_plan(
+            get_driver(olt.driver),
+            tenant_id=ctx.tenant_id,
+            olt_id=olt.id,
+            target=target,
+            calls=calls,
+            credential=credential,
+            executor_public_key=key,
+            model=olt.model,
+            firmware=olt.firmware,
+            priority=Priority.USER,
+        )
+        created_at = await record_plan(session, ctx.tenant_id, ctx.actor, olt, plan, calls)
+    await publish_plan(state, plan)
+    return PlanOut(plan_id=plan.plan_id, olt_id=olt_id, status="queued", created_at=created_at)
 
 
 @router.post(

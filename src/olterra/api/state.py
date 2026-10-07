@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -39,6 +40,8 @@ class AppState:
     addresses: AddressPlan
     bus: PlanPublisher | None = None
     background: list[Any] = field(default_factory=list)
+    # Lo que corre después de guardar cada resultado (p. ej. avanzar un trabajo de alta).
+    result_hooks: list[Callable[[PlanResult], Awaitable[None]]] = field(default_factory=list)
 
     def require_vault(self) -> Vault:
         if self.vault is None:
@@ -75,12 +78,23 @@ class AppState:
             run.status = result.status
             run.finished_at = datetime.now(UTC)
             status = olt_status_after(result)
-            if status is not None:
-                olt = await session.get(Olt, result.olt_id)
-                if olt is not None:
-                    olt.status = status
-                    if status == "online":
-                        olt.last_seen_at = run.finished_at
+            olt = await session.get(Olt, result.olt_id)
+            if status is not None and olt is not None:
+                olt.status = status
+                if status == "online":
+                    olt.last_seen_at = run.finished_at
+            # "show interface brief" dice cuántos PON tiene la OLT: lo usa la búsqueda de ONU.
+            for output in run.result.get("outputs", []):
+                data = output.get("data")
+                if output.get("key") == "interfaces.brief" and isinstance(data, dict):
+                    pons = data.get("pons") or []
+                    if olt is not None and pons:
+                        olt.pon_ports = max(pons)
+        for hook in self.result_hooks:
+            try:
+                await hook(result)
+            except Exception:
+                log.exception("Falló un paso posterior al resultado del plan %s", result.plan_id)
 
 
 def olt_status_after(result: PlanResult) -> str | None:
