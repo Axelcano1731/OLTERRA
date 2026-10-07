@@ -4,12 +4,14 @@ import { computed, reactive, ref, watch } from 'vue'
 
 import {
   authorizeOnu,
+  configureOnu,
   deleteOnu,
   getOlt,
   listTemplates,
   queryOlt,
   rebootOnu,
   type AuthorizeRequest,
+  type ConfigureRequest,
   type WritePlan,
 } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
@@ -70,7 +72,10 @@ const form = reactive({
   templateId: '',
   pon: 1,
   onu: 1,
+  // La ONU ya está autorizada: solo se configura su WAN y WiFi (reintento).
+  onlyService: false,
   serial: '',
+  equipmentId: '',
   description: '',
   pppoeUser: '',
   pppoePassword: '',
@@ -82,6 +87,7 @@ const template = computed(() => templates.data.value?.find((item) => item.id ===
 
 function use(row: AutofindRow): void {
   form.serial = row.serial
+  form.equipmentId = row.model ?? ''
   form.pon = row.pon ?? searchPon.value
   if (freeIndex.value !== null) form.onu = freeIndex.value
 }
@@ -94,18 +100,25 @@ const SERIAL = /^([A-Za-z0-9]{4}[0-9A-Fa-f]{8}|[0-9A-Fa-f]{16})$/
 const DESCRIPTION = /^[A-Za-z0-9_.-]{1,64}$/
 const PPPOE_USER = /^[A-Za-z0-9_.@-]{1,64}$/
 const SSID = /^[A-Za-z0-9_.-]{1,32}$/
+const EQUIPMENT_ID = /^[A-Za-z0-9_.-]{1,32}$/
 const CLI_SECRET = (low: number) => new RegExp(`^[!-~]{${low},63}$`)
 
 const submitted = ref(false)
 const problems = computed(() => {
   const found: Record<string, string> = {}
   if (!form.templateId) found.templateId = 'Elige una plantilla.'
-  if (!SERIAL.test(form.serial.trim())) found.serial = 'Serial GPON: VSOL0008D09C.'
-  if (!DESCRIPTION.test(form.description)) {
-    found.description = 'Sin espacios: letras, números, punto, guion o guion bajo.'
+  if (!form.onlyService) {
+    if (!SERIAL.test(form.serial.trim())) found.serial = 'Serial GPON: VSOL0008D09C.'
+    if (!DESCRIPTION.test(form.description)) {
+      found.description = 'Sin espacios: letras, números, punto, guion o guion bajo.'
+    }
   }
   if (form.onu < 1 || form.onu > 128) found.onu = 'De 1 a 128.'
   if (form.pon < 1 || form.pon > 16) found.pon = 'De 1 a 16.'
+  // La WAN y el WiFi van por comandos privados que la OLT solo acepta si conoce el modelo.
+  if ((template.value?.body.wan || form.wifiSsid) && !EQUIPMENT_ID.test(form.equipmentId.trim())) {
+    found.equipmentId = 'Equipment ID de la ONU (sale en el autofind, p. ej. VSOLV422).'
+  }
   if (template.value?.body.wan) {
     if (!PPPOE_USER.test(form.pppoeUser)) found.pppoeUser = 'Usuario PPPoE sin espacios.'
     if (!CLI_SECRET(1).test(form.pppoePassword) || form.pppoePassword.includes('?')) {
@@ -127,6 +140,24 @@ function show(field: string): string | undefined {
 
 const alta = usePlan()
 const written = ref<WritePlan | null>(null)
+// El estado del PON se consulta aparte, en una sesión nueva: la ONU tarda en registrarse.
+const verification = usePlan()
+const verifyError = ref<string | null>(null)
+const verifiedPon = ref(1)
+
+async function verifyState(): Promise<void> {
+  verifyError.value = null
+  try {
+    const plan = await queryOlt(props.id, {
+      commands: ['onu.state'],
+      pon: [verifiedPon.value],
+      onu: [],
+    })
+    await verification.follow(plan.plan_id)
+  } catch (caught) {
+    verifyError.value = errorText(caught)
+  }
+}
 const busy = ref(false)
 const altaError = ref<string | null>(null)
 
@@ -134,13 +165,16 @@ async function authorize(): Promise<void> {
   submitted.value = true
   altaError.value = null
   if (Object.keys(problems.value).length) return
-  const body: AuthorizeRequest = {
+  const body: ConfigureRequest & Partial<AuthorizeRequest> = {
     template_id: form.templateId,
     pon: form.pon,
     onu: form.onu,
-    serial: form.serial.trim().toUpperCase(),
-    description: form.description,
   }
+  if (!form.onlyService) {
+    body.serial = form.serial.trim().toUpperCase()
+    body.description = form.description
+  }
+  if (form.equipmentId.trim()) body.equipment_id = form.equipmentId.trim()
   if (template.value?.body.wan) {
     body.pppoe_user = form.pppoeUser
     body.pppoe_password = form.pppoePassword
@@ -151,7 +185,12 @@ async function authorize(): Promise<void> {
   }
   busy.value = true
   try {
-    written.value = await authorizeOnu(props.id, body)
+    verification.stop()
+    verification.plan.value = null
+    verifiedPon.value = form.pon
+    written.value = form.onlyService
+      ? await configureOnu(props.id, body)
+      : await authorizeOnu(props.id, body as AuthorizeRequest)
     // Las claves ya viajaron selladas: no se quedan en la pantalla.
     form.pppoePassword = ''
     form.wifiKey = ''
@@ -288,29 +327,50 @@ async function run(kind: 'reboot' | 'delete'): Promise<void> {
           <input id="onu" v-model.number="form.onu" type="number" min="1" max="128" class="input" />
           <p v-if="show('onu')" class="hint text-danger">{{ show('onu') }}</p>
         </div>
+        <label class="flex items-center gap-2 text-sm sm:col-span-4">
+          <input v-model="form.onlyService" type="checkbox" />
+          La ONU ya está autorizada: solo configurar su WAN y WiFi (reintento)
+        </label>
+        <template v-if="!form.onlyService">
+          <div class="sm:col-span-2">
+            <label for="serial" class="label">Serial</label>
+            <input
+              id="serial"
+              v-model="form.serial"
+              class="input font-mono uppercase"
+              placeholder="VSOL0008D09C"
+              :aria-invalid="!!show('serial')"
+            />
+            <p v-if="show('serial')" class="hint text-danger">{{ show('serial') }}</p>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="description" class="label">Descripción</label>
+            <input
+              id="description"
+              v-model="form.description"
+              class="input"
+              placeholder="CLIENTE-1234"
+              maxlength="64"
+              :aria-invalid="!!show('description')"
+            />
+            <p v-if="show('description')" class="hint text-danger">{{ show('description') }}</p>
+            <p v-else class="hint">Lo que se ve en la OLT; sin espacios.</p>
+          </div>
+        </template>
         <div class="sm:col-span-2">
-          <label for="serial" class="label">Serial</label>
+          <label for="equipment-id" class="label">Equipment ID</label>
           <input
-            id="serial"
-            v-model="form.serial"
-            class="input font-mono uppercase"
-            placeholder="VSOL0008D09C"
-            :aria-invalid="!!show('serial')"
+            id="equipment-id"
+            v-model="form.equipmentId"
+            class="input font-mono"
+            placeholder="VSOLV422"
+            autocomplete="off"
+            :aria-invalid="!!show('equipmentId')"
           />
-          <p v-if="show('serial')" class="hint text-danger">{{ show('serial') }}</p>
-        </div>
-        <div class="sm:col-span-2">
-          <label for="description" class="label">Descripción</label>
-          <input
-            id="description"
-            v-model="form.description"
-            class="input"
-            placeholder="CLIENTE-1234"
-            maxlength="64"
-            :aria-invalid="!!show('description')"
-          />
-          <p v-if="show('description')" class="hint text-danger">{{ show('description') }}</p>
-          <p v-else class="hint">Lo que se ve en la OLT; sin espacios.</p>
+          <p v-if="show('equipmentId')" class="hint text-danger">{{ show('equipmentId') }}</p>
+          <p v-else class="hint">
+            El modelo que ve el autofind (botón «Usar»). Sin él la OLT no acepta la WAN ni el WiFi.
+          </p>
         </div>
         <template v-if="template?.body.wan">
           <div class="sm:col-span-2">
@@ -378,7 +438,7 @@ async function run(kind: 'reboot' | 'delete'): Promise<void> {
         <button type="submit" class="btn-primary" :disabled="busy || alta.waiting.value">
           <LoaderCircle v-if="busy || alta.waiting.value" class="size-4 animate-spin" />
           <RadioTower v-else class="size-4" />
-          Autorizar ONU
+          {{ form.onlyService ? 'Configurar WAN y WiFi' : 'Autorizar ONU' }}
         </button>
       </div>
     </form>
@@ -398,10 +458,28 @@ async function run(kind: 'reboot' | 'delete'): Promise<void> {
       </p>
       <AlertBox v-if="alta.error.value" tone="danger" class="mt-4">{{ alta.error.value }}</AlertBox>
       <PlanResult v-if="alta.plan.value" :plan="alta.plan.value" class="mt-4" />
-      <p v-if="alta.plan.value?.status === 'ok'" class="mt-4 text-sm text-muted">
-        La ONU tarda hasta un minuto en quedar "working". Vuelve a buscar en el PON o consulta su
-        estado desde la OLT.
-      </p>
+      <div v-if="alta.plan.value && !alta.waiting.value" class="mt-4">
+        <p class="text-sm text-muted">
+          La ONU tarda hasta un minuto en quedar "working". Verifica su estado en el PON cuando
+          quieras.
+        </p>
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="verification.waiting.value"
+            @click="verifyState"
+          >
+            <LoaderCircle v-if="verification.waiting.value" class="size-4 animate-spin" />
+            <Search v-else class="size-4" />
+            Verificar estado del PON {{ verifiedPon }}
+          </button>
+        </div>
+        <AlertBox v-if="verifyError || verification.error.value" tone="danger" class="mt-3">
+          {{ verifyError ?? verification.error.value }}
+        </AlertBox>
+        <PlanResult v-if="verification.plan.value" :plan="verification.plan.value" class="mt-3" />
+      </div>
     </section>
 
     <section class="card p-5 sm:p-6">

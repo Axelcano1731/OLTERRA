@@ -185,6 +185,7 @@ async def test_copy_an_onu_then_authorize_a_new_one_over_ssh(
         pon=1,
         onu=9,
         serial="VSOL00BEEF01",  # el que está en autofind
+        equipment_id="VSOLV422",
         description="cliente-nuevo",
         pppoe_user="nuevo1",
         pppoe_password=SecretStr("Ppp#Sim-2026"),

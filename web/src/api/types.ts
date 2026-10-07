@@ -100,12 +100,20 @@ export interface PlanOutput {
   parse_error?: string
 }
 
+/** Un paso de cambio de modo (configure terminal…) que falló: no es una llamada del catálogo. */
+export interface SessionError {
+  command: string
+  error: string | null
+  output: string | null
+}
+
 export interface PlanResult {
   status: PlanStatus
   error: string | null
   executor: string
   host_key: string | null
   outputs?: PlanOutput[]
+  session_errors?: SessionError[]
 }
 
 export interface Plan {
@@ -248,6 +256,20 @@ export interface AuthorizeRequest {
   onu: number
   serial: string
   description: string
+  /** Equipment ID del autofind (VSOLV422): sin él la OLT no acepta la WAN ni el WiFi. */
+  equipment_id?: string
+  pppoe_user?: string
+  pppoe_password?: string
+  wifi_ssid?: string
+  wifi_key?: string
+}
+
+/** WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente). */
+export interface ConfigureRequest {
+  template_id: string
+  pon: number
+  onu: number
+  equipment_id?: string
   pppoe_user?: string
   pppoe_password?: string
   wifi_ssid?: string
@@ -273,6 +295,12 @@ export interface OnuRunningConfig {
   onu: number
   serial: string | null
   template: TemplateBody
-  client: { serial?: string; description?: string; pppoe_user?: string; wifi_ssid?: string }
+  client: {
+    serial?: string
+    description?: string
+    equipment_id?: string
+    pppoe_user?: string
+    wifi_ssid?: string
+  }
   ignored: string[]
 }

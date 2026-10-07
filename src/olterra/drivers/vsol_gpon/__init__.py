@@ -22,6 +22,8 @@ ERRORS = (
     r"(?i)^\s*%\s*(?:error|invalid)",
     r"(?i)^\s*error:",
     r"(?i)command not found",
+    # La V1600G0-B responde así a un comando "pri" que la ONU no acepta (2026-10-07): no es éxito.
+    r"(?i)unsupport(?:ed)?\b",
 )
 
 SESSION = SessionProfile(

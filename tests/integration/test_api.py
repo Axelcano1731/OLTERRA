@@ -736,6 +736,7 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
         "pon": 1,
         "onu": 60,
         "serial": "GPON00AABBCC",
+        "equipment_id": "VSOLV422",
         "description": "CLIENTE-NUEVO",
         "pppoe_user": "cliente.nuevo",
         "pppoe_password": "Ppp#Secreta-77",

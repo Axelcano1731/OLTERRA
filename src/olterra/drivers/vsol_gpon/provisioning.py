@@ -13,6 +13,7 @@ con que se teclea.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -123,25 +124,21 @@ def _cli_secret(value: SecretStr | None, *, low: int, label: str) -> SecretStr |
     return value
 
 
-class ClientData(BaseModel):
-    """Lo de cada cliente en un alta. Las claves solo viajan selladas."""
+class OnuServiceData(BaseModel):
+    """WAN y WiFi de una ONU: lo de cada cliente. Las claves solo viajan selladas."""
 
     pon: int = Field(ge=1, le=16)
     onu: int = Field(ge=1, le=128)
-    serial: str
-    description: str = Field(pattern=r"^[A-Za-z0-9_.\-]{1,64}$")
+    equipment_id: str | None = Field(
+        None,
+        pattern=r"^[A-Za-z0-9_.\-]{1,32}$",
+        description="Equipment ID del autofind (p. ej. VSOLV422). Sin él la V1600G0-B responde "
+        "'Unsupport private protocol' a la WAN y al WiFi de una ONU recién autorizada",
+    )
     pppoe_user: str | None = Field(None, pattern=r"^[A-Za-z0-9_.@\-]{1,64}$")
     pppoe_password: SecretStr | None = None
     wifi_ssid: str | None = Field(None, pattern=r"^[A-Za-z0-9_.\-]{1,32}$")
     wifi_key: SecretStr | None = None
-
-    @field_validator("serial")
-    @classmethod
-    def _serial(cls, value: str) -> str:
-        canonical = normalize_gpon_serial(value)
-        if canonical is None:
-            raise ValueError("Serial GPON inválido (VSOL0008D09C o su forma hexadecimal)")
-        return canonical
 
     @field_validator("pppoe_password")
     @classmethod
@@ -154,20 +151,84 @@ class ClientData(BaseModel):
         return _cli_secret(value, low=8, label="Clave WiFi")
 
 
-def authorize_calls(template: TemplateBody, client: ClientData) -> list[CommandCall]:
-    """La receta de un alta, en orden. Termina guardando en flash (``config.save``)."""
-    if template.wan is not None and not (client.pppoe_user and client.pppoe_password):
-        raise ParamError("La plantilla configura PPPoE: faltan el usuario y la clave PPPoE")
-    if (client.wifi_ssid is None) != (client.wifi_key is None):
-        raise ParamError("El WiFi necesita SSID y clave")
-    if client.wifi_ssid is not None and template.wifi is None:
-        raise ParamError("La plantilla no configura WiFi")
+class ClientData(OnuServiceData):
+    """Lo de cada cliente en un alta."""
 
-    where: dict[str, Any] = {"pon": client.pon, "onu": client.onu}
+    serial: str
+    description: str = Field(pattern=r"^[A-Za-z0-9_.\-]{1,64}$")
+
+    @field_validator("serial")
+    @classmethod
+    def _serial(cls, value: str) -> str:
+        canonical = normalize_gpon_serial(value)
+        if canonical is None:
+            raise ValueError("Serial GPON inválido (VSOL0008D09C o su forma hexadecimal)")
+        return canonical
+
+
+def _caller(data: OnuServiceData) -> Callable[..., CommandCall]:
+    where: dict[str, Any] = {"pon": data.pon, "onu": data.onu}
 
     def call(key: str, **params: Any) -> CommandCall:
         return CommandCall(key, {**where, **params})
 
+    return call
+
+
+def service_calls(template: TemplateBody, data: OnuServiceData) -> list[CommandCall]:
+    """WAN PPPoE y WiFi (comandos privados de VSOL). Sin guardar: lo agrega quien la llama."""
+    if template.wan is not None and not (data.pppoe_user and data.pppoe_password):
+        raise ParamError("La plantilla configura PPPoE: faltan el usuario y la clave PPPoE")
+    if (data.wifi_ssid is None) != (data.wifi_key is None):
+        raise ParamError("El WiFi necesita SSID y clave")
+    if data.wifi_ssid is not None and template.wifi is None:
+        raise ParamError("La plantilla no configura WiFi")
+    wants_private = template.wan is not None or data.wifi_ssid is not None
+    if wants_private and not data.equipment_id:
+        raise ParamError(
+            "Falta el Equipment ID de la ONU (sale en el autofind, p. ej. VSOLV422): sin él la "
+            "OLT no configura la WAN ni el WiFi"
+        )
+    call = _caller(data)
+    calls: list[CommandCall] = []
+    # La OLT necesita saber el modelo VSOL para hablarle a la ONU en su protocolo privado
+    # ("pri"): en las ONU que funcionan aparece "onu N pri equid VSOLV824" antes de la WAN.
+    if wants_private:
+        calls.append(call("onu.pri_equid", equipment_id=data.equipment_id))
+    if template.wan is not None:
+        wan = template.wan
+        calls += [
+            call("onu.wan_add_route"),
+            call("onu.wan_route_mode", wan=wan.index, mtu=wan.mtu),
+            call(
+                "onu.wan_pppoe",
+                wan=wan.index,
+                pppoe_user=data.pppoe_user,
+                nat="enable" if wan.nat else "disable",
+            ),
+            call("onu.wan_vlan", wan=wan.index, vlan=wan.vlan, cos=wan.cos),
+            call("onu.wan_bind", wan=wan.index, binds=" ".join(wan.binds)),
+        ]
+    if template.wifi is not None and data.wifi_ssid is not None:
+        calls.append(
+            call("onu.wifi_ssid", ssid_index=template.wifi.ssid_index, ssid=data.wifi_ssid)
+        )
+    return calls
+
+
+def configure_calls(template: TemplateBody, data: OnuServiceData) -> list[CommandCall]:
+    """WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente), y guardar."""
+    calls = service_calls(template, data)
+    if not calls:
+        raise ParamError("La plantilla no tiene WAN ni WiFi que configurar")
+    return [*calls, CommandCall("config.save")]
+
+
+def authorize_calls(template: TemplateBody, client: ClientData) -> list[CommandCall]:
+    """La receta de un alta, en orden. Termina guardando en flash (``config.save``)."""
+    # Se arma primero: valida PPPoE, WiFi y Equipment ID antes de tocar la OLT.
+    private = service_calls(template, client)
+    call = _caller(client)
     calls = [
         call("onu.authorize", profile=template.auth_profile, serial=client.serial),
         call("onu.set_description", description=client.description),
@@ -198,26 +259,7 @@ def authorize_calls(template: TemplateBody, client: ClientData) -> list[CommandC
                 cos=port.cos,
             )
         )
-    if template.wan is not None:
-        wan = template.wan
-        calls += [
-            call("onu.wan_add_route"),
-            call("onu.wan_route_mode", wan=wan.index, mtu=wan.mtu),
-            call(
-                "onu.wan_pppoe",
-                wan=wan.index,
-                pppoe_user=client.pppoe_user,
-                nat="enable" if wan.nat else "disable",
-            ),
-            call("onu.wan_vlan", wan=wan.index, vlan=wan.vlan, cos=wan.cos),
-            call("onu.wan_bind", wan=wan.index, binds=" ".join(wan.binds)),
-        ]
-    if template.wifi is not None and client.wifi_ssid is not None:
-        calls.append(
-            call("onu.wifi_ssid", ssid_index=template.wifi.ssid_index, ssid=client.wifi_ssid)
-        )
-    calls.append(CommandCall("config.save"))
-    return calls
+    return [*calls, *private, CommandCall("config.save")]
 
 
 # --- Copiar una ONU -------------------------------------------------------------------------
@@ -257,6 +299,7 @@ _LINES: list[tuple[str, re.Pattern[str]]] = [
             r"vlan (?P<vlan>\d+)(?: new_cos (?P<cos>\d+))?"
         ),
     ),
+    ("equid", re.compile(_P + r"pri equid (?P<id>\S+)")),
     ("wan_add", re.compile(_P + r"pri wan_adv add route")),
     (
         "wan_mode",
@@ -360,6 +403,8 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
     if wifi:
         template["wifi"] = {"ssid_index": int(wifi[0]["i"])}
         client["wifi_ssid"] = wifi[0]["ssid"]
+    if "equid" in found:
+        client["equipment_id"] = found["equid"][0]["id"]
     # Lo que se leyó pero no entra a la plantilla (otras WAN, otros SSID) también se avisa.
     for kind in ("wan_pppoe", "wifi"):
         for extra in found.get(kind, [])[1:]:

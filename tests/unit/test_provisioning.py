@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,15 +10,17 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from olterra.drivers.base import ParamError
-from olterra.drivers.vsol_gpon import VSOL_GPON
+from olterra.drivers.vsol_gpon import ERRORS, VSOL_GPON
 from olterra.drivers.vsol_gpon.provisioning import (
     ClientData,
+    OnuServiceData,
     TemplateBody,
     authorize_calls,
+    configure_calls,
     parse_onu_running_config,
 )
-from olterra.executor.plan import CliCommand, Credential, Target
-from olterra.orchestrator import PlanBuildError, build_write_plan
+from olterra.executor.plan import CliCommand, Credential, PlanResult, StepResult, Target
+from olterra.orchestrator import PlanBuildError, build_write_plan, interpret
 from olterra.security.sealed import generate_keypair
 
 FIXTURE = Path("tests/fixtures/vsol-gpon/V1600G0-B/V1.4.8R/20261003/cli")
@@ -34,6 +37,7 @@ def client(**overrides: object) -> ClientData:
         "pon": 1,
         "onu": 3,
         "serial": "GPONE5197ED0",
+        "equipment_id": "VSOLV422",
         "description": "CLIENTE-PRUEBA",
         "pppoe_user": "usuario-pppoe",
         "pppoe_password": SecretStr(PPPOE_KEY),
@@ -67,7 +71,9 @@ def test_copy_a_real_onu_into_a_template() -> None:
         "description": "CLIENTE-PRUEBA",
         "pppoe_user": "usuario-pppoe",
         "wifi_ssid": "WIFI-CLIENTE",
+        "equipment_id": "VSOLV422",
     }
+    assert not any("pri equid" in line for line in copied.ignored)
     assert any(line.startswith("onu 3 pri acl") for line in copied.ignored)
     assert not any("shared_key" in line and "******" not in line for line in copied.ignored)
 
@@ -99,6 +105,8 @@ def test_the_bridge_onu_without_wifi_also_copies() -> None:
 
 def test_client_data_is_checked_before_anything_reaches_the_olt() -> None:
     template = TemplateBody.model_validate(parse_onu_running_config(running(3)).template)
+    with pytest.raises(ParamError, match="Equipment ID"):
+        authorize_calls(template, client(equipment_id=None))
     with pytest.raises(ParamError, match="PPPoE"):
         authorize_calls(template, client(pppoe_password=None))
     with pytest.raises(ParamError, match="SSID y clave"):
@@ -110,6 +118,74 @@ def test_client_data_is_checked_before_anything_reaches_the_olt() -> None:
     for key in ("con?pregunta", "con\nsalto", "corta"):
         with pytest.raises(ValidationError):
             client(wifi_key=SecretStr(key))
+
+
+def test_equipment_id_goes_before_the_private_commands() -> None:
+    template = TemplateBody.model_validate(parse_onu_running_config(running(3)).template)
+    keys = [c.key for c in authorize_calls(template, client())]
+    # Sin "pri equid" la V1600G0-B responde "Unsupport private protocol" a la WAN y al WiFi.
+    assert keys.index("onu.service_port") < keys.index("onu.pri_equid")
+    assert keys.index("onu.pri_equid") < keys.index("onu.wan_add_route")
+    assert keys.count("onu.pri_equid") == 1
+    # Una plantilla sin WAN ni WiFi no usa el protocolo privado: no pide el Equipment ID.
+    plain = TemplateBody(tconts=[], gemports=[])
+    bare = client(equipment_id=None, wifi_ssid=None, wifi_key=None)
+    assert "onu.pri_equid" not in [c.key for c in authorize_calls(plain, bare)]
+
+
+def test_configure_an_onu_that_is_already_authorized() -> None:
+    template = TemplateBody.model_validate(parse_onu_running_config(running(3)).template)
+    data = OnuServiceData(
+        pon=1,
+        onu=3,
+        equipment_id="VSOLV422",
+        pppoe_user="usuario-pppoe",
+        pppoe_password=SecretStr(PPPOE_KEY),
+    )
+    keys = [c.key for c in configure_calls(template, data)]
+    assert keys[0] == "onu.pri_equid" and keys[-1] == "config.save"
+    assert "onu.authorize" not in keys and "onu.service_port" not in keys
+    assert "onu.wifi_ssid" not in keys  # sin SSID no se toca el WiFi
+    bridge = TemplateBody(wan=None, wifi=None)
+    with pytest.raises(ParamError, match="ni WiFi"):
+        configure_calls(bridge, OnuServiceData(pon=1, onu=3))
+
+
+def test_unsupported_private_protocol_is_an_error() -> None:
+    patterns = [re.compile(p, re.MULTILINE) for p in ERRORS]
+    assert any(p.search("Unsupport private protocol") for p in patterns)
+    assert not any(p.search("set onu 3 reboot OK.") for p in patterns)
+
+
+def test_failed_mode_change_steps_are_reported() -> None:
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC)
+    calls = [{"key": "config.save", "params": {}, "command": "write"}]
+    commands = ["end", "write", "configure terminal", "interface gpon 0/1", "show onu state"]
+    steps = [
+        StepResult(index=0, ok=True, output=""),
+        StepResult(index=1, ok=True, output="Configuration saved"),
+        StepResult(index=2, ok=False, error="La OLT no devolvió el prompt a tiempo"),
+        StepResult(index=3, ok=False, error="No se ejecutó: falló el paso 2"),
+        StepResult(index=4, ok=False, error="No se ejecutó: falló el paso 2"),
+    ]
+    result = PlanResult(
+        plan_id=uuid4(),
+        tenant_id=uuid4(),
+        olt_id=uuid4(),
+        executor="x",
+        status="partial",
+        steps=steps,
+        started_at=now,
+        finished_at=now,
+    )
+    failed = {
+        "command": "configure terminal",
+        "error": "La OLT no devolvió el prompt a tiempo",
+        "output": None,
+    }
+    assert interpret(calls, commands, result)["session_errors"] == [failed]
 
 
 def test_template_references_must_exist() -> None:

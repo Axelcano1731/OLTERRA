@@ -132,6 +132,7 @@ _PROVISION = re.compile(
     r"|gemport \d+ traffic-limit downstream \S+"
     r"|service \S+ gemport \d+ vlan \d+"
     r"|service-port \d+ gemport \d+ uservlan \d+ vlan \d+ new_cos \d"
+    r"|pri equid \S+"
     r"|pri wan_adv add route"
     r"|pri wan_adv index \d+ route mode internet mtu \d+"
     r"|pri wan_adv index \d+ route ipv4 pppoe proxy disable user \S+ pwd \S+ mode auto nat \S+"
