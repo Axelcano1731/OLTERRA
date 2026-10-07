@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from olterra.config import Settings
-from olterra.db.models import AuditLog, PlanRun, TenantKey
+from olterra.db.models import AuditLog, Olt, PlanRun, TenantKey
 from olterra.db.session import tenant_session
 from olterra.executor.plan import Plan, PlanResult
 from olterra.orchestrator import interpret
@@ -74,6 +74,25 @@ class AppState:
             )
             run.status = result.status
             run.finished_at = datetime.now(UTC)
+            status = olt_status_after(result)
+            if status is not None:
+                olt = await session.get(Olt, result.olt_id)
+                if olt is not None:
+                    olt.status = status
+                    if status == "online":
+                        olt.last_seen_at = run.finished_at
+
+
+def olt_status_after(result: PlanResult) -> str | None:
+    """Lo que un plan dice de la OLT: respondió (online) o no se pudo entrar (unreachable).
+
+    Un plan vencido o rechazado antes de salir no dice nada de la OLT.
+    """
+    if result.status in ("expired", "rejected"):
+        return None
+    if any(step.ok for step in result.steps):
+        return "online"
+    return "unreachable"
 
 
 async def audit(

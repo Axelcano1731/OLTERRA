@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Plus, Server } from '@lucide/vue'
+import { Pencil, Plus, RadioTower, Server, Terminal } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -95,14 +95,33 @@ async function onDeleted(olt: Olt): Promise<void> {
           <td class="px-4 py-3 font-mono text-xs">{{ olt.real_ip ?? '—' }}</td>
           <td class="px-4 py-3 font-mono text-xs">{{ olt.nat_ip ?? 'Directa' }}</td>
           <td class="px-4 py-3">
-            <StatusPill :tone="oltStatus(olt.status).tone">{{
-              oltStatus(olt.status).label
-            }}</StatusPill>
+            <StatusPill
+              :tone="oltStatus(olt.status).tone"
+              :title="olt.last_seen_at ? `Respondió ${timeAgo(olt.last_seen_at)}` : undefined"
+              >{{ oltStatus(olt.status).label }}</StatusPill
+            >
           </td>
           <td class="px-4 py-3 text-muted" :title="formatDateTime(olt.created_at)">
             {{ timeAgo(olt.created_at) }}
           </td>
           <td class="px-4 py-3 text-right whitespace-nowrap">
+            <RouterLink
+              :to="{ name: 'olt', params: { id: olt.id } }"
+              class="btn-ghost px-2 py-1 text-xs"
+              :aria-label="`Consultar ${olt.name}`"
+            >
+              <Terminal class="size-3.5" />
+              Consultar
+            </RouterLink>
+            <RouterLink
+              v-if="can('onu:write')"
+              :to="{ name: 'olt-provision', params: { id: olt.id } }"
+              class="btn-ghost px-2 py-1 text-xs"
+              :aria-label="`Aprovisionar ${olt.name}`"
+            >
+              <RadioTower class="size-3.5" />
+              Aprovisionar
+            </RouterLink>
             <template v-if="canWrite">
               <RouterLink
                 :to="{ name: 'olt-edit', params: { id: olt.id } }"

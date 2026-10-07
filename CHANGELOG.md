@@ -4,6 +4,9 @@
 
 ### Agregado
 
+- Estado de la OLT: cada consulta o escritura lo actualiza (responde / sin respuesta) y guarda
+  cuándo respondió por última vez (`last_seen_at` en `OltOut`). Accesos directos **Consultar** y
+  **Aprovisionar** en la lista de OLT.
 - Aprovisionamiento de ONU (V1600G0-B): plantillas que se copian de una ONU que ya funciona o
   se llenan a mano (`/v1/provision-templates`, migración `0004`); alta con VLAN, PPPoE en la
   ONU y WiFi (`POST /v1/olts/{id}/onus/authorize`), reinicio y borrado. Las claves PPPoE y WiFi

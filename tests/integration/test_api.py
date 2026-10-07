@@ -247,6 +247,9 @@ def test_query_end_to_end(env: Env) -> None:
 
     body = env.client.get(f"/v1/plans/{plan_id}", headers=env.headers()).json()
     assert body["status"] == "ok"
+    # La OLT respondió: deja de estar "pending" y queda la hora en que se la vio.
+    seen = env.client.get(f"/v1/olts/{plan.olt_id}", headers=env.headers()).json()
+    assert seen["status"] == "online" and seen["last_seen_at"] is not None
     outputs = {o["key"]: o for o in body["result"]["outputs"]}
     assert outputs["system.version"]["data"]["model"] == "V1600G1"
     assert [r["serial"] for r in outputs["onu.list"]["data"]] == [
