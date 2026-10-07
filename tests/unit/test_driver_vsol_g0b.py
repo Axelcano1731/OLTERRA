@@ -103,3 +103,24 @@ def test_g0b_uses_its_own_syntax_and_others_keep_the_manual() -> None:
     assert DRIVER.command("onu.optical", "V1600G1B", "V1.4.4R").template == (
         "show onu {onu} optical-info"
     )
+
+
+def test_autofind_with_sn_prefix_and_tabs() -> None:
+    # Tal cual la devolvió la OLT del laboratorio el 2026-10-07 (serial cambiado).
+    text = "Index\tSn                    Equipment ID\n1\tsn:GPON00ab12cd\t\tVSOLV422"
+    [row] = parsers.parse_autofind(text, 1)
+    assert (row.pon, row.serial, row.model, row.index) == (1, "GPON00AB12CD", "VSOLV422", None)
+    assert parsers.parse_autofind("", 1) == []
+    two = text + "\n2\tsn:VSOL0008d09c\t\tV2802"
+    assert [r.serial for r in parsers.parse_autofind(two, 2)] == ["GPON00AB12CD", "VSOL0008D09C"]
+
+
+def test_profile_already_given_by_onu_add_is_not_sent_again() -> None:
+    from olterra.drivers.vsol_gpon.provisioning import ClientData, TemplateBody, authorize_calls
+
+    template = TemplateBody(auth_profile="default", onu_profile="default")
+    client = ClientData(pon=1, onu=1, serial="GPON00AB12CD", description="X")
+    keys = [c.key for c in authorize_calls(template, client)]
+    assert "onu.bind_onu_profile" not in keys
+    other = TemplateBody(auth_profile="default", onu_profile="hgu")
+    assert "onu.bind_onu_profile" in [c.key for c in authorize_calls(other, client)]

@@ -64,6 +64,8 @@
 
 ### Corregido
 
+- Alta en la V1600G0-B: no se manda `onu N profile onu` cuando repite el perfil de `onu add`
+  (la OLT lo rechaza) y el autofind de ese modelo (`sn:` y tabulaciones) se interpreta.
 - La salida de la OLT perdía columnas: la V1600G0-B coloca cada columna con el cursor
   (`` + `ESC[nC`) y el normalizador las pisaba, así que `show onu info`, `state` y
   `rx_power` no se interpretaban. Ahora se emula el cursor.

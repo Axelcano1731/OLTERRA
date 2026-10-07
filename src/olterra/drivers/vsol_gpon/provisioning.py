@@ -172,7 +172,10 @@ def authorize_calls(template: TemplateBody, client: ClientData) -> list[CommandC
         call("onu.authorize", profile=template.auth_profile, serial=client.serial),
         call("onu.set_description", description=client.description),
     ]
-    if template.onu_profile:
+    # "onu N profile onu P" aparece en la configuración guardada pero la V1600G0-B lo rechaza
+    # (% Unknown command, 2026-10-07): es lo que deja "onu add … profile P". Solo se manda si
+    # pide otro perfil.
+    if template.onu_profile and template.onu_profile != template.auth_profile:
         calls.append(call("onu.bind_onu_profile", profile=template.onu_profile))
     for tcont in template.tconts:
         calls.append(call("onu.tcont", tcont=tcont.id, tcont_name=tcont.name, profile=tcont.dba))
@@ -298,7 +301,10 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
     limits = {int(m["id"]): m["p"] for m in found.get("limit_down", [])}
     template: dict[str, Any] = {
         "auth_profile": add["profile"],
-        "onu_profile": found["onu_profile"][0]["profile"] if "onu_profile" in found else None,
+        "onu_profile": next(
+            (m["profile"] for m in found.get("onu_profile", []) if m["profile"] != add["profile"]),
+            None,
+        ),
         "tconts": [
             {"id": int(m["id"]), "name": m["name"] or "INTERNET", "dba": m["dba"]}
             for m in found.get("tcont", [])
