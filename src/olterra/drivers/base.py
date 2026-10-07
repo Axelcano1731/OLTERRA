@@ -108,6 +108,19 @@ PARAM_TYPES: dict[str, Callable[[Any], str]] = {
     "username": _pattern(r"[A-Za-z][A-Za-z0-9_.\-]{2,31}", "usuario de 3 a 32 caracteres"),
     "password": _pattern(r"[!-~]{8,64}", "clave de 8 a 64 caracteres imprimibles, sin espacios"),
     "community": _pattern(r"[A-Za-z0-9_.\-@#%+]{8,32}", "comunidad de 8 a 32 caracteres"),
+    # Aprovisionamiento (sintaxis de la configuración de la V1600G0-B)
+    "label": _pattern(r"[A-Za-z0-9_\-]{1,32}", "nombre de 1 a 32 caracteres sin espacios"),
+    "cos": _int_range(0, 7),
+    "mtu": _int_range(576, 1500),
+    "wan": _int_range(1, 8),
+    "ssid_index": _int_range(1, 8),
+    "ssid": _pattern(r"[A-Za-z0-9_.\-]{1,32}", "SSID de 1 a 32 caracteres sin espacios"),
+    "pppoe_user": _pattern(r"[A-Za-z0-9_.@\-]{1,64}", "usuario PPPoE sin espacios"),
+    "on_off": _pattern(r"enable|disable", "enable o disable"),
+    "uni_bind": _pattern(
+        r"(?:lan[1-8]|ssid[1-8])(?: (?:lan[1-8]|ssid[1-8])){0,15}",
+        "puertos de la ONU: lan1..lan8 y ssid1..ssid8 separados por espacio",
+    ),
     "ipv4": _ipv4,
     "netmask": _netmask,
 }

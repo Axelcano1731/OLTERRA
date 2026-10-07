@@ -126,6 +126,12 @@ def test_redact_known_secrets_and_keywords() -> None:
         "eco de la clave conocida: OltPass2026\n"
     )
     out = redact(text, ["OltPass2026"])
+    vsol_onu = redact(
+        "onu 3 pri wifi_ssid 1 name CASA auth_mode wpa2psk shared_key Wifi#2025 rekey_interval 0\n"
+        "onu 3 pri wan_adv index 1 route ipv4 pppoe user cliente pwd Ppp#2025 mode auto\n"
+    )
+    assert "Wifi#2025" not in vsol_onu and "Ppp#2025" not in vsol_onu
+    assert f"shared_key {MASK} rekey_interval 0" in vsol_onu
     assert "Sup3rClave!" not in out
     assert "comunidad-privada" not in out
     assert "OltPass2026" not in out

@@ -20,7 +20,9 @@ MASK = "******"
 # debe tragarse la primera palabra de la línea siguiente.
 _KEYWORD_VALUE = re.compile(
     r"(?i)\b(login-password|enable-password|password|passwd|community|key-string"
-    r"|pre-shared-key|psk|passphrase|wpa-?key|secret|private-key)"
+    r"|pre-shared-key|psk|passphrase|wpa-?key|secret|private-key"
+    # VSOL en la configuración de la ONU: clave WiFi (shared_key) y PPPoE (pwd).
+    r"|shared_key|pwd)"
     r"([ \t]*[=:]?[ \t]+|=)"
     r"(\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s]+)"
 )

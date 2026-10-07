@@ -18,6 +18,7 @@ from olterra.drivers.vsol_gpon.sources import (
     LAB_G0B,
     LIBRENMS_19368,
     PUBLIC_GUIDES,
+    RUNNING_G0B,
     manual,
 )
 
@@ -132,9 +133,16 @@ _COMMANDS = [
         PON,
         W,
         manual("19.3.5"),
-        param_types={"profile": "name"},
+        param_types={"profile": "name", "tcont_name": "label"},
     ),
-    _c("onu.gemport", "onu {onu} gemport {gemport} tcont {tcont}", PON, W, manual("19.3.6")),
+    _c(
+        "onu.gemport",
+        "onu {onu} gemport {gemport} tcont {tcont}",
+        PON,
+        W,
+        manual("19.3.6"),
+        param_types={"gemport_name": "label"},
+    ),
     _c(
         "onu.service",
         "onu {onu} service {service} gemport {gemport} vlan {vlan}",
@@ -165,6 +173,70 @@ _COMMANDS = [
         PON,
         W,
         manual("19.3.9"),
+    ),
+    # --- Aprovisionamiento con la sintaxis de la V1600G0-B ---------------------------------
+    # Tomada de la configuración que la propia OLT guarda de sus ONU (RUNNING_G0B). La WAN y el
+    # WiFi van por los comandos privados ("pri") de VSOL, que la OLT pasa a la ONU por OMCI.
+    _c(
+        "onu.bind_onu_profile",
+        "onu {onu} profile onu {profile}",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"profile": "name"},
+    ),
+    _c(
+        "onu.gemport_limit_down",
+        "onu {onu} gemport {gemport} traffic-limit downstream {profile}",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"profile": "name"},
+    ),
+    _c("onu.wan_add_route", "onu {onu} pri wan_adv add route", PON, W, RUNNING_G0B),
+    _c(
+        "onu.wan_route_mode",
+        "onu {onu} pri wan_adv index {wan} route mode internet mtu {mtu}",
+        PON,
+        W,
+        RUNNING_G0B,
+    ),
+    _c(
+        "onu.wan_pppoe",
+        "onu {onu} pri wan_adv index {wan} route ipv4 pppoe proxy disable "
+        "user {pppoe_user} pwd {pppoe_password} mode auto nat {nat}",
+        PON,
+        W,
+        RUNNING_G0B,
+        sensitive=True,
+        param_types={"nat": "on_off"},
+        secret_params={"pppoe_password": "pppoe_password"},
+    ),
+    _c(
+        "onu.wan_vlan",
+        "onu {onu} pri wan_adv index {wan} vlan tag wan_vlan {vlan} {cos}",
+        PON,
+        W,
+        RUNNING_G0B,
+    ),
+    _c(
+        "onu.wan_bind",
+        "onu {onu} pri wan_adv index {wan} bind {binds}",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"binds": "uni_bind"},
+    ),
+    _c(
+        "onu.wifi_ssid",
+        "onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide disable auth_mode wpa2psk "
+        "encrypt_type tkipaes shared_key {wifi_key} rekey_interval 0",
+        PON,
+        W,
+        RUNNING_G0B,
+        sensitive=True,
+        secret_params={"wifi_key": "wifi_key"},
+        notes="WPA2-PSK; el SSID no admite espacios por CLI",
     ),
     # --- Configuración del equipo ----------------------------------------------------
     _c(
@@ -275,6 +347,32 @@ OVERRIDES = [
     ),
     CommandOverride(
         "V1600G0*", "*", "pon.statistics", "show pon {pon} statistics", LAB_G0B, verified=True
+    ),
+    # Aprovisionamiento: la V1600G0-B guarda sus ONU con estas palabras (RUNNING_G0B).
+    CommandOverride(
+        "V1600G0*", "*", "onu.set_description", "onu {onu} desc {description}", RUNNING_G0B
+    ),
+    CommandOverride(
+        "V1600G0*",
+        "*",
+        "onu.tcont",
+        "onu {onu} tcont {tcont} name {tcont_name} dba {profile}",
+        RUNNING_G0B,
+    ),
+    CommandOverride(
+        "V1600G0*",
+        "*",
+        "onu.gemport",
+        "onu {onu} gemport {gemport} tcont {tcont} gemport_name {gemport_name}",
+        RUNNING_G0B,
+    ),
+    CommandOverride(
+        "V1600G0*",
+        "*",
+        "onu.service_port",
+        "onu {onu} service-port {service_port} gemport {gemport} uservlan {user_vlan} "
+        "vlan {vlan} new_cos {cos}",
+        RUNNING_G0B,
     ),
     CommandOverride("V1600GS*", "*", "config.save", "write memory", LIBRENMS_19368),
     CommandOverride(

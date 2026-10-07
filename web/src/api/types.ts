@@ -174,3 +174,103 @@ export interface ReconSummary {
 export interface Recon extends ReconSummary {
   findings: Finding[]
 }
+
+// --- Aprovisionamiento (api/schemas.py y drivers/vsol_gpon/provisioning.py) ---------------
+
+export interface Tcont {
+  id: number
+  name: string
+  dba: string
+}
+
+export interface Gemport {
+  id: number
+  tcont: number
+  name: string
+  limit_down: string | null
+}
+
+export interface OnuService {
+  name: string
+  gemport: number
+  vlan: number
+}
+
+export interface ServicePort {
+  id: number
+  gemport: number
+  user_vlan: number
+  vlan: number
+  cos: number
+}
+
+/** WAN en modo router con PPPoE: la ONU marca. */
+export interface Wan {
+  index: number
+  mtu: number
+  vlan: number
+  cos: number
+  nat: boolean
+  binds: string[]
+}
+
+export interface TemplateBody {
+  auth_profile: string
+  onu_profile: string | null
+  tconts: Tcont[]
+  gemports: Gemport[]
+  services: OnuService[]
+  service_ports: ServicePort[]
+  wan: Wan | null
+  wifi: { ssid_index: number } | null
+}
+
+export interface ProvisionTemplate {
+  id: string
+  name: string
+  driver: string
+  body: TemplateBody
+  created_at: string
+  updated_at: string
+}
+
+export interface TemplateIn {
+  name: string
+  body: TemplateBody
+}
+
+/** Alta de una ONU. Las claves solo viajan selladas al ejecutor; la API no las devuelve. */
+export interface AuthorizeRequest {
+  template_id: string
+  pon: number
+  onu: number
+  serial: string
+  description: string
+  pppoe_user?: string
+  pppoe_password?: string
+  wifi_ssid?: string
+  wifi_key?: string
+}
+
+export interface OnuRef {
+  pon: number
+  onu: number
+}
+
+export interface WritePlan {
+  plan_id: string
+  olt_id: string
+  status: PlanStatus
+  created_at: string
+  /** Comandos sin captura de laboratorio que este plan corre (solo en modo laboratorio). */
+  unverified: string[]
+}
+
+/** Lo que devuelve la consulta onu.service_config ya interpretada ("copiar una ONU"). */
+export interface OnuRunningConfig {
+  onu: number
+  serial: string | null
+  template: TemplateBody
+  client: { serial?: string; description?: string; pppoe_user?: string; wifi_ssid?: string }
+  ignored: string[]
+}

@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # La nube sella las credenciales con esta llave pública.
     executor_public_key: str | None = None
     executor_max_sessions: int = 32
+    # SOLO para validar en el laboratorio: deja correr escrituras cuya sintaxis aún no tiene
+    # captura (verified=False). En producción, apagado: la API responde qué falta validar.
+    allow_unverified_writes: bool = False
     # Credenciales de FÁBRICA de una OLT VSOL nueva (nunca se ha entrado por SSH): se aplican solo
     # cuando el cliente deja la clave vacía al agregarla. Es un secreto de la plataforma: va en
     # .env (OLTERRA_VSOL_DEFAULT_PASSWORD), nunca en el repo, y la API no lo devuelve jamás.

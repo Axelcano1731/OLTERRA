@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from ipaddress import IPv4Network
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
@@ -30,7 +31,7 @@ from olterra.db.models import Olt, PlanRun, TunnelRouter
 from olterra.db.models import Tenant as TenantRow
 from olterra.drivers import get_driver
 from olterra.drivers.base import Access, CliMode, CommandCall, CommandTemplate
-from olterra.executor.plan import Credential, Priority, Target
+from olterra.executor.plan import Credential, Plan, Priority, Target
 from olterra.orchestrator import PARSERS, build_read_plan
 from olterra.security.vault import Vault
 
@@ -428,77 +429,76 @@ async def list_plans(
         ]
 
 
-@router.post("/{olt_id}/queries", response_model=PlanOut, status_code=status.HTTP_202_ACCEPTED)
-async def query_olt(olt_id: UUID, body: QueryRequest, ctx: Tenant, state: State) -> PlanOut:
-    """Consulta de solo lectura: arma el plan, lo sella para el ejecutor y lo encola."""
-    ctx.require("olt:read")
-    executor_key = state.settings.executor_public_key
-    if not executor_key:
+def executor_key(state: Any) -> str:
+    key = state.settings.executor_public_key
+    if not key:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "Falta OLTERRA_EXECUTOR_PUBLIC_KEY"
         )
-    bus = state.require_bus()
-    async with ctx.session() as session:
-        olt = await _get_olt(session, olt_id)
-        host = olt.nat_ip or olt.real_ip
-        if host is None or olt.credential_id is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, "La OLT no tiene IP alcanzable o credencial"
+    return str(key)
+
+
+async def olt_access(
+    session: Any, ctx: Any, state: Any, olt_id: UUID
+) -> tuple[Olt, Credential, Target]:
+    """La OLT, su credencial descifrada (solo en memoria) y a dónde conectarse."""
+    olt = await _get_olt(session, olt_id)
+    host = olt.nat_ip or olt.real_ip
+    if host is None or olt.credential_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La OLT no tiene IP alcanzable o credencial")
+    row = await session.get(CredentialRow, olt.credential_id)
+    if row is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La credencial de la OLT no existe")
+    dek = await state.tenant_dek(session, ctx.tenant_id)
+    credential = Credential.model_validate_json(
+        Vault.decrypt(ctx.tenant_id, dek, f"credential:{row.id}", row.ciphertext)
+    )
+    target = Target(
+        host=str(host).split("/")[0],
+        ssh_port=olt.ssh_port,
+        snmp_port=olt.snmp_port,
+        ssh_host_key=olt.ssh_host_key,
+    )
+    return olt, credential, target
+
+
+async def record_plan(
+    session: Any, ctx: Any, olt: Olt, plan: Plan, calls: list[CommandCall]
+) -> datetime:
+    """Guarda el plan (sin claves: los pasos llevan marcadores) antes de encolarlo."""
+    driver = get_driver(olt.driver)
+    run = PlanRun(
+        id=plan.plan_id,
+        tenant_id=ctx.tenant_id,
+        olt_id=olt.id,
+        requested_by=ctx.actor,
+        priority=int(plan.priority),
+        access=plan.access,
+        calls=json.loads(
+            json.dumps(
+                [
+                    {
+                        "key": c.key,
+                        "params": dict(c.params),
+                        "command": driver.command(c.key, olt.model, olt.firmware).render(
+                            **c.params
+                        ),
+                    }
+                    for c in calls
+                ]
             )
-        row = await session.get(CredentialRow, olt.credential_id)
-        if row is None:
-            raise HTTPException(status.HTTP_409_CONFLICT, "La credencial de la OLT no existe")
-        dek = await state.tenant_dek(session, ctx.tenant_id)
-        credential = Credential.model_validate_json(
-            Vault.decrypt(ctx.tenant_id, dek, f"credential:{row.id}", row.ciphertext)
-        )
-        calls = _calls_for(olt.driver, body, olt.model, olt.firmware)
-        driver = get_driver(olt.driver)
-        plan = build_read_plan(
-            driver,
-            tenant_id=ctx.tenant_id,
-            olt_id=olt.id,
-            target=Target(
-                host=str(host).split("/")[0],
-                ssh_port=olt.ssh_port,
-                snmp_port=olt.snmp_port,
-                ssh_host_key=olt.ssh_host_key,
-            ),
-            calls=calls,
-            credential=credential,
-            executor_public_key=executor_key,
-            model=olt.model,
-            firmware=olt.firmware,
-            priority=Priority.USER,
-        )
-        run = PlanRun(
-            id=plan.plan_id,
-            tenant_id=ctx.tenant_id,
-            olt_id=olt.id,
-            requested_by=ctx.actor,
-            priority=int(plan.priority),
-            access=plan.access,
-            calls=json.loads(
-                json.dumps(
-                    [
-                        {
-                            "key": c.key,
-                            "params": dict(c.params),
-                            "command": driver.command(c.key, olt.model, olt.firmware).render(
-                                **c.params
-                            ),
-                        }
-                        for c in calls
-                    ]
-                )
-            ),
-            commands=[getattr(step, "command", "") for step in plan.steps],
-        )
-        session.add(run)
-        await session.flush()
-        await session.refresh(run)
-        created_at = run.created_at
-    # Se publica DESPUÉS de confirmar la fila: así el resultado siempre encuentra su plan.
+        ),
+        commands=[getattr(step, "command", "") for step in plan.steps],
+    )
+    session.add(run)
+    await session.flush()
+    await session.refresh(run)
+    return run.created_at
+
+
+async def publish_plan(ctx: Any, state: Any, plan: Plan) -> None:
+    """Se publica DESPUÉS de confirmar la fila: así el resultado siempre encuentra su plan."""
+    bus = state.require_bus()
     try:
         await bus.publish_plan(plan, state.settings.executor_group)
     except Exception as exc:
@@ -510,4 +510,29 @@ async def query_olt(olt_id: UUID, body: QueryRequest, ctx: Tenant, state: State)
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "No se pudo encolar el plan"
         ) from exc
+
+
+@router.post("/{olt_id}/queries", response_model=PlanOut, status_code=status.HTTP_202_ACCEPTED)
+async def query_olt(olt_id: UUID, body: QueryRequest, ctx: Tenant, state: State) -> PlanOut:
+    """Consulta de solo lectura: arma el plan, lo sella para el ejecutor y lo encola."""
+    ctx.require("olt:read")
+    key = executor_key(state)
+    state.require_bus()
+    async with ctx.session() as session:
+        olt, credential, target = await olt_access(session, ctx, state, olt_id)
+        calls = _calls_for(olt.driver, body, olt.model, olt.firmware)
+        plan = build_read_plan(
+            get_driver(olt.driver),
+            tenant_id=ctx.tenant_id,
+            olt_id=olt.id,
+            target=target,
+            calls=calls,
+            credential=credential,
+            executor_public_key=key,
+            model=olt.model,
+            firmware=olt.firmware,
+            priority=Priority.USER,
+        )
+        created_at = await record_plan(session, ctx, olt, plan, calls)
+    await publish_plan(ctx, state, plan)
     return PlanOut(plan_id=plan.plan_id, olt_id=olt_id, status="queued", created_at=created_at)

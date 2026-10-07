@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LoaderCircle, Pencil, Play, RefreshCw, Terminal } from '@lucide/vue'
+import { LoaderCircle, Pencil, Play, RadioTower, RefreshCw, Terminal } from '@lucide/vue'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -144,6 +144,14 @@ watch(waiting, (now, before) => {
         </div>
       </template>
       <template v-if="can('olt:write')" #actions>
+        <RouterLink
+          v-if="can('onu:write')"
+          :to="{ name: 'olt-provision', params: { id } }"
+          class="btn-primary"
+        >
+          <RadioTower class="size-4" />
+          Aprovisionar
+        </RouterLink>
         <RouterLink :to="{ name: 'olt-edit', params: { id } }" class="btn-secondary">
           <Pencil class="size-4" />
           Editar

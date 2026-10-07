@@ -20,7 +20,7 @@ from sqlalchemy import select
 from olterra.admin import create_api_key, create_tenant
 from olterra.api.app import create_app
 from olterra.config import Settings
-from olterra.db.models import AuditLog, Credential, Olt, TenantKey
+from olterra.db.models import AuditLog, Credential, Olt, PlanRun, TenantKey
 from olterra.db.session import create_engine, session_factory
 from olterra.devtools.demo_recon import demo_input
 from olterra.devtools.vsol_sim import VsolSimulator
@@ -696,3 +696,98 @@ def test_new_olt_without_password_gets_the_factory_one(env: Env) -> None:
         "/v1/olts", json={"name": "OLT-SIN-USER", "password": "x"}, headers=env.headers()
     )
     assert no_user.status_code == 400
+
+
+PROVISION_TEMPLATE = {
+    "auth_profile": "default",
+    "onu_profile": "default",
+    "tconts": [{"id": 1, "name": "INTERNET", "dba": "default1"}],
+    "gemports": [{"id": 1, "tcont": 1, "name": "INTERNET", "limit_down": "default"}],
+    "services": [{"name": "ser_1", "gemport": 1, "vlan": 111}],
+    "service_ports": [{"id": 1, "gemport": 1, "user_vlan": 111, "vlan": 111, "cos": 0}],
+    "wan": {"vlan": 111, "binds": ["lan1", "ssid1"]},
+    "wifi": {"ssid_index": 1},
+}
+
+
+def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> None:
+    olt = create_olt(env, real_ip="10.0.0.9", model="V1600G0-B", firmware="V1.4.8R")
+    created = env.client.post(
+        "/v1/provision-templates",
+        json={"name": "Hogar VLAN 111", "body": PROVISION_TEMPLATE},
+        headers=env.headers(),
+    )
+    assert created.status_code == 201, created.text
+    template = created.json()
+    again = env.client.post(
+        "/v1/provision-templates",
+        json={"name": "Hogar VLAN 111", "body": PROVISION_TEMPLATE},
+        headers=env.headers(),
+    )
+    assert again.status_code == 409
+    # Otro ISP no la ve ni la puede usar.
+    assert env.client.get("/v1/provision-templates", headers=env.headers(env.key_b)).json() == []
+
+    alta = {
+        "template_id": template["id"],
+        "pon": 1,
+        "onu": 60,
+        "serial": "GPON00AABBCC",
+        "description": "CLIENTE-NUEVO",
+        "pppoe_user": "cliente.nuevo",
+        "pppoe_password": "Ppp#Secreta-77",
+        "wifi_ssid": "CASA-NUEVA",
+        "wifi_key": "Wifi#Secreta-77",
+    }
+    url = f"/v1/olts/{olt['id']}/onus/authorize"
+    # Sin captura de laboratorio, la API se niega y dice qué falta validar.
+    refused = env.client.post(url, json=alta, headers=env.headers())
+    assert refused.status_code == 400 and "onu.authorize" in refused.text
+    assert env.publisher.plans == []
+
+    env.client.app.state.olterra.settings.allow_unverified_writes = True  # type: ignore[attr-defined]
+    try:
+        response = env.client.post(url, json=alta, headers=env.headers())
+    finally:
+        env.client.app.state.olterra.settings.allow_unverified_writes = False  # type: ignore[attr-defined]
+    assert response.status_code == 202, response.text
+    assert "onu.authorize" in response.json()["unverified"]
+    [plan] = env.publisher.plans
+    assert plan.access == "write" and plan.on_error == "stop"
+    for secret in ("Ppp#Secreta-77", "Wifi#Secreta-77"):
+        assert secret not in plan.model_dump_json()
+        assert secret not in response.text
+
+    async def stored() -> tuple[list[Any], list[Any]]:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session:
+                runs = (
+                    await session.execute(
+                        select(PlanRun.calls, PlanRun.commands).where(PlanRun.id == plan.plan_id)
+                    )
+                ).all()
+                audits = (
+                    (
+                        await session.execute(
+                            select(AuditLog.after).where(AuditLog.action == "onu.authorize")
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            return list(runs), list(audits)
+        finally:
+            await engine.dispose()
+
+    runs, audits = asyncio.run(stored())
+    dumped = json.dumps([list(map(str, r)) for r in runs]) + json.dumps(audits)
+    assert "Ppp#Secreta-77" not in dumped and "Wifi#Secreta-77" not in dumped
+    assert "{{secret:pppoe_password}}" in dumped  # el plan guardado lleva el marcador
+    [after] = audits
+    assert after["serial"] == "GPON00AABBCC" and after["pppoe_user"] == "cliente.nuevo"
+
+    other = env.client.post(url, json=alta, headers=env.headers(env.key_b))
+    assert other.status_code == 404
+    bad = env.client.post(url, json=alta | {"wifi_key": "con?pregunta"}, headers=env.headers())
+    assert bad.status_code == 422

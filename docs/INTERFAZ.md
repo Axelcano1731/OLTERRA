@@ -15,11 +15,13 @@ por HTTP; no tiene lógica de negocio propia.
 | `/olts`, `/olts/nueva` | OLT del ISP, con **Editar** y **Eliminar** en cada fila (el borrado pide confirmación y dice si hay que rotar el MikroTik), y alta (credenciales cifradas, nunca se vuelven a mostrar). Con una OLT nueva se dejan usuario y clave vacíos y el servidor usa los de fábrica (aviso para cambiarlos); la clave de enable la pone el cliente | `GET/POST /v1/olts`, `GET /v1/olts/defaults`, `DELETE /v1/olts/{id}` |
 | `/olts/:id/editar` | Corregir modelo, firmware, IP, puertos y credenciales (incluida la de enable); las claves se vuelven a cifrar y la bitácora solo anota cuáles cambiaron | `PATCH /v1/olts/{id}` |
 | `/olts/:id` | Detalle: consultas de solo lectura con atajos, resultado interpretado, historial | `/v1/olts/{id}/commands`, `/queries`, `/plans`, `/v1/plans/{id}` |
+| `/olts/:id/aprovisionar` | Buscar ONU sin autorizar en un PON (autofind, con el siguiente índice libre), autorizar con una plantilla (PPPoE y WiFi si la plantilla los lleva), reiniciar y borrar (pide escribir `PON:ONU`). Las claves se borran del formulario al enviarlas y no se vuelven a mostrar | `POST /v1/olts/{id}/onus/authorize`, `/reboot`, `/delete`, `/queries` |
+| `/plantillas`, `/plantillas/nueva`, `/plantillas/:id` | Plantillas de aprovisionamiento: se copian de una ONU que ya funciona (lee `show running-config onu N`) o se llenan a mano; formulario para el caso de una VLAN y JSON para lo demás | `/v1/provision-templates`, `/queries` |
 | `/tunel` | MikroTik en el túnel: alta con su versión de RouterOS (7 → WireGuard, 6 → SSTP), rotación y cambio de versión; el script se muestra una sola vez | `/v1/tunnel/routers` |
 | `/conciliacion`, `/conciliacion/nueva`, `/conciliacion/:id` | Historial, nueva (archivos o demo) y detalle con filtros y CSV | `/v1/reconciliations` |
 
-En la barra lateral se ven, sin abrirse, los módulos que vienen según el plan (autorizar ONU,
-monitoreo, mapa FTTH).
+En la barra lateral se ven, sin abrirse, los módulos que vienen según el plan (monitoreo,
+mapa FTTH).
 
 ## Cómo habla con la API
 
@@ -80,5 +82,5 @@ Requiere Node 22.12 o superior (CI y la imagen usan Node 24).
 ## Lo que viene
 
 - Mapa FTTH (fase 2): MapLibre con teselas licenciadas (MapTiler o Esri), no Google.
-- Autorización de ONU y monitoreo (fase 1), con las escrituras a la OLT.
+- Monitoreo (fase 1); acciones masivas y mover ONU de puerto.
 - Login de usuarios cuando se decida el proveedor de identidad.

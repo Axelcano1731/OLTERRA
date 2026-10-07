@@ -345,6 +345,19 @@ dice si está configurada) y la bitácora solo anota que se usó. La clave de **
 valor de fábrica: es la que el cliente configuró y se escribe al agregar la OLT. Cambiar las
 claves en la OLT desde Olterra todavía no existe.
 
+### 6.2 Modo laboratorio de escrituras
+
+Cada comando que escribe en una OLT necesita una captura de laboratorio de ese modelo y
+firmware (`verified=True`); mientras no la tenga, la API se niega a correrlo y dice cuál falta.
+Para validarlos contra una OLT de prueba se enciende, **solo mientras dura la prueba**:
+
+```
+OLTERRA_ALLOW_UNVERIFIED_WRITES=true
+```
+
+y `./olterra.sh actualizar`. Cada plan que corre así lo dice en la pantalla y en la bitácora
+(`sin_verificar`). Al terminar se borra la línea (o `false`) y se vuelve a actualizar.
+
 ## 7. Seguridad, en corto
 
 - Solo 80 y 443 abiertos. La base y NATS no publican puertos.

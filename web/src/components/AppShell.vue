@@ -2,11 +2,11 @@
 import {
   Activity,
   GitCompareArrows,
+  LayoutTemplate,
   LayoutDashboard,
   LogOut,
   MapPin,
   Menu,
-  RadioTower,
   Server,
   Waypoints,
   X,
@@ -31,7 +31,13 @@ const NAV: NavItem[] = [
     to: { name: 'olts' },
     label: 'OLT',
     icon: Server,
-    routes: ['olts', 'olt-new', 'olt', 'olt-edit'],
+    routes: ['olts', 'olt-new', 'olt', 'olt-edit', 'olt-provision'],
+  },
+  {
+    to: { name: 'templates' },
+    label: 'Plantillas',
+    icon: LayoutTemplate,
+    routes: ['templates', 'template-new', 'template-edit'],
   },
   { to: { name: 'tunnel' }, label: 'Túnel', icon: Waypoints, routes: ['tunnel'] },
   {
@@ -44,7 +50,6 @@ const NAV: NavItem[] = [
 
 // Lo que viene según el plan (docs/ARQUITECTURA.md): se ve, pero no se puede abrir.
 const SOON = [
-  { label: 'Autorizar ONU', icon: RadioTower, phase: 1 },
   { label: 'Monitoreo', icon: Activity, phase: 1 },
   { label: 'Mapa FTTH', icon: MapPin, phase: 2 },
 ]

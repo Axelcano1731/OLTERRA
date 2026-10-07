@@ -13,7 +13,7 @@ onu 3 pri wan_adv index 1 route mode internet mtu 1492
 onu 3 pri wan_adv index 1 route ipv4 pppoe proxy disable user usuario-pppoe pwd ****** mode auto nat enable
 onu 3 pri wan_adv index 1 vlan tag wan_vlan 111 0
 onu 3 pri wan_adv index 1 bind lan1 lan2 ssid1
-onu 3 pri wifi_ssid 1 name LATIN_BURGER hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key EJR2025# rekey_interval 0
+onu 3 pri wifi_ssid 1 name WIFI-CLIENTE hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key ****** rekey_interval 0
 onu 3 pri firewall level low
 onu 3 pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
 onu 3 pri acl telnet control enable lan enable wan enable ipv4_control disable ipv6_control disable port 23

@@ -57,7 +57,10 @@ function target(output: PlanOutput): string {
           {{ output.ok ? 'OK' : 'Falló' }}
         </StatusPill>
       </header>
-      <div class="space-y-3 p-4">
+      <div
+        v-if="output.error || output.parse_error || output.data !== undefined || output.output"
+        class="space-y-3 p-4"
+      >
         <p v-if="output.error" class="text-sm text-danger">{{ output.error }}</p>
         <AlertBox v-if="output.parse_error" tone="warning" title="Salida no reconocida">
           {{ output.parse_error }}. Abajo va el texto tal cual.
