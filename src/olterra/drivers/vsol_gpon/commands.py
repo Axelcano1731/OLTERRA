@@ -194,6 +194,15 @@ _COMMANDS = [
         RUNNING_G0B,
         param_types={"profile": "name"},
     ),
+    _c(
+        "onu.pri_equid",
+        "onu {onu} pri equid {equipment_id}",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"equipment_id": "name"},
+        notes="Modelo VSOL de la ONU (Equipment ID del autofind): habilita los comandos 'pri'",
+    ),
     _c("onu.wan_add_route", "onu {onu} pri wan_adv add route", PON, W, RUNNING_G0B),
     _c(
         "onu.wan_route_mode",

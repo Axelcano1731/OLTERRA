@@ -164,6 +164,7 @@ inyectar otro comando en la OLT.
 | `onu.portvlan_transparent` | `onu {onu} portvlan {uni_kind} {uni} mode transparent` | PON | escritura | Manual v2.1 §19.3.9 |
 | `onu.bind_onu_profile` | `onu {onu} profile onu {profile}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.gemport_limit_down` | `onu {onu} gemport {gemport} traffic-limit downstream {profile}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.pri_equid` | `onu {onu} pri equid {equipment_id}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B. Va antes de la WAN y el WiFi: sin ella la OLT responde `Unsupport private protocol` (alta real, 2026-10-07). El Equipment ID sale del autofind |
 | `onu.wan_add_route` | `onu {onu} pri wan_adv add route` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wan_route_mode` | `onu {onu} pri wan_adv index {wan} route mode internet mtu {mtu}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wan_pppoe` | `onu {onu} pri wan_adv index {wan} route ipv4 pppoe proxy disable user {pppoe_user} pwd {pppoe_password} mode auto nat {nat}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:pppoe_password}}` |

@@ -217,10 +217,28 @@ def interpret(
             except UnrecognizedOutput as exc:
                 entry["parse_error"] = str(exc)
         outputs.append(entry)
+    # Los pasos de cambio de modo (configure terminal, interface gpon…) no son llamadas del
+    # catálogo; si uno falla por su cuenta se muestra: si no, el plan "falla" sin decir dónde.
+    paired = {
+        id(step)
+        for _, step in pair_outputs([c["command"] for c in calls], step_commands, result.steps)
+    }
+    session_errors = [
+        {
+            "command": command,
+            "error": step.error,
+            "output": redact(step.output) if step.output is not None else None,
+        }
+        for command, step in zip(step_commands, result.steps, strict=False)
+        if id(step) not in paired
+        and not step.ok
+        and not (step.error or "").startswith("No se ejecutó")
+    ]
     return {
         "status": result.status,
         "error": result.error,
         "executor": result.executor,
         "host_key": result.host_key,
         "outputs": outputs,
+        "session_errors": session_errors,
     }

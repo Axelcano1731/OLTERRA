@@ -41,6 +41,19 @@ function target(output: PlanOutput): string {
       {{ plan.result.error }}
     </AlertBox>
 
+    <AlertBox
+      v-for="(failed, index) in plan.result?.session_errors ?? []"
+      :key="`session-${index}`"
+      tone="danger"
+      :title="`Falló el paso «${failed.command}»`"
+    >
+      {{ failed.error }}
+      <pre
+        v-if="failed.output"
+        class="mt-2 max-h-48 overflow-auto rounded-md bg-subtle p-3 font-mono text-xs"
+        >{{ failed.output }}</pre>
+    </AlertBox>
+
     <article
       v-for="(output, index) in outputs"
       :key="`${output.key}-${index}`"

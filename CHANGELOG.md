@@ -4,6 +4,11 @@
 
 ### Agregado
 
+- Alta en la V1600G0-B con WAN y WiFi: el alta manda `onu N pri equid <Equipment ID>` antes de
+  los comandos `pri` (sin él la OLT respondía `Unsupport private protocol` y el paso salía
+  «OK»). `POST /v1/olts/{id}/onus/configure` configura WAN y WiFi de una ONU ya autorizada sin
+  volver a autorizarla. El alta y el borrado ya no leen el estado en el mismo plan; el resultado
+  muestra los pasos de cambio de modo que fallan (`session_errors`).
 - Estado de la OLT: cada consulta o escritura lo actualiza (responde / sin respuesta) y guarda
   cuándo respondió por última vez (`last_seen_at` en `OltOut`). Accesos directos **Consultar** y
   **Aprovisionar** en la lista de OLT.

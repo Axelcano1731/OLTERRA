@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from olterra.drivers.vsol_gpon.provisioning import ClientData, TemplateBody
+from olterra.drivers.vsol_gpon.provisioning import ClientData, OnuServiceData, TemplateBody
 
 
 def _ip_text(value: Any) -> str | None:
@@ -133,6 +133,12 @@ class TemplateOut(BaseModel):
 
 class AuthorizeRequest(ClientData):
     """Alta de una ONU: plantilla + lo del cliente. Las claves solo viajan selladas."""
+
+    template_id: UUID
+
+
+class ConfigureRequest(OnuServiceData):
+    """WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente)."""
 
     template_id: UUID
 
