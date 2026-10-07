@@ -63,7 +63,7 @@ export const authorizeOnu = (oltId: string, body: AuthorizeRequest) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/authorize`, { json: body })
 export const configureOnu = (oltId: string, body: ConfigureRequest) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/configure`, { json: body })
-export const rebootOnu =(oltId: string, body: OnuRef) =>
+export const rebootOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
 export const deleteOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/delete`, { json: body })
