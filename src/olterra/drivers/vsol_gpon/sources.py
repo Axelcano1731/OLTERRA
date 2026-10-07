@@ -9,6 +9,10 @@ LAB_G0B = (
 )
 LIBRENMS_MAIN = "LibreNMS main, definición vsolution (V1600D EPON)"
 PUBLIC_GUIDES = "Guías públicas (technicalafnan.com, yusufmiahbd.blogspot.com)"
+RUNNING_G0B = (
+    "Configuración guardada de ONU reales en la V1600G0-B V1.4.8R ('show running-config onu N', "
+    "2026-10-03): la OLT la escribe con la misma sintaxis con que se teclea; falta ejecutarla"
+)
 INFERRED = "Inferido del patrón 'no onu …' del manual; confirmar en laboratorio"
 
 

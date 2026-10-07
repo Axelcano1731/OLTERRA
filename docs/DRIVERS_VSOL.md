@@ -42,6 +42,40 @@ como "sobrescribir desde el inicio" pierde todo menos la última celda. Olterra 
   `show onu <n> statistics`, `show pon transceiver-info`, `show pon rx_power`.
 - Una OLT con 57 ONU respondió `show onu info` y `show onu state` en menos de un segundo.
 
+## Aprovisionamiento (V1600G0-B)
+
+La receta de un alta sale de cómo la propia OLT guarda sus ONU (`show running-config onu N`):
+
+```
+onu add N profile <perfil> sn <serial>
+onu N desc <descripción>
+onu N profile onu <perfil>
+onu N tcont 1 name INTERNET dba <perfil DBA>
+onu N gemport 1 tcont 1 gemport_name INTERNET          (la OLT agrega "portid")
+onu N gemport 1 traffic-limit downstream <perfil>
+onu N service ser_1 gemport 1 vlan <vlan>
+onu N service-port 1 gemport 1 uservlan <vlan> vlan <vlan> new_cos 0
+onu N pri wan_adv add route                             (WAN PPPoE en la ONU)
+onu N pri wan_adv index 1 route mode internet mtu 1492
+onu N pri wan_adv index 1 route ipv4 pppoe proxy disable user <u> pwd <clave> mode auto nat enable
+onu N pri wan_adv index 1 vlan tag wan_vlan <vlan> 0
+onu N pri wan_adv index 1 bind lan1 lan2 … ssid1
+onu N pri wifi_ssid 1 name <ssid> hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key <clave> rekey_interval 0
+write
+```
+
+- `drivers/vsol_gpon/provisioning.py`: `TemplateBody` (lo común a un plan), `ClientData` (lo de
+  cada cliente), `authorize_calls` (la receta) y `parse_onu_running_config` ("copiar una ONU").
+  Una prueba regenera el alta de la ONU 3 de la captura y la compara línea por línea con lo que
+  la OLT guardó.
+- Las claves PPPoE y WiFi van en la credencial sellada; el paso lleva `{{secret:pppoe_password}}`
+  y `{{secret:wifi_key}}`. No pueden llevar espacios ni `?` (la CLI abriría la ayuda); el SSID
+  tampoco lleva espacios.
+- La OLT guarda la clave PPPoE tapada (`pwd ******`) pero la WiFi **en claro** (`shared_key`):
+  `redact` tapa las dos en cualquier salida.
+- **Sin verificar todavía**: hasta ejecutarlos en la OLT del laboratorio. `onu.delete` (`no onu N`)
+  es inferido del manual; confirmar cuál usa la V1600G0-B.
+
 ## Fuentes
 
 | Fuente | Qué aporta | Confianza |
@@ -125,6 +159,14 @@ inyectar otro comando en la OLT.
 | `onu.service_port` | `onu {onu} service-port {service_port} gemport {gemport} uservlan {user_vlan} vlan {vlan}` | PON | escritura | Manual v2.1 §19.3.8. La tabla dice `uservlan` y el ejemplo `user-vlan` |
 | `onu.portvlan_tag` | `onu {onu} portvlan {uni_kind} {uni} mode tag vlan {vlan}` | PON | escritura | Manual v2.1 §19.3.9 |
 | `onu.portvlan_transparent` | `onu {onu} portvlan {uni_kind} {uni} mode transparent` | PON | escritura | Manual v2.1 §19.3.9 |
+| `onu.bind_onu_profile` | `onu {onu} profile onu {profile}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.gemport_limit_down` | `onu {onu} gemport {gemport} traffic-limit downstream {profile}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.wan_add_route` | `onu {onu} pri wan_adv add route` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.wan_route_mode` | `onu {onu} pri wan_adv index {wan} route mode internet mtu {mtu}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.wan_pppoe` | `onu {onu} pri wan_adv index {wan} route ipv4 pppoe proxy disable user {pppoe_user} pwd {pppoe_password} mode auto nat {nat}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:pppoe_password}}` |
+| `onu.wan_vlan` | `onu {onu} pri wan_adv index {wan} vlan tag wan_vlan {vlan} {cos}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.wan_bind` | `onu {onu} pri wan_adv index {wan} bind {binds}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
+| `onu.wifi_ssid` | `onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key {wifi_key} rekey_interval 0` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:wifi_key}}` |
 | `config.save` | `write` | privilegiado | escritura | Manual v2.1 §22.2.1. VSOL pierde lo no guardado al reiniciar |
 | `snmp.set_community` | `snmp-server community {community} ro` (lleva clave) | config | escritura | Manual v2.1 §24.4.1 |
 | `snmp.add_trap_host` | `snmp-server host {host} version 2c community {community}` (lleva clave) | config | escritura | Manual v2.1 §24.4.2 |
@@ -141,6 +183,13 @@ Sintaxis distinta por modelo (`CommandOverride`):
 
 | Llave | Modelo | Comando | Fuente |
 |---|---|---|---|
+| `onu.optical` | `V1600G0*` | `show onu {onu} optical_info` | Laboratorio V1600G0-B (verificado) |
+| `onu.description` | `V1600G0*` | `show onu {onu} desc` | Laboratorio V1600G0-B (verificado) |
+| `pon.statistics` | `V1600G0*` | `show pon {pon} statistics` | Laboratorio V1600G0-B (verificado) |
+| `onu.set_description` | `V1600G0*` | `onu {onu} desc {description}` | Configuración guardada de la V1600G0-B |
+| `onu.tcont` | `V1600G0*` | `onu {onu} tcont {tcont} name {tcont_name} dba {profile}` | Ídem |
+| `onu.gemport` | `V1600G0*` | `onu {onu} gemport {gemport} tcont {tcont} gemport_name {gemport_name}` | Ídem |
+| `onu.service_port` | `V1600G0*` | `onu {onu} service-port {service_port} gemport {gemport} uservlan {user_vlan} vlan {vlan} new_cos {cos}` | Ídem |
 | `config.save` | `V1600GS*` | `write memory` | LibreNMS PR #19368 |
 | `snmp.add_trap_host` | `V1600GS*` | `snmp-server trap-host {host} community {community}` | LibreNMS PR #19368 |
 

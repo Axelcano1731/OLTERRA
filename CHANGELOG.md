@@ -4,6 +4,12 @@
 
 ### Agregado
 
+- Aprovisionamiento de ONU (V1600G0-B): plantillas que se copian de una ONU que ya funciona o
+  se llenan a mano (`/v1/provision-templates`, migración `0004`); alta con VLAN, PPPoE en la
+  ONU y WiFi (`POST /v1/olts/{id}/onus/authorize`), reinicio y borrado. Las claves PPPoE y WiFi
+  viajan solo selladas. Planes de escritura que se detienen al primer error, guardan y verifican;
+  sin captura de laboratorio no corren, salvo `OLTERRA_ALLOW_UNVERIFIED_WRITES`. Pantallas
+  `/plantillas` y `/olts/:id/aprovisionar`. El simulador entiende la sintaxis de aprovisionamiento.
 - Interfaz web (`web/`, Vue 3 + Vite + Tailwind): panel, alta y consultas de OLT con su
   historial, túnel (scripts que se muestran una sola vez), conciliación desde archivos o con la
   demo. Ver `docs/INTERFAZ.md`.

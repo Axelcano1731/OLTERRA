@@ -9,6 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
+from olterra.drivers.vsol_gpon.provisioning import ClientData, TemplateBody
+
 
 def _ip_text(value: Any) -> str | None:
     # asyncpg devuelve INET como IPv4Address/IPv4Interface.
@@ -107,6 +109,46 @@ class CommandOut(BaseModel):
 class OltCreated(OltOut):
     used_default_credentials: bool = Field(
         False, description="Se usó la clave de fábrica: conviene cambiarla en la OLT y en Olterra"
+    )
+
+
+class TemplateIn(BaseModel):
+    name: str = Field(
+        pattern=r"^[A-Za-z0-9_. \-]{1,48}$", description="p. ej. 'Hogar 100M VLAN 111'"
+    )
+    body: TemplateBody
+
+
+class TemplateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    driver: str
+    body: TemplateBody
+    created_at: datetime
+    updated_at: datetime
+
+
+class AuthorizeRequest(ClientData):
+    """Alta de una ONU: plantilla + lo del cliente. Las claves solo viajan selladas."""
+
+    template_id: UUID
+
+
+class OnuRef(BaseModel):
+    pon: int = Field(ge=1, le=16)
+    onu: int = Field(ge=1, le=128)
+
+
+class WritePlanOut(BaseModel):
+    plan_id: UUID
+    olt_id: UUID
+    status: str
+    created_at: datetime
+    unverified: list[str] = Field(
+        default_factory=list,
+        description="Comandos sin captura de laboratorio que este plan corre (solo en modo laboratorio)",
     )
 
 

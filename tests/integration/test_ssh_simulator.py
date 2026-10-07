@@ -156,3 +156,67 @@ async def test_full_loop_seal_execute_interpret(simulator: tuple[VsolSimulator, 
         "HWTC1F2E3D4C",
     ]
     assert by_key["onu.autofind"]["data"][0]["serial"] == "VSOL00BEEF01"
+
+
+async def test_copy_an_onu_then_authorize_a_new_one_over_ssh(
+    simulator: tuple[VsolSimulator, int],
+) -> None:
+    """De punta a punta: copiar la ONU 1/1, autorizar la del autofind con esa plantilla."""
+    from olterra.drivers.vsol_gpon.provisioning import (
+        ClientData,
+        TemplateBody,
+        authorize_calls,
+        parse_onu_running_config,
+    )
+    from olterra.orchestrator import build_write_plan
+    from olterra.security.sealed import unseal
+
+    sim, port = simulator
+    model, firmware = "V1600G0-B", "V1.4.8R"  # la sintaxis de aprovisionamiento de esa OLT
+    read = plan_for(port, [CommandCall("onu.service_config", {"pon": 1, "onu": 1})])
+    copied = await PlanRunner("prueba").run(read, credential())
+    config_step = next(s for s in copied.steps if s.output and "running-config" in s.output)
+    template = TemplateBody.model_validate(
+        parse_onu_running_config(config_step.output or "").template
+    )
+    assert template.services[0].vlan == 100 and template.wan is not None
+
+    client = ClientData(
+        pon=1,
+        onu=9,
+        serial="VSOL00BEEF01",  # el que está en autofind
+        description="cliente-nuevo",
+        pppoe_user="nuevo1",
+        pppoe_password=SecretStr("Ppp#Sim-2026"),
+        wifi_ssid="CASA-NUEVA",
+        wifi_key=SecretStr("Wifi#Sim-2026"),
+    )
+    private, public = generate_keypair()
+    plan = build_write_plan(
+        DRIVER,
+        tenant_id=uuid4(),
+        olt_id=uuid4(),
+        target=Target(host="127.0.0.1", ssh_port=port),
+        calls=authorize_calls(template, client),
+        verify=[CommandCall("onu.state", {"pon": 1})],
+        credential=credential().model_copy(
+            update={"pppoe_password": client.pppoe_password, "wifi_key": client.wifi_key}
+        ),
+        executor_public_key=public,
+        model=model,
+        firmware=firmware,
+        allow_unverified=True,
+    )
+    assert plan.credential is not None
+    opened = Credential.model_validate_json(unseal(private, plan.credential, plan.seal_context()))
+    result = await PlanRunner("prueba").run(plan, opened)
+    assert result.status == "ok", [s.error for s in result.steps if not s.ok]
+    # La clave llegó a la OLT; el resultado no la trae.
+    assert any("pwd Ppp#Sim-2026" in c for c in sim.commands_seen)
+    dumped = result.model_dump_json()
+    assert "Ppp#Sim-2026" not in dumped and "Wifi#Sim-2026" not in dumped
+    new = next(o for o in sim.config.onus if o.onu == 9)
+    assert new.serial == "VSOL00BEEF01" and new.description == "cliente-nuevo"
+    assert "onu 9 service-port 1 gemport 1 uservlan 100 vlan 100 new_cos 0" in new.config
+    assert (1, "VSOL00BEEF01") not in sim.config.autofind
+    assert sim.commands_seen[-2:] == ["show onu state", "end"]

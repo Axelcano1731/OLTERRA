@@ -8,6 +8,11 @@ import type {
   OltCreated,
   OltDefaults,
   OltUpdate,
+  OnuRef,
+  ProvisionTemplate,
+  TemplateIn,
+  AuthorizeRequest,
+  WritePlan,
   Plan,
   PlanSummary,
   QueryRequest,
@@ -39,6 +44,26 @@ export const listPlans = (id: string) =>
   api<PlanSummary[]>(`/v1/olts/${encodeURIComponent(id)}/plans`)
 export const getPlan = (id: string, signal?: AbortSignal) =>
   api<Plan>(`/v1/plans/${encodeURIComponent(id)}`, { signal })
+
+export const listTemplates = () => api<ProvisionTemplate[]>('/v1/provision-templates')
+export const getTemplate = (id: string) =>
+  api<ProvisionTemplate>(`/v1/provision-templates/${encodeURIComponent(id)}`)
+export const createTemplate = (body: TemplateIn) =>
+  api<ProvisionTemplate>('/v1/provision-templates', { json: body })
+export const updateTemplate = (id: string, body: TemplateIn) =>
+  api<ProvisionTemplate>(`/v1/provision-templates/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    json: body,
+  })
+export const deleteTemplate = (id: string) =>
+  api<void>(`/v1/provision-templates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+export const authorizeOnu = (oltId: string, body: AuthorizeRequest) =>
+  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/authorize`, { json: body })
+export const rebootOnu = (oltId: string, body: OnuRef) =>
+  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
+export const deleteOnu = (oltId: string, body: OnuRef) =>
+  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/delete`, { json: body })
 
 export const listRouters = () => api<TunnelRouter[]>('/v1/tunnel/routers')
 export const createRouter = (name: string, routerosVersion?: string) =>

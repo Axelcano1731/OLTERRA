@@ -55,7 +55,14 @@ class SessionProfile(BaseModel):
 # Un paso CLI puede llevar ``{{secret:<campo>}}``: el ejecutor lo reemplaza con el campo de la
 # credencial sellada justo antes de escribirlo en la OLT. Así una clave nueva nunca viaja en claro
 # por NATS ni queda en el plan guardado.
-SECRET_FIELDS = ("password", "enable_password", "new_password", "new_enable_password")
+SECRET_FIELDS = (
+    "password",
+    "enable_password",
+    "new_password",
+    "new_enable_password",
+    "pppoe_password",
+    "wifi_key",
+)
 _SECRET_PLACEHOLDER = re.compile(r"\{\{secret:([a-z_]+)\}\}")
 
 
@@ -127,6 +134,9 @@ class Credential(BaseModel):
     # Solo en planes que cambian las claves de acceso: lo que se va a poner en la OLT.
     new_password: SecretStr | None = None
     new_enable_password: SecretStr | None = None
+    # Solo en planes de aprovisionamiento: las claves del cliente que se ponen en su ONU.
+    pppoe_password: SecretStr | None = None
+    wifi_key: SecretStr | None = None
 
     def resolve_secrets(self, command: str) -> str:
         """Reemplaza los ``{{secret:campo}}`` de un comando. Falla si falta algún valor."""
@@ -165,6 +175,8 @@ class Credential(BaseModel):
             self.snmp_v3_priv_key,
             self.new_password,
             self.new_enable_password,
+            self.pppoe_password,
+            self.wifi_key,
         ]
         return [v.get_secret_value() for v in values if v is not None]
 

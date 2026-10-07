@@ -17,7 +17,7 @@ from sqlalchemy import text
 
 from olterra import __version__
 from olterra.api.deps import State
-from olterra.api.routes import me, olts, plans, reconciliation, tunnel
+from olterra.api.routes import me, olts, plans, provisioning, reconciliation, tunnel
 from olterra.api.state import AppState, PlanPublisher, ServiceUnavailable
 from olterra.config import Settings, get_settings
 from olterra.db.session import create_engine, session_factory
@@ -130,6 +130,6 @@ def create_app(
             "vault": "lista" if state.vault is not None else "sin llave maestra",
         }
 
-    for module in (me, olts, plans, tunnel, reconciliation):
+    for module in (me, olts, plans, provisioning, tunnel, reconciliation):
         app.include_router(module.router)
     return app

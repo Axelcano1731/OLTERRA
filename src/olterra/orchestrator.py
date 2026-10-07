@@ -14,6 +14,7 @@ from uuid import UUID
 
 from olterra.drivers.base import Access, CommandCall, Driver, UnrecognizedOutput
 from olterra.drivers.vsol_gpon import parsers as vsol
+from olterra.drivers.vsol_gpon import provisioning as vsol_provisioning
 from olterra.executor.plan import Credential, Plan, PlanResult, Priority, StepResult, Target
 from olterra.security.masking import redact
 from olterra.security.sealed import seal
@@ -30,6 +31,8 @@ PARSERS: dict[str, Parser] = {
     "onu.distance": lambda text, params: vsol.parse_onu_distance(text),
     "onu.description": lambda text, params: vsol.parse_onu_description(text),
     "pon.statistics": lambda text, params: vsol.parse_pon_statistics(text),
+    # "Copiar una ONU": la plantilla y lo del cliente, sacados de su configuración.
+    "onu.service_config": lambda text, params: vsol_provisioning.parse_onu_running_config(text),
 }
 
 
@@ -97,23 +100,74 @@ def build_credential_change_plan(
     if not calls:
         raise PlanBuildError("No hay ninguna clave nueva que poner")
     calls.append(CommandCall("config.save"))
+    return build_write_plan(
+        driver,
+        tenant_id=tenant_id,
+        olt_id=olt_id,
+        target=target,
+        calls=calls,
+        credential=credential,
+        executor_public_key=executor_public_key,
+        model=model,
+        firmware=firmware,
+    )
+
+
+def unverified_writes(
+    driver: Driver, calls: Sequence[CommandCall], model: str | None, firmware: str | None
+) -> list[str]:
+    """Llaves de escritura de ``calls`` que no tienen captura de laboratorio para este equipo."""
+    keys = []
     for call in calls:
         template = driver.command(call.key, model, firmware)
-        if template.access is not Access.WRITE:
+        if template.access is Access.WRITE and not template.verified:
+            keys.append(call.key)
+    return list(dict.fromkeys(keys))
+
+
+def build_write_plan(
+    driver: Driver,
+    *,
+    tenant_id: UUID,
+    olt_id: UUID,
+    target: Target,
+    calls: Sequence[CommandCall],
+    credential: Credential,
+    executor_public_key: str,
+    model: str | None = None,
+    firmware: str | None = None,
+    verify: Sequence[CommandCall] = (),
+    allow_unverified: bool = False,
+    priority: Priority = Priority.USER,
+) -> Plan:
+    """Plan de ESCRITURA: se detiene al primer error y después lee ``verify`` (estado final).
+
+    Se niega si algún comando no está verificado en laboratorio para este modelo y firmware,
+    salvo ``allow_unverified`` (solo para validarlos en el laboratorio). Las claves van en la
+    credencial sellada; los pasos llevan marcadores ``{{secret:…}}``.
+    """
+    if not calls:
+        raise PlanBuildError("El plan no tiene comandos")
+    for call in calls:
+        if driver.command(call.key, model, firmware).access is not Access.WRITE:
             raise PlanBuildError(f"'{call.key}' no es de escritura")
-        if not template.verified:
-            raise PlanBuildError(
-                f"'{call.key}' todavía no se validó en laboratorio con este modelo y firmware"
-            )
+    for call in verify:
+        if driver.command(call.key, model, firmware).access is not Access.READ:
+            raise PlanBuildError(f"'{call.key}' no es de lectura: no sirve para verificar")
+    pending = unverified_writes(driver, calls, model, firmware)
+    if pending and not allow_unverified:
+        raise PlanBuildError(
+            "Todavía no se validó en laboratorio con este modelo y firmware: " + ", ".join(pending)
+        )
     plan = Plan(
         tenant_id=tenant_id,
         olt_id=olt_id,
-        priority=Priority.USER,
+        priority=priority,
         access="write",
         on_error="stop",
         target=target,
         session=driver.session,
-        steps=driver.build_cli_steps(calls, model=model, firmware=firmware),
+        steps=driver.build_cli_steps([*calls, *verify], model=model, firmware=firmware),
     )
     sealed = seal(executor_public_key, credential.reveal_json(), plan.seal_context())
     return plan.model_copy(update={"credential": sealed})

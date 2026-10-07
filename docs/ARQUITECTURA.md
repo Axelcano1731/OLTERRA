@@ -366,6 +366,21 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
   servicios (el firewall de ese CHR solo descartaba lo que llega por la WAN). Falta el
   primer MikroTik de un ISP.
 
+### A.14 Aprovisionamiento de ONU
+
+- **Plantillas copiadas de una ONU real.** El ISP ya tiene ONU funcionando; Olterra lee la
+  configuración de una (`show running-config onu N`), separa lo común (perfiles, VLAN, WAN, WiFi)
+  de lo del cliente y lo guarda como plantilla. También se pueden llenar a mano. La plantilla no
+  guarda nada del cliente ni claves.
+- **Escrituras con freno.** Un plan de escritura se detiene al primer paso fallido, guarda en
+  flash (`write`) y termina leyendo el estado del PON. Un comando sin captura de laboratorio
+  (`verified=False`) no corre, salvo en modo laboratorio (`OLTERRA_ALLOW_UNVERIFIED_WRITES`), y
+  en ese caso queda dicho en la respuesta y en la bitácora.
+- **Claves del cliente selladas.** PPPoE y WiFi viajan en la credencial sellada al ejecutor; los
+  pasos llevan `{{secret:campo}}`, que el ejecutor resuelve justo al escribir en la OLT. Ni NATS,
+  ni `plan_runs`, ni la bitácora, ni la API las ven.
+- Pendiente: acciones masivas, mover de puerto, ligar la ONU al cliente de ISPWatch y a su NAP.
+
 ### A.13 Base de datos compartida con ISPWatch y Converza
 
 - **Decisión (2026-10-03):** por ahora Olterra usa la misma base de Supabase que ISPWatch y

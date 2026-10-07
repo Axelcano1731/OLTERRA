@@ -83,6 +83,8 @@ services:
       # Clave de fábrica de una OLT VSOL nueva (opcional, secreto: solo en el .env del servidor).
       OLTERRA_VSOL_DEFAULT_USERNAME: ${OLTERRA_VSOL_DEFAULT_USERNAME:-admin}
       OLTERRA_VSOL_DEFAULT_PASSWORD: ${OLTERRA_VSOL_DEFAULT_PASSWORD:-}
+      # Solo mientras se valida una escritura en el laboratorio (DESPLIEGUE.md 6.2).
+      OLTERRA_ALLOW_UNVERIFIED_WRITES: ${OLTERRA_ALLOW_UNVERIFIED_WRITES:-false}
       # Solo Caddy llega a la API (no publica puertos): se confía en su X-Forwarded-For
       # para que la bitácora guarde la IP real de quien hizo cada cambio.
       FORWARDED_ALLOW_IPS: "*"

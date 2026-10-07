@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from olterra.admin import create_api_key, create_tenant
-from olterra.db.models import ApiKey, AuditLog, Olt, Tenant, TunnelRouter
+from olterra.db.models import ApiKey, AuditLog, Olt, ProvisionTemplate, Tenant, TunnelRouter
 from olterra.db.session import create_engine, session_factory, tenant_session
 from olterra.security.vault import Vault
 from tests.conftest import PgDatabase
@@ -80,6 +80,20 @@ async def test_cannot_move_a_row_to_another_tenant(world: World) -> None:
     with pytest.raises(DBAPIError, match="row-level security"):
         async with tenant_session(world.app, world.a) as session:
             await session.execute(update(Olt).where(Olt.name == "OLT-A").values(tenant_id=world.b))
+
+
+async def test_provision_templates_are_isolated(world: World) -> None:
+    body = {"auth_profile": "default"}
+    async with tenant_session(world.app, world.b) as session:
+        session.add(ProvisionTemplate(tenant_id=world.b, name="Plan B", body=body))
+    async with tenant_session(world.app, world.a) as session:
+        session.add(ProvisionTemplate(tenant_id=world.a, name="Plan B", body=body))  # mismo nombre
+    async with tenant_session(world.app, world.a) as session:
+        rows = (await session.execute(select(ProvisionTemplate.tenant_id))).scalars().all()
+    assert rows == [world.a]
+    with pytest.raises(DBAPIError, match="row-level security"):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(ProvisionTemplate(tenant_id=world.b, name="intrusa", body=body))
 
 
 async def test_foreign_keys_cannot_point_to_another_tenant(world: World) -> None:

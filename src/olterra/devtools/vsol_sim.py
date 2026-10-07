@@ -38,6 +38,8 @@ class SimOnu:
     profile: str = "HGU"
     description: str = ""
     rx_dbm: float = -19.5
+    # Lo que devuelve "show running-config onu N": se llena con cada comando de aprovisionamiento.
+    config: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -72,7 +74,32 @@ def load_replay(directory: Path) -> dict[tuple[str, int | None], str]:
 def default_config() -> SimConfig:
     return SimConfig(
         onus=[
-            SimOnu(1, 1, "VSOL0008D09C", description="demo-cliente-1"),
+            SimOnu(
+                1,
+                1,
+                "VSOL0008D09C",
+                description="demo-cliente-1",
+                # Como la guarda una V1600G0-B real (tests/fixtures), para "copiar una ONU".
+                config=[
+                    "onu add 1 profile default sn VSOL0008D09C",
+                    "onu 1 desc demo-cliente-1",
+                    "onu 1 profile onu default",
+                    "onu 1 tcont 1 name INTERNET dba default1",
+                    "onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 129",
+                    "onu 1 gemport 1 traffic-limit downstream default",
+                    "onu 1 service ser_1 gemport 1 vlan 100",
+                    "onu 1 service-port 1 gemport 1 uservlan 100 vlan 100 new_cos 0",
+                    "onu 1 pri wan_adv add route",
+                    "onu 1 pri wan_adv index 1 route mode internet mtu 1492",
+                    "onu 1 pri wan_adv index 1 route ipv4 pppoe proxy disable user demo1 "
+                    "pwd ****** mode auto nat enable",
+                    "onu 1 pri wan_adv index 1 vlan tag wan_vlan 100 0",
+                    "onu 1 pri wan_adv index 1 bind lan1 lan2 lan3 lan4 ssid1",
+                    "onu 1 pri wifi_ssid 1 name DEMO-1 hide disable auth_mode wpa2psk "
+                    "encrypt_type tkipaes shared_key ****** rekey_interval 0",
+                    "onu 1 pri firewall level low",
+                ],
+            ),
             SimOnu(1, 2, "VSOL00A1B2C3", rx_dbm=-24.8, description="demo-cliente-2"),
             SimOnu(1, 3, "HWTC1F2E3D4C", state="offline", model="HG8310M", profile="SFU"),
             SimOnu(2, 1, "VSOL00C0FFEE", rx_dbm=-28.4),
@@ -94,6 +121,26 @@ class _Auth(asyncssh.SSHServer):
     def validate_password(self, username: str, password: str) -> bool:
         return username == self._config.username and password == self._config.password
 
+
+# La sintaxis con que la V1600G0-B guarda sus ONU (drivers/vsol_gpon/provisioning.py).
+_PROVISION = re.compile(
+    r"onu (\d+) (?:"
+    r"desc \S+"
+    r"|profile onu \S+"
+    r"|tcont \d+ name \S+ dba \S+"
+    r"|gemport \d+ tcont \d+ gemport_name \S+"
+    r"|gemport \d+ traffic-limit downstream \S+"
+    r"|service \S+ gemport \d+ vlan \d+"
+    r"|service-port \d+ gemport \d+ uservlan \d+ vlan \d+ new_cos \d"
+    r"|pri wan_adv add route"
+    r"|pri wan_adv index \d+ route mode internet mtu \d+"
+    r"|pri wan_adv index \d+ route ipv4 pppoe proxy disable user \S+ pwd \S+ mode auto nat \S+"
+    r"|pri wan_adv index \d+ vlan tag wan_vlan \d+ \d"
+    r"|pri wan_adv index \d+ bind [a-z0-9 ]+"
+    r"|pri wifi_ssid \d+ name \S+ hide disable auth_mode wpa2psk encrypt_type tkipaes"
+    r" shared_key \S+ rekey_interval 0"
+    r")"
+)
 
 # Escribe un aviso (p. ej. "Password:") y lee una línea sin eco.
 Ask = Callable[[str], Awaitable[str | None]]
@@ -215,9 +262,51 @@ class _Cli:
             return self._pon_command(cmd), False
         return "% Unknown command.", False
 
+    def _running_config(self, onu: int) -> str:
+        match = next((o for o in self._onus() if o.onu == onu), None)
+        if match is None:
+            return "Error: onu is not exist"
+        lines = match.config or [f"onu add {onu} profile {match.profile} sn {match.serial}"]
+        return "\n".join([f"----------onu {onu} running-config----------", *lines])
+
+    def _onu_state(self) -> str:
+        lines = [
+            f"{'OnuIndex':<12}{'Admin State':<15}{'OMCC State':<14}{'Phase State':<15}Serial Number",
+            "-" * 63,
+        ]
+        for o in self._onus():
+            omcc = "enable" if o.state == "working" else "disable"
+            lines.append(
+                f"{f'GPON0/{o.pon}:{o.onu}':<12}{'enable':<15}{omcc:<14}{o.state:<15}{o.serial}"
+            )
+        return "\n".join(lines)
+
+    def _provision(self, cmd: str) -> str | None:
+        """Comandos de aprovisionamiento de la V1600G0-B: se guardan en la config de la ONU."""
+        match = _PROVISION.fullmatch(cmd)
+        if match is None:
+            return None
+        onu = next((o for o in self._onus() if o.onu == int(match.group(1))), None)
+        if onu is None:
+            return "Error: onu is not exist"
+        # Como la OLT real: la clave PPPoE se guarda tapada.
+        saved = re.sub(r" pwd \S+", " pwd ******", cmd)
+        if cmd.startswith(f"onu {onu.onu} desc "):
+            onu.description = cmd.split(" desc ", 1)[1]
+        onu.config.append(saved)
+        return ""
+
     def _pon_command(self, cmd: str) -> str:
         if cmd == "show onu info":
             return self._onu_info()
+        if cmd == "show onu state":
+            return self._onu_state()
+        match = re.fullmatch(r"show running-config onu (\d+)", cmd)
+        if match:
+            return self._running_config(int(match.group(1)))
+        provisioned = self._provision(cmd)
+        if provisioned is not None:
+            return provisioned
         if cmd == "show onu auto-find":
             return self._autofind()
         if cmd == "show pon onu all rx-power":
@@ -230,7 +319,9 @@ class _Cli:
             onu, profile, serial = int(match.group(1)), match.group(2), match.group(3)
             if any(o.onu == onu for o in self._onus()) or self.pon is None:
                 return f"Error: onu {onu} is already exist"
-            self.c.onus.append(SimOnu(self.pon, onu, serial, profile=profile))
+            self.c.onus.append(
+                SimOnu(self.pon, onu, serial, profile=profile, config=[cmd], state="working")
+            )
             self.c.autofind = [(p, s) for p, s in self.c.autofind if s != serial]
             return ""
         match = re.fullmatch(r"no onu (\d+)", cmd)

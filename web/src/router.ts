@@ -57,6 +57,32 @@ export const router = createRouter({
           meta: { title: 'OLT' },
         },
         {
+          path: 'olts/:id/aprovisionar',
+          name: 'olt-provision',
+          component: () => import('@/views/OltProvisionView.vue'),
+          props: true,
+          meta: { title: 'Aprovisionar' },
+        },
+        {
+          path: 'plantillas',
+          name: 'templates',
+          component: () => import('@/views/TemplatesView.vue'),
+          meta: { title: 'Plantillas' },
+        },
+        {
+          path: 'plantillas/nueva',
+          name: 'template-new',
+          component: () => import('@/views/TemplateEditView.vue'),
+          meta: { title: 'Nueva plantilla' },
+        },
+        {
+          path: 'plantillas/:id',
+          name: 'template-edit',
+          component: () => import('@/views/TemplateEditView.vue'),
+          props: true,
+          meta: { title: 'Editar plantilla' },
+        },
+        {
           path: 'tunel',
           name: 'tunnel',
           component: () => import('@/views/TunnelView.vue'),
