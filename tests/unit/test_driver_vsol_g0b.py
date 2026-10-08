@@ -113,6 +113,11 @@ def test_autofind_with_sn_prefix_and_tabs() -> None:
     assert parsers.parse_autofind("", 1) == []
     two = text + "\n2\tsn:VSOL0008d09c\t\tV2802"
     assert [r.serial for r in parsers.parse_autofind(two, 2)] == ["GPON00AB12CD", "VSOL0008D09C"]
+    # La OLT del laboratorio, 2026-10-08: una V824 recién conectada salió con "NULL". No es un
+    # modelo: mandarlo como "pri equid NULL" la dejó con la WAN sin aplicar.
+    [unknown] = parsers.parse_autofind(text.replace("VSOLV422", "NULL"), 1)
+    assert unknown.model is None
+    assert parsers.real_equipment_id(" N/A ") is None and parsers.real_equipment_id("VSOLV824")
 
 
 def test_profile_already_given_by_onu_add_is_not_sent_again() -> None:

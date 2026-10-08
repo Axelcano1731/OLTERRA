@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -39,7 +40,7 @@ from olterra.db.models import PlanRun, ProvisionJob
 from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall, ParamError
-from olterra.drivers.vsol_gpon.parsers import parse_equipment_id
+from olterra.drivers.vsol_gpon.parsers import parse_equipment_id, real_equipment_id
 from olterra.drivers.vsol_gpon.provisioning import (
     ClientData,
     OnuServiceData,
@@ -216,6 +217,12 @@ def _secrets(state: AppState, job: ProvisionJob, dek: bytes) -> dict[str, str]:
     return dict(json.loads(Vault.decrypt(job.tenant_id, dek, _aad(job.id), job.secrets)))
 
 
+def template_wan_index(job: ProvisionJob) -> int | None:
+    """El índice de la WAN que pone el plan del trabajo, o None si no tiene WAN."""
+    wan = (job.template or {}).get("wan")
+    return int(wan.get("index", 1)) if wan else None
+
+
 async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob) -> Plan:
     """Arma, guarda y deja listo para publicar el plan del paso actual."""
     try:
@@ -260,6 +267,8 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
                 CommandCall("onu.state", {"pon": pon}),
                 CommandCall("onu.capability", where),
                 CommandCall("onu.detail", where),
+                # Para saber si ya tiene la WAN del plan (un "Internet y WiFi" repetido).
+                CommandCall("onu.service_config", where),
             ]
             plan = build_read_plan(driver, calls=calls, credential=credential, **common)
         elif job.step == "configure":
@@ -291,7 +300,11 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
             )
             if binds is not None:
                 _set_detail(job, binds=binds)
-            calls = [*service_calls(template, data, binds), CommandCall("config.save")]
+            add_wan = not detail.get("wan_exists")
+            calls = [
+                *service_calls(template, data, binds, add_wan=add_wan),
+                CommandCall("config.save"),
+            ]
             plan = build_write_plan(
                 driver,
                 calls=calls,
@@ -376,7 +389,8 @@ async def _after_step(
         job.request = {
             **req,
             "onu": index,
-            "equipment_id": req.get("equipment_id") or row.get("model"),
+            "equipment_id": real_equipment_id(req.get("equipment_id"))
+            or real_equipment_id(row.get("model")),
         }
         _log(job, "discover", f"PON {pon}, posición {index}")
         job.step = "authorize"
@@ -413,14 +427,28 @@ async def _after_step(
         cap = capability.get("data") if capability and capability.get("ok") else None
         detail_out = _first(outputs, "onu.detail")
         equipment = parse_equipment_id(detail_out.get("output") or "") if detail_out else None
-        if equipment and not req.get("equipment_id"):
+        # Con la ONU conectada su detalle dice el modelo real: manda sobre el del autofind, que
+        # puede venir vacío ("NULL") o de otra ONU.
+        if equipment and equipment != req.get("equipment_id"):
             job.request = {**req, "equipment_id": equipment}
+        running = _first(outputs, "onu.service_config")
+        wan_index = template_wan_index(job)
+        wan_exists = bool(
+            running
+            and running.get("ok")
+            and wan_index is not None
+            and re.search(
+                rf"(?m)^\s*onu {onu} pri wan_adv index {wan_index} route\b",
+                running.get("output") or "",
+            )
+        )
         _set_detail(
             job,
             phase="working",
             ethernet_ports=(cap or {}).get("ethernet_ports"),
             wifi_ports=(cap or {}).get("wifi_ports"),
             onu_type=(cap or {}).get("onu_type"),
+            wan_exists=wan_exists,
         )
         _log(job, "wait_online", "La ONU se conectó")
         job.step = "configure" if _wants_private(job) else "verify"

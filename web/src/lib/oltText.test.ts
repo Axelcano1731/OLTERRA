@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { oltLabel } from './oltText'
+import { oltLabel, realModel } from './oltText'
 
 describe('oltLabel (igual que clean_label del servidor)', () => {
   it('quita tildes y cambia espacios por guion bajo', () => {
@@ -15,5 +15,14 @@ describe('oltLabel (igual que clean_label del servidor)', () => {
 
   it('sin letras ni números queda vacío', () => {
     expect(oltLabel('¿?¡!', 10)).toBe('')
+  })
+})
+
+describe('realModel', () => {
+  it('"NULL" del autofind no es un modelo', () => {
+    expect(realModel('NULL')).toBeNull()
+    expect(realModel(' n/a ')).toBeNull()
+    expect(realModel(null)).toBeNull()
+    expect(realModel('VSOLV824')).toBe('VSOLV824')
   })
 })

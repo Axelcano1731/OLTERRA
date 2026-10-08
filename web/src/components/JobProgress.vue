@@ -51,6 +51,7 @@ const ICONS: Record<JobStepStatus, { icon: unknown; tone: string }> = {
         {{ job.onu }}.
       </template>
       <template v-else>Internet y WiFi configurados.</template>
+      <template v-if="job.pppoe_user"> PPPoE: {{ job.pppoe_user }}.</template>
       <template v-if="job.rx_dbm !== null"> Señal: {{ job.rx_dbm }} dBm.</template>
       <template v-if="job.wifi_ssid"> WiFi: {{ job.wifi_ssid }}.</template>
     </AlertBox>

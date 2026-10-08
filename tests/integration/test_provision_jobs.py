@@ -20,7 +20,7 @@ from olterra.api import jobs
 from olterra.db.models import AuditLog, PlanRun, ProvisionJob, ProvisionTemplate
 from olterra.db.session import create_engine, session_factory
 from olterra.executor.bus import MemoryBus
-from olterra.executor.plan import Plan
+from olterra.executor.plan import CliCommand, Plan
 from olterra.executor.runner import PlanRunner
 from olterra.executor.worker import Executor
 from tests.integration.test_api import (  # noqa: F401 - fixtures y ayudas compartidas
@@ -156,6 +156,8 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
                     "template_id": template["id"],
                     "pon": 1,
                     "serial": "VSOL00BEEF01",
+                    # Así llega del autofind de la V1600G0-B cuando la OLT no sabe el modelo.
+                    "equipment_id": "NULL",
                     "customer": "José Pérez Núñez",
                     "pppoe_user": "jose.perez",
                     "pppoe_password": PPPOE_KEY,
@@ -196,6 +198,32 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
             assert simulator.sim.commands_seen.index(account) < simulator.sim.commands_seen.index(
                 f"onu 4 pri acl https {acl.format('enable')}"
             )
+            assert not any("equid NULL" in c for c in simulator.sim.commands_seen)
+
+            # "Internet y WiFi" otra vez sobre la misma ONU: reescribe la WAN, no crea otra.
+            before = len(env.publisher.plans)
+            again = env.client.post(
+                f"/v1/olts/{olt['id']}/onus/configure",
+                json={
+                    "template_id": template["id"],
+                    "pon": 1,
+                    "onu": 4,
+                    "pppoe_user": "jose.perez2",
+                    "pppoe_password": PPPOE_KEY,
+                },
+                headers=env.headers(),
+            )
+            assert again.status_code == 202, again.text
+            redo = drive(env, again.json()["id"])
+            assert redo["status"] == "done", redo
+            redone = [
+                step.command
+                for plan in env.publisher.plans[before:]
+                for step in plan.steps
+                if isinstance(step, CliCommand)
+            ]
+            assert "onu 4 pri wan_adv add route" not in redone
+            assert any("user jose.perez2 pwd" in c for c in redone)
             assert any(f"pwd {PPPOE_KEY}" in c for c in simulator.sim.commands_seen)
             # La WAN entra después de guardar el servicio, no en el mismo plan que "onu add".
             seen = simulator.sim.commands_seen

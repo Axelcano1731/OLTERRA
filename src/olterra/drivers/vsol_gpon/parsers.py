@@ -115,6 +115,20 @@ def _locate(table: Table) -> tuple[str | None, str | None]:
     return index_col, serial_col
 
 
+# Lo que la OLT escribe cuando la ONU todavía no le dijo su modelo. En el autofind de la
+# V1600G0-B salió "NULL" (2026-10-08): mandarlo como "pri equid NULL" dejó "pri equid MONUVPRI"
+# en una V824 y la ONU no tomó la WAN.
+_NO_MODEL = {"null", "n/a", "na", "none", "unknown", "-", "--", "0"}
+
+
+def real_equipment_id(value: str | None) -> str | None:
+    """El Equipment ID si es uno de verdad (VSOLV422); None si la OLT no lo sabe."""
+    if value is None:
+        return None
+    value = value.strip()
+    return None if not value or value.lower() in _NO_MODEL else value
+
+
 def _cell(row: Mapping[str, str], column: str | None) -> str | None:
     if column is None:
         return None
@@ -195,7 +209,7 @@ def _parse_autofind_g0b(text: str, default_pon: int | None) -> list[AutofindRow]
                 serial=serial,
                 # Es el orden en la lista de autofind, no un índice de ONU: no se usa como tal.
                 index=None,
-                model=match.group(3),
+                model=real_equipment_id(match.group(3)),
                 raw={
                     "index": match.group(1),
                     "sn": match.group(2),
@@ -233,7 +247,7 @@ def parse_autofind(text: str, default_pon: int | None = None) -> list[AutofindRo
                     serial=serial,
                     index=ref.onu if ref is not None else None,
                     password=_cell(row, table.column(*PASSWORD_COLUMNS)),
-                    model=_cell(row, table.column(*MODEL_COLUMNS)),
+                    model=real_equipment_id(_cell(row, table.column(*MODEL_COLUMNS))),
                     raw=dict(row),
                 )
             )
@@ -528,4 +542,4 @@ _EQUIPMENT_ID = re.compile(r"(?im)^\s*equipment\s*id\s*:\s*(\S+)")
 def parse_equipment_id(text: str) -> str | None:
     """El ``Equipment ID`` de ``show onu detail-info <n>`` (VSOLV422), o None si no está."""
     match = _EQUIPMENT_ID.search(text)
-    return match.group(1) if match else None
+    return real_equipment_id(match.group(1)) if match else None

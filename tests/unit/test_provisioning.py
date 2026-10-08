@@ -237,6 +237,23 @@ def test_copying_an_onu_keeps_account_names_but_not_passwords() -> None:
     assert masked.startswith("onu 3 pri username admin_control enable soporte ******")
 
 
+def test_an_existing_wan_is_rewritten_not_added_again() -> None:
+    template = TemplateBody.model_validate(parse_onu_running_config(running(3)).template)
+    data = OnuServiceData(
+        pon=1,
+        onu=3,
+        equipment_id="VSOLV422",
+        pppoe_user="usuario-pppoe",
+        pppoe_password=SecretStr(PPPOE_KEY),
+    )
+    from olterra.drivers.vsol_gpon.provisioning import service_calls
+
+    first = [c.key for c in service_calls(template, data)]
+    again = [c.key for c in service_calls(template, data, add_wan=False)]
+    assert "onu.wan_add_route" in first and "onu.wan_add_route" not in again
+    assert "onu.wan_pppoe" in again
+
+
 def test_unsupported_private_protocol_is_an_error() -> None:
     patterns = [re.compile(p, re.MULTILINE) for p in ERRORS]
     assert any(p.search("Unsupport private protocol") for p in patterns)
