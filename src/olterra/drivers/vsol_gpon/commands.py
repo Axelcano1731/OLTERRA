@@ -14,6 +14,7 @@ from typing import Any
 
 from olterra.drivers.base import Access, CliMode, CommandOverride, CommandTemplate
 from olterra.drivers.vsol_gpon.sources import (
+    HELP_G0B,
     INFERRED,
     LAB_G0B,
     LIBRENMS_19368,
@@ -248,6 +249,55 @@ _COMMANDS = [
         secret_params={"wifi_key": "wifi_key"},
         notes="WPA2-PSK; el SSID no admite espacios por CLI",
     ),
+    # Cuentas de la ONU: la de administración y la normal del cliente ("user"). Las claves van
+    # por secret_params: el plan lleva el marcador y el ejecutor las pone al escribir.
+    _c(
+        "onu.account_admin",
+        "onu {onu} pri username admin_control enable {admin_user} {admin_password} "
+        "user_control disable",
+        PON,
+        W,
+        HELP_G0B,
+        sensitive=True,
+        param_types={"admin_user": "onu_account"},
+        secret_params={"admin_password": "onu_admin_password"},
+        notes="Cuenta de administración; la cuenta normal (user) queda desactivada",
+    ),
+    _c(
+        "onu.account_admin_user",
+        "onu {onu} pri username admin_control enable {admin_user} {admin_password} "
+        "user_control enable {user_name} {user_password}",
+        PON,
+        W,
+        HELP_G0B,
+        sensitive=True,
+        param_types={"admin_user": "onu_account", "user_name": "onu_account"},
+        secret_params={
+            "admin_password": "onu_admin_password",
+            "user_password": "onu_user_password",
+        },
+        notes="Cuenta de administración y la normal del cliente",
+    ),
+    # Gestión remota: firewall de la ONU y qué servicios responden desde la WAN.
+    _c(
+        "onu.firewall",
+        "onu {onu} pri firewall level {level}",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"level": "firewall_level"},
+    ),
+    _c(
+        "onu.acl",
+        "onu {onu} pri acl {service} control enable lan enable wan {wan_access} "
+        "ipv4_control disable ipv6_control disable",
+        PON,
+        W,
+        RUNNING_G0B,
+        param_types={"service": "onu_acl_service", "wan_access": "on_off"},
+        notes="Ayuda de la V1600G0-B: telnet, ftp, http, https, tftp, ping, ssh; 'port N' es "
+        "opcional (la OLT a veces lo guarda). 'wan disable' cierra ese servicio desde internet",
+    ),
     # --- Configuración del equipo ----------------------------------------------------
     _c(
         "config.save",
@@ -302,9 +352,10 @@ _COMMANDS = [
     ),
     _c("user.delete", "user delete {username}", CONFIG, W, manual("23.6")),
     # Cambio de claves de acceso. La clave nueva va por ``secret_params``: el plan lleva el
-    # marcador y el ejecutor la toma de la credencial sellada. SIN verificar: la ayuda de la
-    # V1600G0-B (`user ?`) lista ``login-password`` y ``enable-password``, pero falta confirmar en
-    # el laboratorio si la clave se escribe en la misma línea o la pide aparte.
+    # marcador y el ejecutor la toma de la credencial sellada. SIN verificar y SIN usar todavía:
+    # la ayuda de la V1600G0-B (2026-10-08) muestra `user login-password <usuario>` y luego solo
+    # <cr>, o sea que la OLT pide la clave nueva DESPUÉS del Enter. Falta que el ejecutor responda
+    # esa pregunta; hasta entonces esta forma (clave en la línea) no sirve en ese modelo.
     _c(
         "user.set_login_password",
         "user login-password {username} {password}",

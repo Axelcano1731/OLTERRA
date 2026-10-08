@@ -247,6 +247,8 @@ class ProvisionTemplate(Base):
     name: Mapped[str] = mapped_column(Text)
     driver: Mapped[str] = mapped_column(Text, server_default="vsol-gpon")
     body: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # Claves de las cuentas de la ONU (JSON cifrado con la llave del ISP).
+    secrets: Mapped[bytes | None] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

@@ -11,6 +11,7 @@ correrlo y dice cuál falta, salvo con ``OLTERRA_ALLOW_UNVERIFIED_WRITES`` (labo
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -46,6 +47,7 @@ from olterra.drivers.vsol_gpon.provisioning import (
 )
 from olterra.executor.plan import Credential, Priority
 from olterra.orchestrator import build_read_plan, build_write_plan, unverified_writes
+from olterra.security.vault import Vault
 
 DEFAULT_PON_PORTS = 4
 
@@ -62,6 +64,73 @@ async def _get_template(session: Any, template_id: UUID) -> ProvisionTemplate:
     return template
 
 
+_SECRET_LABELS = {
+    "onu_admin_password": "la contraseña de administración de la ONU",
+    "onu_user_password": "la contraseña de la cuenta normal de la ONU",
+}
+
+
+def _template_aad(template_id: UUID) -> str:
+    return f"provision_template:{template_id}"
+
+
+async def _template_secrets(
+    session: Any, state: Any, tenant_id: UUID, template: ProvisionTemplate
+) -> dict[str, str]:
+    if template.secrets is None:
+        return {}
+    dek = await state.tenant_dek(session, tenant_id)
+    plain = Vault.decrypt(tenant_id, dek, _template_aad(template.id), template.secrets)
+    return dict(json.loads(plain))
+
+
+async def _template_out(
+    session: Any, state: Any, tenant_id: UUID, template: ProvisionTemplate
+) -> TemplateOut:
+    stored = await _template_secrets(session, state, tenant_id, template)
+    return TemplateOut(
+        id=template.id,
+        name=template.name,
+        driver=template.driver,
+        body=TemplateBody.model_validate(template.body),
+        onu_admin_password_set="onu_admin_password" in stored,
+        onu_user_password_set="onu_user_password" in stored,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+    )
+
+
+async def _store_secrets(
+    session: Any, state: Any, tenant_id: UUID, template: ProvisionTemplate, body: TemplateIn
+) -> list[str]:
+    """Guarda cifradas solo las claves que el plan usa; las que no llegan, se conservan.
+
+    Devuelve los nombres de las claves guardadas (para la bitácora, nunca los valores).
+    """
+    stored = await _template_secrets(session, state, tenant_id, template)
+    given = {
+        name: value.get_secret_value()
+        for name, value in (
+            ("onu_admin_password", body.onu_admin_password),
+            ("onu_user_password", body.onu_user_password),
+        )
+        if value is not None
+    }
+    management = body.body.management
+    needed = management.secret_fields() if management is not None else []
+    kept = {name: given.get(name) or stored.get(name) for name in needed}
+    missing = [_SECRET_LABELS[name] for name, value in kept.items() if not value]
+    if missing:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Falta " + " y ".join(missing))
+    if kept:
+        dek = await state.tenant_dek(session, tenant_id)
+        data = json.dumps(kept).encode()
+        template.secrets = Vault.encrypt(tenant_id, dek, _template_aad(template.id), data)
+    else:
+        template.secrets = None
+    return sorted(kept)
+
+
 def _duplicate(exc: IntegrityError) -> HTTPException:
     if "provision_templates_tenant_id_name_key" in str(exc.orig):
         return HTTPException(status.HTTP_409_CONFLICT, "Ya hay una plantilla con ese nombre")
@@ -69,24 +138,28 @@ def _duplicate(exc: IntegrityError) -> HTTPException:
 
 
 @router.get("/v1/provision-templates", response_model=list[TemplateOut])
-async def list_templates(ctx: Tenant) -> list[ProvisionTemplate]:
+async def list_templates(ctx: Tenant, state: State) -> list[TemplateOut]:
     ctx.require("olt:read")
     async with ctx.session() as session:
         rows = await session.execute(select(ProvisionTemplate).order_by(ProvisionTemplate.name))
-        return list(rows.scalars())
+        return [
+            await _template_out(session, state, ctx.tenant_id, template)
+            for template in rows.scalars()
+        ]
 
 
 @router.get("/v1/provision-templates/{template_id}", response_model=TemplateOut)
-async def get_template(template_id: UUID, ctx: Tenant) -> ProvisionTemplate:
+async def get_template(template_id: UUID, ctx: Tenant, state: State) -> TemplateOut:
     ctx.require("olt:read")
     async with ctx.session() as session:
-        return await _get_template(session, template_id)
+        template = await _get_template(session, template_id)
+        return await _template_out(session, state, ctx.tenant_id, template)
 
 
 @router.post(
     "/v1/provision-templates", response_model=TemplateOut, status_code=status.HTTP_201_CREATED
 )
-async def create_template(body: TemplateIn, ctx: Tenant) -> ProvisionTemplate:
+async def create_template(body: TemplateIn, ctx: Tenant, state: State) -> TemplateOut:
     ctx.require("olt:write")
     try:
         async with ctx.session() as session:
@@ -95,6 +168,8 @@ async def create_template(body: TemplateIn, ctx: Tenant) -> ProvisionTemplate:
             )
             session.add(template)
             await session.flush()
+            saved = await _store_secrets(session, state, ctx.tenant_id, template, body)
+            await session.flush()
             await audit(
                 session,
                 tenant_id=ctx.tenant_id,
@@ -102,22 +177,25 @@ async def create_template(body: TemplateIn, ctx: Tenant) -> ProvisionTemplate:
                 action="template.create",
                 target_type="provision_template",
                 target_id=str(template.id),
-                after={"name": template.name, "body": template.body},
+                after={"name": template.name, "body": template.body, "claves_onu": saved},
                 source_ip=ctx.client_ip,
             )
             await session.refresh(template)
-            return template
+            return await _template_out(session, state, ctx.tenant_id, template)
     except IntegrityError as exc:
         raise _duplicate(exc) from exc
 
 
 @router.put("/v1/provision-templates/{template_id}", response_model=TemplateOut)
-async def update_template(template_id: UUID, body: TemplateIn, ctx: Tenant) -> ProvisionTemplate:
+async def update_template(
+    template_id: UUID, body: TemplateIn, ctx: Tenant, state: State
+) -> TemplateOut:
     ctx.require("olt:write")
     try:
         async with ctx.session() as session:
             template = await _get_template(session, template_id)
             before = {"name": template.name, "body": template.body}
+            saved = await _store_secrets(session, state, ctx.tenant_id, template, body)
             template.name = body.name.strip()
             template.body = body.body.model_dump()
             template.updated_at = func.now()
@@ -130,11 +208,11 @@ async def update_template(template_id: UUID, body: TemplateIn, ctx: Tenant) -> P
                 target_type="provision_template",
                 target_id=str(template.id),
                 before=before,
-                after={"name": template.name, "body": template.body},
+                after={"name": template.name, "body": template.body, "claves_onu": saved},
                 source_ip=ctx.client_ip,
             )
             await session.refresh(template)
-            return template
+            return await _template_out(session, state, ctx.tenant_id, template)
     except IntegrityError as exc:
         raise _duplicate(exc) from exc
 
@@ -325,7 +403,18 @@ async def _start(
         if template.driver != olt.driver:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "El plan es de otro tipo de OLT")
         name, body = template.name, template.body
-        pending = _unverified(olt, kind, TemplateBody.model_validate(body), request)
+        parsed = TemplateBody.model_validate(body)
+        pending = _unverified(olt, kind, parsed, request)
+        # Las claves de las cuentas de la ONU viajan con el trabajo, cifradas como las del cliente.
+        stored = await _template_secrets(session, state, ctx.tenant_id, template)
+        needed = parsed.management.secret_fields() if parsed.management is not None else []
+        missing = [_SECRET_LABELS[field] for field in needed if not stored.get(field)]
+        if missing:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"El plan no tiene guardada {' ni '.join(missing)}: ábrelo y guárdalo con ella",
+            )
+        secrets = {**secrets, **{field: stored[field] for field in needed}}
     if pending and not state.settings.allow_unverified_writes:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -391,9 +480,10 @@ async def configure_onu(olt_id: UUID, body: ConfigureIn, ctx: Tenant, state: Sta
             (await _get_template(session, body.template_id)).body
         )
     _check_client(template, body)
-    if template.wan is None and not body.wifi_name:
+    if template.wan is None and not body.wifi_name and template.management is None:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Este plan no tiene internet ni WiFi que poner"
+            status.HTTP_400_BAD_REQUEST,
+            "Este plan no tiene internet, WiFi ni gestión remota que poner",
         )
     request = {
         "pon": body.pon,

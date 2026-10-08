@@ -69,6 +69,7 @@ async function remove(template: ProvisionTemplate): Promise<void> {
             {{ template.body.wan ? 'Router PPPoE' : 'Bridge' }}
           </StatusPill>
           <StatusPill v-if="template.body.wifi" tone="accent">WiFi</StatusPill>
+          <StatusPill v-if="template.body.management" tone="accent">Gestión remota</StatusPill>
         </div>
       </div>
       <div v-if="can('olt:write')" class="flex items-center gap-1">

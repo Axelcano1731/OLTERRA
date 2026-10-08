@@ -16,7 +16,7 @@ import re
 import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
@@ -25,6 +25,7 @@ from olterra.identifiers import normalize_gpon_serial
 
 _NAME = r"^[A-Za-z0-9_.\-]{1,32}$"
 _LABEL = r"^[A-Za-z0-9_\-]{1,32}$"
+_ACCOUNT = r"^[A-Za-z0-9_.@\-]{1,32}$"
 _UNI = re.compile(r"^(?:lan[1-8]|ssid[1-8])$")
 
 
@@ -85,6 +86,63 @@ class Wifi(BaseModel):
     ssid_index: int = Field(1, ge=1, le=8)
 
 
+# Servicios de la ONU que se pueden abrir desde la WAN (además del ping), en el orden de la
+# ayuda de la V1600G0-B (`onu N pri acl ?`).
+WAN_SERVICES: tuple[str, ...] = ("telnet", "ftp", "http", "https", "tftp", "ssh")
+WanService = Literal["telnet", "ftp", "http", "https", "tftp", "ssh"]
+_WEB: tuple[WanService, ...] = ("http", "https")
+
+
+class Management(BaseModel):
+    """Gestión remota de la ONU: nivel de firewall y qué responde desde internet (la WAN).
+
+    Desde la LAN todo sigue abierto. Lo que no está en ``wan_access`` se cierra desde la WAN.
+    """
+
+    firewall: Literal["disable", "low", "middle", "high"] | None = Field(
+        "low", description="Nivel de firewall de la ONU (disable = apagado); null = no se toca"
+    )
+    ping_wan: bool = Field(True, description="Responder ping desde internet")
+    wan_access: list[WanService] = Field(
+        default_factory=lambda: list(_WEB),
+        description="Servicios de la ONU a los que se entra desde internet",
+    )
+
+    admin_user: str | None = Field(
+        None,
+        pattern=_ACCOUNT,
+        description="Usuario de administración de la ONU; null = las cuentas de la ONU no se "
+        "tocan. Su clave se guarda cifrada aparte (onu_admin_password), nunca en este cuerpo",
+    )
+    user_account: str | None = Field(
+        None,
+        pattern=_ACCOUNT,
+        description="Cuenta normal del cliente (user); null = desactivada. Clave aparte "
+        "(onu_user_password)",
+    )
+
+    @field_validator("wan_access")
+    @classmethod
+    def _unique(cls, value: list[WanService]) -> list[WanService]:
+        return sorted(set(value), key=WAN_SERVICES.index)
+
+    @model_validator(mode="after")
+    def _accounts(self) -> Management:
+        # La OLT pide las dos cuentas en el mismo comando, empezando por la de administración.
+        if self.user_account is not None and self.admin_user is None:
+            raise ValueError("La cuenta normal de la ONU va junto con la de administración")
+        return self
+
+    def secret_fields(self) -> list[str]:
+        """Las claves que este plan necesita guardadas (cifradas) para poder aplicarse."""
+        fields = []
+        if self.admin_user is not None:
+            fields.append("onu_admin_password")
+        if self.user_account is not None:
+            fields.append("onu_user_password")
+        return fields
+
+
 class TemplateBody(BaseModel):
     auth_profile: str = Field(
         "default", pattern=_NAME, description="Perfil con el que se autoriza (onu add … profile)"
@@ -96,6 +154,7 @@ class TemplateBody(BaseModel):
     service_ports: list[ServicePort] = Field(default_factory=list, max_length=8)
     wan: Wan | None = None
     wifi: Wifi | None = None
+    management: Management | None = None
 
     @model_validator(mode="after")
     def _references(self) -> TemplateBody:
@@ -257,11 +316,13 @@ def service_calls(
         raise ParamError("El WiFi necesita SSID y clave")
     if data.wifi_ssid is not None and template.wifi is None:
         raise ParamError("La plantilla no configura WiFi")
-    wants_private = template.wan is not None or data.wifi_ssid is not None
+    wants_private = (
+        template.wan is not None or data.wifi_ssid is not None or template.management is not None
+    )
     if wants_private and not data.equipment_id:
         raise ParamError(
             "Falta el Equipment ID de la ONU (sale en el autofind, p. ej. VSOLV422): sin él la "
-            "OLT no configura la WAN ni el WiFi"
+            "OLT no configura la WAN, el WiFi ni la gestión remota"
         )
     call = _caller(data)
     calls: list[CommandCall] = []
@@ -287,6 +348,35 @@ def service_calls(
         calls.append(
             call("onu.wifi_ssid", ssid_index=template.wifi.ssid_index, ssid=data.wifi_ssid)
         )
+    if template.management is not None:
+        calls += management_calls(template.management, call)
+    return calls
+
+
+def management_calls(management: Management, call: Callable[..., CommandCall]) -> list[CommandCall]:
+    """Cuentas, firewall y acceso desde la WAN. Cada servicio queda explícito: abierto o cerrado.
+
+    Las cuentas van primero: la clave de administración cambia antes de abrir la web.
+    """
+    calls: list[CommandCall] = []
+    if management.admin_user is not None and management.user_account is not None:
+        calls.append(
+            call(
+                "onu.account_admin_user",
+                admin_user=management.admin_user,
+                user_name=management.user_account,
+            )
+        )
+    elif management.admin_user is not None:
+        calls.append(call("onu.account_admin", admin_user=management.admin_user))
+    if management.firewall is not None:
+        calls.append(call("onu.firewall", level=management.firewall))
+
+    def acl(service: str, open_from_wan: bool) -> CommandCall:
+        return call("onu.acl", service=service, wan_access="enable" if open_from_wan else "disable")
+
+    calls.append(acl("ping", management.ping_wan))
+    calls += [acl(service, service in management.wan_access) for service in WAN_SERVICES]
     return calls
 
 
@@ -294,7 +384,7 @@ def configure_calls(template: TemplateBody, data: OnuServiceData) -> list[Comman
     """WAN y WiFi de una ONU ya autorizada (reintento o cambio de cliente), y guardar."""
     calls = service_calls(template, data)
     if not calls:
-        raise ParamError("La plantilla no tiene WAN ni WiFi que configurar")
+        raise ParamError("La plantilla no tiene WAN, WiFi ni gestión remota que configurar")
     return [*calls, CommandCall("config.save")]
 
 
@@ -320,7 +410,7 @@ class OnuRunningConfig:
     serial: str | None
     template: dict[str, Any]
     client: dict[str, Any] = field(default_factory=dict)
-    # Líneas que la plantilla no reproduce (ACL, firewall, otras WAN): se muestran, no se copian.
+    # Líneas que la plantilla no reproduce (otras WAN, otros SSID): se muestran, no se copian.
     ignored: list[str] = field(default_factory=list)
 
 
@@ -367,6 +457,23 @@ _LINES: list[tuple[str, re.Pattern[str]]] = [
     ),
     ("wan_bind", re.compile(_P + r"pri wan_adv index (?P<i>\d+) bind (?P<binds>.+)")),
     ("wifi", re.compile(_P + r"pri wifi_ssid (?P<i>\d+) name (?P<ssid>\S+) .*")),
+    ("firewall", re.compile(_P + r"pri firewall level (?P<level>disable|low|middle|high)")),
+    (
+        "accounts",
+        re.compile(
+            _P + r"pri username admin_control enable (?P<admin>\S+) \S+ user_control "
+            r"(?:disable|enable (?P<user>\S+) \S+)"
+        ),
+    ),
+    (
+        "acl",
+        re.compile(
+            _P + r"pri acl (?P<service>ping|telnet|ftp|http|https|tftp|ssh) control enable "
+            r"lan enable "
+            r"wan (?P<wan>enable|disable) ipv4_control disable ipv6_control disable"
+            r"(?: port \d+)?"
+        ),
+    ),
 ]
 
 
@@ -424,6 +531,7 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
         ],
         "wan": None,
         "wifi": None,
+        "management": None,
     }
     client: dict[str, Any] = {"serial": add["serial"]}
     if "desc" in found:
@@ -452,6 +560,17 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
         client["wifi_ssid"] = wifi[0]["ssid"]
     if "equid" in found:
         client["equipment_id"] = found["equid"][0]["id"]
+    if "firewall" in found or "acl" in found or "accounts" in found:
+        from_wan = {m["service"] for m in found.get("acl", []) if m["wan"] == "enable"}
+        accounts = found["accounts"][0] if "accounts" in found else None
+        template["management"] = {
+            "firewall": found["firewall"][0]["level"] if "firewall" in found else None,
+            "ping_wan": "ping" in from_wan,
+            "wan_access": [service for service in WAN_SERVICES if service in from_wan],
+            # Los usuarios sí; las claves no se copian: se escriben al guardar el plan.
+            "admin_user": accounts["admin"] if accounts else None,
+            "user_account": accounts["user"] if accounts else None,
+        }
     # Lo que se leyó pero no entra a la plantilla (otras WAN, otros SSID) también se avisa.
     for kind in ("wan_pppoe", "wifi"):
         for extra in found.get(kind, [])[1:]:

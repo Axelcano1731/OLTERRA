@@ -17,7 +17,7 @@ import pytest
 from sqlalchemy import select
 
 from olterra.api import jobs
-from olterra.db.models import AuditLog, PlanRun, ProvisionJob
+from olterra.db.models import AuditLog, PlanRun, ProvisionJob, ProvisionTemplate
 from olterra.db.session import create_engine, session_factory
 from olterra.executor.bus import MemoryBus
 from olterra.executor.plan import Plan
@@ -33,6 +33,7 @@ from tests.integration.test_api import (  # noqa: F401 - fixtures y ayudas compa
 pytestmark = pytest.mark.postgres
 
 PPPOE_KEY, WIFI_KEY = "Ppp#Sim-2026", "Wifi#Sim-2026"
+ONU_ADMIN_KEY = "Admin#Onu-2026"
 TEMPLATE = {
     "auth_profile": "default",
     "tconts": [{"id": 1, "name": "INTERNET", "dba": "default1"}],
@@ -41,6 +42,12 @@ TEMPLATE = {
     "service_ports": [{"id": 1, "gemport": 1, "user_vlan": 111, "vlan": 111, "cos": 0}],
     "wan": {"vlan": 111, "binds": ["lan1", "lan2", "lan3", "lan4", "ssid1"]},
     "wifi": {"ssid_index": 1},
+    "management": {
+        "firewall": "low",
+        "ping_wan": True,
+        "wan_access": ["http", "https"],
+        "admin_user": "soporte",
+    },
 }
 
 
@@ -101,11 +108,33 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
                 firmware="V1.4.8R",
                 enable_password="olterra-sim",
             )
-            template = env.client.post(
+            # Sin la contraseña de administración de la ONU el plan no se guarda.
+            missing = env.client.post(
                 "/v1/provision-templates",
                 json={"name": "Hogar VLAN 111", "body": TEMPLATE},
                 headers=env.headers(),
+            )
+            assert missing.status_code == 400
+            assert "contraseña de administración" in missing.json()["detail"]
+            template = env.client.post(
+                "/v1/provision-templates",
+                json={
+                    "name": "Hogar VLAN 111",
+                    "body": TEMPLATE,
+                    "onu_admin_password": ONU_ADMIN_KEY,
+                },
+                headers=env.headers(),
             ).json()
+            assert template["onu_admin_password_set"] is True
+            assert not template["onu_user_password_set"]
+            # Editar el plan sin escribirla otra vez la conserva.
+            renamed = env.client.put(
+                f"/v1/provision-templates/{template['id']}",
+                json={"name": "Hogar VLAN 111", "body": TEMPLATE},
+                headers=env.headers(),
+            )
+            assert renamed.status_code == 200 and renamed.json()["onu_admin_password_set"]
+            assert ONU_ADMIN_KEY not in renamed.text
 
             # 1) Buscar: todos los PON y la lista de clientes, en una sola lectura.
             scan = env.client.post(f"/v1/olts/{olt['id']}/onus/scan", headers=env.headers())
@@ -153,6 +182,20 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
             # La V422 del simulador tiene 2 LAN: la WAN no se amarra a lan3 ni lan4.
             assert "onu 4 pri wan_adv index 1 bind lan1 lan2 ssid1" in new_onu.config
             assert "onu 4 pri equid VSOLV422" in new_onu.config
+            # Gestión remota: firewall bajo, ping y web abiertos desde internet; telnet cerrado.
+            acl = "control enable lan enable wan {} ipv4_control disable ipv6_control disable"
+            assert "onu 4 pri firewall level low" in new_onu.config
+            assert f"onu 4 pri acl https {acl.format('enable')}" in new_onu.config
+            assert f"onu 4 pri acl telnet {acl.format('disable')}" in new_onu.config
+            # La cuenta de administración cambia antes de abrir la web.
+            account = (
+                f"onu 4 pri username admin_control enable soporte {ONU_ADMIN_KEY} "
+                "user_control disable"
+            )
+            assert account in simulator.sim.commands_seen
+            assert simulator.sim.commands_seen.index(account) < simulator.sim.commands_seen.index(
+                f"onu 4 pri acl https {acl.format('enable')}"
+            )
             assert any(f"pwd {PPPOE_KEY}" in c for c in simulator.sim.commands_seen)
             # La WAN entra después de guardar el servicio, no en el mismo plan que "onu add".
             seen = simulator.sim.commands_seen
@@ -167,6 +210,7 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
     # Ni en los planes publicados, ni en la base, ni en la bitácora, ni en el trabajo.
     published = json.dumps([p.model_dump_json() for p in env.publisher.plans])
     assert PPPOE_KEY not in published and WIFI_KEY not in published
+    assert ONU_ADMIN_KEY not in published
 
     async def stored() -> tuple[str, Any]:
         engine = create_engine(env.pg.owner_url)
@@ -175,12 +219,21 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
                 runs = (await session.execute(select(PlanRun.calls, PlanRun.result))).all()
                 audits = (await session.execute(select(AuditLog.after))).scalars().all()
                 row = await session.get(ProvisionJob, UUID(job["id"]))
-                return json.dumps([list(map(str, r)) for r in runs]) + json.dumps(list(audits)), row
+                saved = await session.get(ProvisionTemplate, UUID(template["id"]))
+                assert saved is not None and saved.secrets  # cifrada, no vacía
+                plain = [str(saved.body) + str(saved.secrets)]
+                return (
+                    json.dumps([list(map(str, r)) for r in runs])
+                    + json.dumps(list(audits))
+                    + json.dumps(plain),
+                    row,
+                )
         finally:
             await engine.dispose()
 
     dumped, row = asyncio.run(stored())
     assert PPPOE_KEY not in dumped and WIFI_KEY not in dumped
+    assert ONU_ADMIN_KEY not in dumped
     assert row is not None and row.secrets is None  # las claves cifradas se borran al terminar
 
 
@@ -192,7 +245,7 @@ def test_authorize_explains_problems_in_plain_words(env: Env, no_wait: None) -> 
             olt = create_olt(env, real_ip="127.0.0.1", ssh_port=simulator.port, model="V1600G0-B")
             template = env.client.post(
                 "/v1/provision-templates",
-                json={"name": "Plan B", "body": TEMPLATE},
+                json={"name": "Plan B", "body": TEMPLATE, "onu_admin_password": ONU_ADMIN_KEY},
                 headers=env.headers(),
             ).json()
             url = f"/v1/olts/{olt['id']}/onus/authorize"

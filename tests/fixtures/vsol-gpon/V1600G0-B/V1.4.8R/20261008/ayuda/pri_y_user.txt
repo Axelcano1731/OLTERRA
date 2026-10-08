@@ -1,0 +1,121 @@
+# Ayuda '?' de la V1600G0-B V1.4.8R (OLT_VIOTA, 2026-10-08). Solo consultas de ayuda: ninguna
+# línea se ejecutó. Las de "onu 6 pri …" en interface gpon 0/1; las de "user …" en config.
+
+===== user ?
+user
+  add              Add User to System
+  delete           Delete one user from system.
+  enable-password  Set user's enable password.
+  list             List all users in system
+  login-password   Set user's login password.
+  manage           Manage System's users.
+  role             Change User's system role
+
+===== user login-password ?
+user login-password
+  <username>  Input username that you want to set login password.
+
+===== user login-password admin ?
+user login-password admin
+  <cr>  Just Press Enter to Execute command!
+
+===== user enable-password ?
+user enable-password
+  <username>  Input username that you want to set enable password.
+
+===== user enable-password admin ?
+user enable-password admin
+  <cr>  Just Press Enter to Execute command!
+
+===== onu 6 pri ?
+onu 6 pri
+  acl                      Specify ONU acl.
+  ap                       Specify ONU AP configuration.
+  dhcp_server              Specify ONU DHCP Server.
+  dhcp_server_ipv6         Specify ONU DHCP Server ipv6 configuration.
+  factory_reset            Specify onu factory and reset control.
+  mac_clean                Specify onu mac clean control.
+  save_config              Specify onu save configuration control.
+  firewall                 Specify ONU firewall.
+  h248_param_config        Specify H.248 Server config.
+  h248_signal_media_alone  Specify H.248 Signal/Media Alone Setting.
+  h248_user_config         Specify H.248 User config.
+  lan_bind_mode            Specify lan binding mode.
+  loopback_detect          Specify ONU loopback detection configuration.
+  mac_acl_group            Specify mac acl group configuration.
+  mac_acl_rule             Specify mac acl rule configuration.
+  mac_aging_time           Specify onu mac aging time.
+  mac_limit                Specify onu mac limit.
+  mqtt                     Specify ONU MQTT configuration.
+  nat_type                 Specify Nat Type configuration.
+  omci                     omci  Specify omci information.
+  onu_mode                 Specify ONU Mode configuration.
+  onu_selfdiag_alarm       Specify ONU Self Diagnosis Alarm configuration.
+  onu_selfdiag_capture     Specify ONU Self Diagnosis Capture Package configuration.
+  onu_selfdiagnosis        Specify ONU Self Diagnosis configuration.
+  port_isolate             Specify onu port isolate.
+  spanning_tree            Specify onu spanning tree.
+  catv                     Specify onu catv operation.
+  igmp                     Specify onu igmp operation.
+  reset_button             Specify ONU reset button control configuration.
+  sip_digit_map            Sip Digit map config.
+  sip_global_param         Sip param config.
+  speed_limit              Specify onu speed limit.
+  tr069_mng                Specify ONU tr069 manage configuration.
+  tr069_stun               Specify tr069 stun configuration.
+  upnp                     Specify UPnP configuration.
+  username                 Specify ONU username administration.
+  voip_global_param        Specify voip global ip vlan param config.
+  voip_timer               Specify voip timer information.
+  wan_adv                  Specify ONU wan connection advance.
+  wan_conn                 Specify ONU wan connection.
+  wifi_ssid                Specify onu wifi ssid.
+  wifi_switch              Specify ONU wifi_switch.
+  equid                    Equipment ID.
+  pots                     Specify voip pots information.
+  type                     Onu Type.
+
+===== onu 6 pri username ?
+onu 6 pri username
+  admin_control  Specify ONU admin control.
+
+===== onu 6 pri username admin ?
+onu 6 pri username admin
+  disable  Specify ONU admin control disable.
+  enable   Specify ONU admin control enable.
+
+===== onu 6 pri tr069_mng ?
+onu 6 pri tr069_mng
+  disable  Specify disable function.
+  enable   Specify enable function.
+
+===== onu 6 pri acl ?
+onu 6 pri acl
+  show    Specify ONU acl show.
+  telnet  Specify ONU acl telnet.
+  ftp     Specify ONU acl ftp.
+  http    Specify ONU acl http.
+  https   Specify ONU acl https.
+  tftp    Specify ONU acl tftp.
+  ping    Specify ONU acl ping.
+  ssh     Specify ONU acl ssh.
+
+===== onu 6 pri acl http ?
+onu 6 pri acl http
+  control  Specify ONU acl control.
+
+===== onu 6 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable ?
+onu 6 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable
+  port  Specify ONU protocol port.
+  <cr>  Just Press Enter to Execute command!
+
+===== onu 6 pri firewall ?
+onu 6 pri firewall
+  level  Specify ONU firewall level.
+
+===== onu 6 pri firewall level ?
+onu 6 pri firewall level
+  disable  Specify ONU firewall level disable.
+  high     Specify ONU firewall level high.
+  low      Specify ONU firewall level low.
+  middle   Specify ONU firewall level middle.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Braces, Copy, LoaderCircle, Save, SlidersHorizontal } from '@lucide/vue'
+import { Braces, Copy, LoaderCircle, Save, ShieldCheck, SlidersHorizontal } from '@lucide/vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -14,7 +14,14 @@ import {
 } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { UNI_PORTS, bodyToSimple, emptySimple, simpleToBody } from '@/lib/templates'
+import {
+  FIREWALL_LEVELS,
+  UNI_PORTS,
+  WAN_SERVICES,
+  bodyToSimple,
+  emptySimple,
+  simpleToBody,
+} from '@/lib/templates'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
 
@@ -33,6 +40,13 @@ const loadError = ref<string | null>(null)
 const saving = ref(false)
 const saveError = ref<string | null>(null)
 const submitted = ref(false)
+
+// Claves de las cuentas de la ONU: se escriben aquí y van cifradas; la API no las devuelve.
+const ACCOUNT = /^[A-Za-z0-9_.@-]{1,32}$/
+const ONU_PASSWORD = /^[!-~]{6,63}$/
+const adminPassword = ref('')
+const userPassword = ref('')
+const storedPasswords = reactive({ admin: false, user: false })
 
 const olts = useAsync(listOlts)
 const copy = reactive({ oltId: '', pon: 1, onu: 1 })
@@ -65,6 +79,8 @@ onMounted(async () => {
   try {
     const template = await getTemplate(props.id)
     name.value = template.name
+    storedPasswords.admin = template.onu_admin_password_set
+    storedPasswords.user = template.onu_user_password_set
     setBody(template.body)
   } catch (caught) {
     loadError.value = errorText(caught)
@@ -106,9 +122,27 @@ const problems = computed(() => {
     if (simple.limitDown && !PROFILE.test(simple.limitDown)) found.limitDown = 'Sin espacios.'
     if (simple.pppoe && simple.binds.length === 0) found.binds = 'Elige al menos un puerto.'
     if (simple.pppoe && (simple.mtu < 576 || simple.mtu > 1500)) found.mtu = 'De 576 a 1500.'
+    if (simple.management && simple.accounts) {
+      if (!ACCOUNT.test(simple.adminUser.trim())) found.adminUser = 'Usuario sin espacios.'
+      const admin = passwordProblem(adminPassword.value, storedPasswords.admin)
+      if (admin) found.adminPassword = admin
+      if (simple.userAccount) {
+        if (!ACCOUNT.test(simple.userName.trim())) found.userName = 'Usuario sin espacios.'
+        const user = passwordProblem(userPassword.value, storedPasswords.user)
+        if (user) found.userPassword = user
+      }
+    }
   }
   return found
 })
+
+function passwordProblem(value: string, stored: boolean): string | null {
+  if (!value) return stored ? null : 'Escribe la contraseña.'
+  if (!ONU_PASSWORD.test(value) || value.includes('?')) {
+    return 'De 6 a 63 caracteres, sin espacios ni signo de pregunta.'
+  }
+  return null
+}
 
 function show(field: string): string | undefined {
   return submitted.value ? problems.value[field] : undefined
@@ -131,7 +165,12 @@ async function save(): Promise<void> {
   }
   saving.value = true
   try {
-    const input = { name: name.value.trim(), body: payload }
+    const input = {
+      name: name.value.trim(),
+      body: payload,
+      ...(adminPassword.value ? { onu_admin_password: adminPassword.value } : {}),
+      ...(userPassword.value ? { onu_user_password: userPassword.value } : {}),
+    }
     if (props.id) await updateTemplate(props.id, input)
     else await createTemplate(input)
     await router.push({ name: 'templates' })
@@ -181,6 +220,16 @@ watch(copyPlan.plan, (plan) => {
   }
 })
 
+function toggleWanService(service: (typeof WAN_SERVICES)[number]['value']): void {
+  simple.wanAccess = simple.wanAccess.includes(service)
+    ? simple.wanAccess.filter((item) => item !== service)
+    : [...simple.wanAccess, service]
+}
+
+const opensWeb = computed(
+  () => simple.management && simple.wanAccess.some((s) => s === 'http' || s === 'https'),
+)
+
 function toggleBind(port: string): void {
   simple.binds = simple.binds.includes(port)
     ? simple.binds.filter((item) => item !== port)
@@ -191,7 +240,7 @@ function toggleBind(port: string): void {
 <template>
   <PageHeader
     :title="id ? 'Editar plan' : 'Nuevo plan'"
-    description="Lo que es igual para todos los clientes de un plan: perfiles, VLAN y si la ONU marca PPPoE y lleva WiFi. Lo de cada cliente (serial, nombre, usuario y claves) se pide en cada alta."
+    description="Lo que es igual para todos los clientes de un plan: perfiles, VLAN, si la ONU marca PPPoE y lleva WiFi, y su gestión remota. Lo de cada cliente (nombre, usuario y claves) se pide en cada alta."
     :back="{ name: 'templates' }"
     back-label="Planes"
   />
@@ -421,6 +470,129 @@ function toggleBind(port: string): void {
             la ONU no se toca.
           </p>
         </fieldset>
+
+        <fieldset class="rounded-lg border border-line p-4">
+          <label class="flex items-center gap-2 font-medium">
+            <input v-model="simple.management" type="checkbox" class="size-4" />
+            <ShieldCheck class="size-4 text-muted" />
+            Gestión remota de la ONU
+          </label>
+          <p class="mt-1 text-sm text-muted">
+            Para entrar a la ONU del cliente desde internet. Desde la casa del cliente (LAN) todo
+            sigue abierto; desde internet solo lo que marques.
+          </p>
+          <div v-if="simple.management" class="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <label for="firewall" class="label">Firewall de la ONU</label>
+              <select id="firewall" v-model="simple.firewall" class="input">
+                <option v-for="level in FIREWALL_LEVELS" :key="level.value" :value="level.value">
+                  {{ level.label }}
+                </option>
+              </select>
+            </div>
+            <label class="flex items-center gap-2 self-end pb-2 text-sm sm:col-span-2">
+              <input v-model="simple.pingWan" type="checkbox" class="size-4" />
+              Responder ping desde internet
+            </label>
+            <div class="sm:col-span-3">
+              <span class="label">Entrar a la ONU desde internet por</span>
+              <div class="flex flex-wrap gap-4">
+                <label
+                  v-for="service in WAN_SERVICES"
+                  :key="service.value"
+                  class="flex items-center gap-1.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    class="size-4"
+                    :checked="simple.wanAccess.includes(service.value)"
+                    @change="toggleWanService(service.value)"
+                  />
+                  {{ service.label }}
+                </label>
+              </div>
+              <p class="hint">Lo que no marques queda cerrado desde internet.</p>
+            </div>
+            <div class="border-t border-line pt-4 sm:col-span-3">
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <input v-model="simple.accounts" type="checkbox" class="size-4" />
+                Poner el usuario y la contraseña de administración de la ONU
+              </label>
+              <p class="hint">
+                Igual para todos los clientes del plan. La contraseña se guarda cifrada y no se
+                vuelve a mostrar.
+              </p>
+            </div>
+            <template v-if="simple.accounts">
+              <div>
+                <label for="admin-user" class="label">Usuario de administración</label>
+                <input
+                  id="admin-user"
+                  v-model="simple.adminUser"
+                  class="input"
+                  autocomplete="off"
+                  :aria-invalid="!!show('adminUser')"
+                />
+                <p v-if="show('adminUser')" class="hint text-danger">{{ show('adminUser') }}</p>
+              </div>
+              <div class="sm:col-span-2">
+                <label for="admin-password" class="label">Contraseña de administración</label>
+                <input
+                  id="admin-password"
+                  v-model="adminPassword"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  :placeholder="
+                    storedPasswords.admin ? 'Guardada; escribe otra para cambiarla' : ''
+                  "
+                  :aria-invalid="!!show('adminPassword')"
+                />
+                <p v-if="show('adminPassword')" class="hint text-danger">
+                  {{ show('adminPassword') }}
+                </p>
+              </div>
+              <label class="flex items-center gap-2 text-sm sm:col-span-3">
+                <input v-model="simple.userAccount" type="checkbox" class="size-4" />
+                Dejar activa la cuenta normal del cliente (si no, queda desactivada)
+              </label>
+              <template v-if="simple.userAccount">
+                <div>
+                  <label for="user-name" class="label">Usuario del cliente</label>
+                  <input
+                    id="user-name"
+                    v-model="simple.userName"
+                    class="input"
+                    autocomplete="off"
+                    :aria-invalid="!!show('userName')"
+                  />
+                  <p v-if="show('userName')" class="hint text-danger">{{ show('userName') }}</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="user-password" class="label">Contraseña del cliente</label>
+                  <input
+                    id="user-password"
+                    v-model="userPassword"
+                    type="password"
+                    class="input"
+                    autocomplete="new-password"
+                    :placeholder="
+                      storedPasswords.user ? 'Guardada; escribe otra para cambiarla' : ''
+                    "
+                    :aria-invalid="!!show('userPassword')"
+                  />
+                  <p v-if="show('userPassword')" class="hint text-danger">
+                    {{ show('userPassword') }}
+                  </p>
+                </div>
+              </template>
+            </template>
+          </div>
+          <AlertBox v-if="opensWeb && !simple.accounts" tone="warning" class="mt-4">
+            Con la web de la ONU abierta a internet, cualquiera que adivine su usuario y contraseña
+            de administración entra. No dejes la contraseña de fábrica: ponla aquí arriba.
+          </AlertBox>
+        </fieldset>
       </div>
 
       <div v-else class="mt-4">
@@ -435,6 +607,36 @@ function toggleBind(port: string): void {
         <p class="hint">
           Para varias VLAN, T-CONT o GEM. La API valida que cada GEM use un T-CONT que exista.
         </p>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="json-admin-password" class="label">
+              Contraseña de administración de la ONU
+              <span class="text-muted">(si el plan trae admin_user)</span>
+            </label>
+            <input
+              id="json-admin-password"
+              v-model="adminPassword"
+              type="password"
+              class="input"
+              autocomplete="new-password"
+              :placeholder="storedPasswords.admin ? 'Guardada; escribe otra para cambiarla' : ''"
+            />
+          </div>
+          <div>
+            <label for="json-user-password" class="label">
+              Contraseña de la cuenta normal
+              <span class="text-muted">(si trae user_account)</span>
+            </label>
+            <input
+              id="json-user-password"
+              v-model="userPassword"
+              type="password"
+              class="input"
+              autocomplete="new-password"
+              :placeholder="storedPasswords.user ? 'Guardada; escribe otra para cambiarla' : ''"
+            />
+          </div>
+        </div>
       </div>
     </section>
 

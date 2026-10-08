@@ -46,7 +46,7 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `olts` | OLT: driver, modelo, firmware, IP real, IP NAT única, credencial, llave SSH fijada, capacidades, ubicación (PostGIS) | leer, crear, cambiar, borrar |
 | `onus` | ONU por OLT/PON/índice: serial, fase, potencias, distancia, cliente | leer, crear, cambiar, borrar |
 | `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas). Índice por OLT para el historial de consultas | leer, crear, cambiar, borrar |
-| `provision_templates` | Plantillas de aprovisionamiento de ONU (`body` = perfiles, T-CONT, GEM, VLAN, WAN PPPoE, WiFi). Nada de un cliente ni claves | leer, crear, cambiar, borrar |
+| `provision_templates` | Plantillas de aprovisionamiento de ONU (`body` = perfiles, T-CONT, GEM, VLAN, WAN PPPoE, WiFi, gestión remota). Nada de un cliente. Las claves de las cuentas de la ONU van en `secrets`, cifradas con la DEK del tenant (AAD `provision_template:<id>`); la API solo dice si están guardadas | leer, crear, cambiar, borrar |
 | `users` | Usuarios de la interfaz: usuario único en la plataforma (sin distinguir mayúsculas), hash scrypt, rol, cambio obligatorio de contraseña, intentos fallidos y bloqueo | leer y cambiar (los crea `olterra-admin`) |
 | `user_sessions` | Sesiones de usuario: solo el SHA-256 del secreto del token, vencimiento y cierre | leer, crear, cambiar, borrar |
 | `provision_jobs` | Trabajos de alta de ONU: paso actual, datos del cliente sin claves, detalle y bitácora de pasos. Las claves PPPoE/WiFi van cifradas con la DEK del tenant (`secrets`) y se borran al terminar | leer, crear, cambiar, borrar |
@@ -83,6 +83,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0003` | Túnel SSTP para RouterOS 6: `transport` y `ppp_user` en `tunnel_routers`; cada transporte exige su credencial |
 | `0004` | `provision_templates` con RLS + FORCE y su política |
 | `0005` | `users`, `user_sessions`, `provision_jobs` (RLS + FORCE), `olts.pon_ports` y las funciones `olterra_login_lookup` y `olterra_due_provision_jobs` |
+| `0006` | `provision_templates.secrets`: claves cifradas de las cuentas de la ONU del plan |
 
 ## Correr las migraciones
 

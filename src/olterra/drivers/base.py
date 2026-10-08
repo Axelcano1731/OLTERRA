@@ -117,6 +117,13 @@ PARAM_TYPES: dict[str, Callable[[Any], str]] = {
     "ssid": _pattern(r"[A-Za-z0-9_.\-]{1,32}", "SSID de 1 a 32 caracteres sin espacios"),
     "pppoe_user": _pattern(r"[A-Za-z0-9_.@\-]{1,64}", "usuario PPPoE sin espacios"),
     "on_off": _pattern(r"enable|disable", "enable o disable"),
+    "firewall_level": _pattern(
+        r"disable|low|middle|high", "nivel de firewall: disable, low, middle o high"
+    ),
+    "onu_account": _pattern(r"[A-Za-z0-9_.@\-]{1,32}", "usuario de la ONU sin espacios"),
+    "onu_acl_service": _pattern(
+        r"ping|telnet|ftp|http|https|tftp|ssh", "servicio de la ONU inválido"
+    ),
     "uni_bind": _pattern(
         r"(?:lan[1-8]|ssid[1-8])(?: (?:lan[1-8]|ssid[1-8])){0,15}",
         "puertos de la ONU: lan1..lan8 y ssid1..ssid8 separados por espacio",

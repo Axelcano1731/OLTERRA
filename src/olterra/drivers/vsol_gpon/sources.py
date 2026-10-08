@@ -13,6 +13,10 @@ RUNNING_G0B = (
     "Configuración guardada de ONU reales en la V1600G0-B V1.4.8R ('show running-config onu N', "
     "2026-10-03): la OLT la escribe con la misma sintaxis con que se teclea; falta ejecutarla"
 )
+HELP_G0B = (
+    "Ayuda '?' de la V1600G0-B V1.4.8R (2026-10-08, "
+    "tests/fixtures/vsol-gpon/V1600G0-B/V1.4.8R/20261008/ayuda): sintaxis completa, falta ejecutarla"
+)
 INFERRED = "Inferido del patrón 'no onu …' del manual; confirmar en laboratorio"
 
 

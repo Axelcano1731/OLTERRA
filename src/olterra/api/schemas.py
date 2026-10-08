@@ -144,6 +144,20 @@ class TemplateIn(BaseModel):
         pattern=r"^[A-Za-z0-9_. \-]{1,48}$", description="p. ej. 'Hogar 100M VLAN 111'"
     )
     body: TemplateBody
+    # Claves de las cuentas de la ONU (body.management.admin_user / user_account). Sin valor se
+    # deja la que ya está guardada. Se guardan cifradas y no se devuelven nunca.
+    onu_admin_password: SecretStr | None = None
+    onu_user_password: SecretStr | None = None
+
+    @field_validator("onu_admin_password")
+    @classmethod
+    def _admin_password(cls, value: SecretStr | None) -> SecretStr | None:
+        return check_cli_secret(value, low=6, label="Contraseña de administración de la ONU")
+
+    @field_validator("onu_user_password")
+    @classmethod
+    def _user_password(cls, value: SecretStr | None) -> SecretStr | None:
+        return check_cli_secret(value, low=6, label="Contraseña de la cuenta normal de la ONU")
 
 
 class TemplateOut(BaseModel):
@@ -153,6 +167,9 @@ class TemplateOut(BaseModel):
     name: str
     driver: str
     body: TemplateBody
+    # Solo si están guardadas; las claves no salen de la base.
+    onu_admin_password_set: bool = False
+    onu_user_password_set: bool = False
     created_at: datetime
     updated_at: datetime
 

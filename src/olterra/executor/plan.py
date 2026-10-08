@@ -62,6 +62,8 @@ SECRET_FIELDS = (
     "new_enable_password",
     "pppoe_password",
     "wifi_key",
+    "onu_admin_password",
+    "onu_user_password",
 )
 _SECRET_PLACEHOLDER = re.compile(r"\{\{secret:([a-z_]+)\}\}")
 
@@ -137,6 +139,9 @@ class Credential(BaseModel):
     # Solo en planes de aprovisionamiento: las claves del cliente que se ponen en su ONU.
     pppoe_password: SecretStr | None = None
     wifi_key: SecretStr | None = None
+    # Cuentas de la ONU (administración y la normal del cliente), del plan de servicio.
+    onu_admin_password: SecretStr | None = None
+    onu_user_password: SecretStr | None = None
 
     def resolve_secrets(self, command: str) -> str:
         """Reemplaza los ``{{secret:campo}}`` de un comando. Falla si falta algún valor."""
@@ -177,6 +182,8 @@ class Credential(BaseModel):
             self.new_enable_password,
             self.pppoe_password,
             self.wifi_key,
+            self.onu_admin_password,
+            self.onu_user_password,
         ]
         return [v.get_secret_value() for v in values if v is not None]
 

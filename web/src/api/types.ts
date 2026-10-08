@@ -240,6 +240,21 @@ export interface Wan {
   binds: string[]
 }
 
+export type WanService = 'telnet' | 'ftp' | 'http' | 'https' | 'tftp' | 'ssh'
+
+/** Gestión remota de la ONU: firewall y qué responde desde internet (la WAN). */
+export interface Management {
+  /** null = no se toca. */
+  firewall: 'disable' | 'low' | 'middle' | 'high' | null
+  ping_wan: boolean
+  /** Lo que no está aquí se cierra desde la WAN. Desde la LAN todo sigue abierto. */
+  wan_access: WanService[]
+  /** Usuario de administración de la ONU; null = sus cuentas no se tocan. */
+  admin_user: string | null
+  /** Cuenta normal del cliente (user); null = desactivada. */
+  user_account: string | null
+}
+
 export interface TemplateBody {
   auth_profile: string
   onu_profile: string | null
@@ -249,6 +264,7 @@ export interface TemplateBody {
   service_ports: ServicePort[]
   wan: Wan | null
   wifi: { ssid_index: number } | null
+  management: Management | null
 }
 
 export interface ProvisionTemplate {
@@ -256,6 +272,9 @@ export interface ProvisionTemplate {
   name: string
   driver: string
   body: TemplateBody
+  /** Las claves de las cuentas de la ONU no se devuelven: solo si están guardadas. */
+  onu_admin_password_set: boolean
+  onu_user_password_set: boolean
   created_at: string
   updated_at: string
 }
@@ -263,6 +282,9 @@ export interface ProvisionTemplate {
 export interface TemplateIn {
   name: string
   body: TemplateBody
+  /** Sin valor se deja la guardada. */
+  onu_admin_password?: string
+  onu_user_password?: string
 }
 
 /** PPPoE y WiFi del cliente. Las claves solo viajan selladas; la API no las devuelve nunca. */
