@@ -74,7 +74,11 @@ def test_copy_a_real_onu_into_a_template() -> None:
         "equipment_id": "VSOLV422",
     }
     assert not any("pri equid" in line for line in copied.ignored)
-    assert any(line.startswith("onu 3 pri acl") for line in copied.ignored)
+    # Firewall y acceso desde la WAN también se copian (gestión remota).
+    assert template.management is not None
+    assert template.management.firewall == "low" and template.management.ping_wan
+    assert template.management.wan_access == ["telnet", "http", "https"]
+    assert copied.ignored == []
     assert not any("shared_key" in line and "******" not in line for line in copied.ignored)
 
 
@@ -83,14 +87,19 @@ def test_regenerated_commands_match_what_the_olt_saved() -> None:
     commands = rendered(template, client())
     saved = [line.strip() for line in running(3).splitlines() if line.startswith("onu ")]
     # La OLT agrega 'portid' al GEM y guarda 'pwd ******': todo lo demás, idéntico.
+    # La OLT agrega 'port N' a algunas ACL (el puerto por defecto).
     saved = [
-        line.replace(" portid 147", "")
+        re.sub(r" port \d+$", "", line)
+        .replace(" portid 147", "")
         .replace("pwd ******", "pwd {{secret:pppoe_password}}")
         .replace("shared_key ******", "shared_key {{secret:wifi_key}}")
         for line in saved
     ]
     for command in commands[:-1]:  # el último es 'write'
+        if " wan disable " in command:
+            continue  # lo cerrado desde la WAN se dice explícito; la OLT no lo guarda
         assert command in saved, command
+    assert "onu 3 pri acl ftp control enable lan enable wan disable" in " ".join(commands)
     assert commands[-1] == "write"
     assert not any(PPPOE_KEY in c or WIFI_KEY in c for c in commands)
 
@@ -147,8 +156,37 @@ def test_configure_an_onu_that_is_already_authorized() -> None:
     assert "onu.authorize" not in keys and "onu.service_port" not in keys
     assert "onu.wifi_ssid" not in keys  # sin SSID no se toca el WiFi
     bridge = TemplateBody(wan=None, wifi=None)
-    with pytest.raises(ParamError, match="ni WiFi"):
+    with pytest.raises(ParamError, match="ni gestión remota"):
         configure_calls(bridge, OnuServiceData(pon=1, onu=3))
+
+
+def test_remote_management_opens_only_what_the_plan_says() -> None:
+    template = TemplateBody.model_validate(
+        {"management": {"firewall": "low", "ping_wan": False, "wan_access": ["https", "http"]}}
+    )
+    data = OnuServiceData(pon=1, onu=5, equipment_id="VSOLV422")
+    commands = [
+        VSOL_GPON.command(call.key, MODEL, FIRMWARE).render(**call.params)
+        for call in configure_calls(template, data)
+    ]
+    tail = "ipv4_control disable ipv6_control disable"
+    assert commands == [
+        "onu 5 pri equid VSOLV422",
+        "onu 5 pri firewall level low",
+        f"onu 5 pri acl ping control enable lan enable wan disable {tail}",
+        f"onu 5 pri acl telnet control enable lan enable wan disable {tail}",
+        f"onu 5 pri acl ftp control enable lan enable wan disable {tail}",
+        f"onu 5 pri acl http control enable lan enable wan enable {tail}",
+        f"onu 5 pri acl https control enable lan enable wan enable {tail}",
+        "write",
+    ]
+    # Sin Equipment ID la OLT no habla el protocolo privado: se avisa antes de tocarla.
+    with pytest.raises(ParamError, match="gestión remota"):
+        configure_calls(template, OnuServiceData(pon=1, onu=5))
+    with pytest.raises(ValidationError):
+        TemplateBody.model_validate({"management": {"wan_access": ["ssh"]}})
+    with pytest.raises(ValidationError):
+        TemplateBody.model_validate({"management": {"firewall": "off"}})
 
 
 def test_unsupported_private_protocol_is_an_error() -> None:

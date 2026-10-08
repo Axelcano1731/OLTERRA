@@ -61,6 +61,10 @@ onu N pri wan_adv index 1 route ipv4 pppoe proxy disable user <u> pwd <clave> mo
 onu N pri wan_adv index 1 vlan tag wan_vlan <vlan> 0
 onu N pri wan_adv index 1 bind lan1 lan2 … ssid1
 onu N pri wifi_ssid 1 name <ssid> hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key <clave> rekey_interval 0
+onu N pri firewall level low                            (gestión remota)
+onu N pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu N pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable
+…                                                       (telnet, ftp, https: wan enable o disable)
 write
 ```
 
@@ -78,6 +82,12 @@ write
   number`): una V422 tiene 2 LAN, una V824 4. `show onu detail-info N` da el `Equipment ID`.
 - `show interface brief` da en una lectura los PON de la OLT y cada ONU con su descripción y si
   está arriba (la descripción larga empuja la columna de estado: se lee desde el final).
+- **Gestión remota** (sección `management` del plan): nivel de firewall y qué responde desde
+  internet. Cada servicio (ping, telnet, ftp, http, https) se manda explícito: `wan enable` si el
+  plan lo abre, `wan disable` si no, así un "Internet y WiFi" repetido también cierra lo que se
+  quitó. Desde la LAN todo queda abierto. A veces la OLT guarda además `port N` (el puerto por
+  defecto); no se manda. El usuario y la contraseña de administración de la ONU todavía no:
+  falta la sintaxis de la OLT (`onu N pri ?`).
 - La OLT guarda la clave PPPoE tapada (`pwd ******`) pero la WiFi **en claro** (`shared_key`):
   `redact` tapa las dos en cualquier salida.
 - Laboratorio 2026-10-07: `onu add` y `onu N desc` entraron bien; `onu N profile onu default`
@@ -178,6 +188,8 @@ inyectar otro comando en la OLT.
 | `onu.wan_vlan` | `onu {onu} pri wan_adv index {wan} vlan tag wan_vlan {vlan} {cos}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wan_bind` | `onu {onu} pri wan_adv index {wan} bind {binds}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wifi_ssid` | `onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key {wifi_key} rekey_interval 0` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:wifi_key}}` |
+| `onu.firewall` | `onu {onu} pri firewall level {level}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B. `level`: low, middle o high |
+| `onu.acl` | `onu {onu} pri acl {service} control enable lan enable wan {wan_access} ipv4_control disable ipv6_control disable` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B. `service`: ping, telnet, ftp, http, https; `wan_access`: enable o disable |
 | `config.save` | `write` | privilegiado | escritura | Manual v2.1 §22.2.1. VSOL pierde lo no guardado al reiniciar |
 | `snmp.set_community` | `snmp-server community {community} ro` (lleva clave) | config | escritura | Manual v2.1 §24.4.1 |
 | `snmp.add_trap_host` | `snmp-server host {host} version 2c community {community}` (lleva clave) | config | escritura | Manual v2.1 §24.4.2 |

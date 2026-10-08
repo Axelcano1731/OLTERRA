@@ -4,6 +4,11 @@
 
 ### Agregado
 
+- Gestión remota de la ONU en el plan: nivel de firewall, responder ping desde internet y qué
+  servicios (HTTP, HTTPS, Telnet, FTP) se abren desde la WAN; lo no marcado se cierra
+  explícitamente. Se aplica en el alta y en "Internet y WiFi", y "Copiar como plan" la trae de
+  una ONU que ya la tiene. Comandos `onu.firewall` y `onu.acl` con la sintaxis que guarda la
+  V1600G0-B. Falta el usuario y la contraseña de administración de la ONU (sintaxis por capturar).
 - Usuarios: entrar con usuario y contraseña (scrypt, contraseña inicial que se cambia al entrar,
   bloqueo tras 5 intentos, sesiones que vencen, roles admin/tecnico/lectura).
   `./olterra.sh usuario` y `./olterra.sh clave`; migración `0005`. La llave de API queda para

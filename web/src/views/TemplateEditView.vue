@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Braces, Copy, LoaderCircle, Save, SlidersHorizontal } from '@lucide/vue'
+import { Braces, Copy, LoaderCircle, Save, ShieldCheck, SlidersHorizontal } from '@lucide/vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -14,7 +14,14 @@ import {
 } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { UNI_PORTS, bodyToSimple, emptySimple, simpleToBody } from '@/lib/templates'
+import {
+  FIREWALL_LEVELS,
+  UNI_PORTS,
+  WAN_SERVICES,
+  bodyToSimple,
+  emptySimple,
+  simpleToBody,
+} from '@/lib/templates'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
 
@@ -181,6 +188,16 @@ watch(copyPlan.plan, (plan) => {
   }
 })
 
+function toggleWanService(service: (typeof WAN_SERVICES)[number]['value']): void {
+  simple.wanAccess = simple.wanAccess.includes(service)
+    ? simple.wanAccess.filter((item) => item !== service)
+    : [...simple.wanAccess, service]
+}
+
+const opensWeb = computed(
+  () => simple.management && simple.wanAccess.some((s) => s === 'http' || s === 'https'),
+)
+
 function toggleBind(port: string): void {
   simple.binds = simple.binds.includes(port)
     ? simple.binds.filter((item) => item !== port)
@@ -191,7 +208,7 @@ function toggleBind(port: string): void {
 <template>
   <PageHeader
     :title="id ? 'Editar plan' : 'Nuevo plan'"
-    description="Lo que es igual para todos los clientes de un plan: perfiles, VLAN y si la ONU marca PPPoE y lleva WiFi. Lo de cada cliente (serial, nombre, usuario y claves) se pide en cada alta."
+    description="Lo que es igual para todos los clientes de un plan: perfiles, VLAN, si la ONU marca PPPoE y lleva WiFi, y su gestión remota. Lo de cada cliente (nombre, usuario y claves) se pide en cada alta."
     :back="{ name: 'templates' }"
     back-label="Planes"
   />
@@ -420,6 +437,55 @@ function toggleBind(port: string): void {
             En cada alta se pueden poner el SSID y la clave (WPA2). Si se dejan vacíos, el WiFi de
             la ONU no se toca.
           </p>
+        </fieldset>
+
+        <fieldset class="rounded-lg border border-line p-4">
+          <label class="flex items-center gap-2 font-medium">
+            <input v-model="simple.management" type="checkbox" class="size-4" />
+            <ShieldCheck class="size-4 text-muted" />
+            Gestión remota de la ONU
+          </label>
+          <p class="mt-1 text-sm text-muted">
+            Para entrar a la ONU del cliente desde internet. Desde la casa del cliente (LAN) todo
+            sigue abierto; desde internet solo lo que marques.
+          </p>
+          <div v-if="simple.management" class="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <label for="firewall" class="label">Firewall de la ONU</label>
+              <select id="firewall" v-model="simple.firewall" class="input">
+                <option v-for="level in FIREWALL_LEVELS" :key="level.value" :value="level.value">
+                  {{ level.label }}
+                </option>
+              </select>
+            </div>
+            <label class="flex items-center gap-2 self-end pb-2 text-sm sm:col-span-2">
+              <input v-model="simple.pingWan" type="checkbox" class="size-4" />
+              Responder ping desde internet
+            </label>
+            <div class="sm:col-span-3">
+              <span class="label">Entrar a la ONU desde internet por</span>
+              <div class="flex flex-wrap gap-4">
+                <label
+                  v-for="service in WAN_SERVICES"
+                  :key="service.value"
+                  class="flex items-center gap-1.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    class="size-4"
+                    :checked="simple.wanAccess.includes(service.value)"
+                    @change="toggleWanService(service.value)"
+                  />
+                  {{ service.label }}
+                </label>
+              </div>
+              <p class="hint">Lo que no marques queda cerrado desde internet.</p>
+            </div>
+          </div>
+          <AlertBox v-if="opensWeb" tone="warning" class="mt-4">
+            Con la web de la ONU abierta a internet, cualquiera que adivine su usuario y contraseña
+            de administración entra. No dejes la contraseña de fábrica.
+          </AlertBox>
         </fieldset>
       </div>
 

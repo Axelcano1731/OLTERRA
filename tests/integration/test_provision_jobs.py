@@ -41,6 +41,7 @@ TEMPLATE = {
     "service_ports": [{"id": 1, "gemport": 1, "user_vlan": 111, "vlan": 111, "cos": 0}],
     "wan": {"vlan": 111, "binds": ["lan1", "lan2", "lan3", "lan4", "ssid1"]},
     "wifi": {"ssid_index": 1},
+    "management": {"firewall": "low", "ping_wan": True, "wan_access": ["http", "https"]},
 }
 
 
@@ -153,6 +154,11 @@ def test_easy_authorize_end_to_end(env: Env, no_wait: None) -> None:  # noqa: F8
             # La V422 del simulador tiene 2 LAN: la WAN no se amarra a lan3 ni lan4.
             assert "onu 4 pri wan_adv index 1 bind lan1 lan2 ssid1" in new_onu.config
             assert "onu 4 pri equid VSOLV422" in new_onu.config
+            # Gestión remota: firewall bajo, ping y web abiertos desde internet; telnet cerrado.
+            acl = "control enable lan enable wan {} ipv4_control disable ipv6_control disable"
+            assert "onu 4 pri firewall level low" in new_onu.config
+            assert f"onu 4 pri acl https {acl.format('enable')}" in new_onu.config
+            assert f"onu 4 pri acl telnet {acl.format('disable')}" in new_onu.config
             assert any(f"pwd {PPPOE_KEY}" in c for c in simulator.sim.commands_seen)
             # La WAN entra después de guardar el servicio, no en el mismo plan que "onu add".
             seen = simulator.sim.commands_seen

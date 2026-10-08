@@ -100,6 +100,12 @@ def default_config() -> SimConfig:
                     "onu 1 pri wifi_ssid 1 name DEMO-1 hide disable auth_mode wpa2psk "
                     "encrypt_type tkipaes shared_key ****** rekey_interval 0",
                     "onu 1 pri firewall level low",
+                    "onu 1 pri acl ping control enable lan enable wan enable "
+                    "ipv4_control disable ipv6_control disable",
+                    "onu 1 pri acl http control enable lan enable wan enable "
+                    "ipv4_control disable ipv6_control disable port 80",
+                    "onu 1 pri acl https control enable lan enable wan enable "
+                    "ipv4_control disable ipv6_control disable port 443",
                 ],
             ),
             SimOnu(1, 2, "VSOL00A1B2C3", rx_dbm=-24.8, description="demo-cliente-2"),
@@ -142,6 +148,9 @@ _PROVISION = re.compile(
     r"|pri wan_adv index \d+ bind [a-z0-9 ]+"
     r"|pri wifi_ssid \d+ name \S+ hide disable auth_mode wpa2psk encrypt_type tkipaes"
     r" shared_key \S+ rekey_interval 0"
+    r"|pri firewall level (?:low|middle|high)"
+    r"|pri acl \S+ control enable lan enable wan (?:enable|disable)"
+    r" ipv4_control disable ipv6_control disable"
     r")"
 )
 

@@ -14,6 +14,7 @@ const COPIED: TemplateBody = {
   service_ports: [{ id: 1, gemport: 1, user_vlan: 111, vlan: 111, cos: 0 }],
   wan: { index: 1, mtu: 1492, vlan: 111, cos: 0, nat: true, binds: ['lan1', 'lan2', 'ssid1'] },
   wifi: { ssid_index: 1 },
+  management: { firewall: 'low', ping_wan: true, wan_access: ['telnet', 'http', 'https'] },
 }
 
 describe('plantilla simple', () => {
@@ -38,6 +39,23 @@ describe('plantilla simple', () => {
     expect(body.wan).toBeNull()
     expect(body.wifi).toBeNull()
     expect(body.gemports[0]?.limit_down).toBeNull()
+  })
+
+  it('gestión remota: solo lo marcado queda abierto desde internet', () => {
+    const body = simpleToBody({
+      ...emptySimple(),
+      management: true,
+      firewall: '',
+      pingWan: false,
+      wanAccess: ['https', 'http'],
+    })
+    expect(body.management).toEqual({
+      firewall: null,
+      ping_wan: false,
+      wan_access: ['http', 'https'],
+    })
+    expect(simpleToBody(emptySimple()).management).toBeNull()
+    expect(bodyToSimple({ ...COPIED, management: null })?.management).toBe(false)
   })
 
   it('siguiente ONU libre', () => {

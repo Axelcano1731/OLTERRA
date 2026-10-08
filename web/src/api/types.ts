@@ -240,6 +240,17 @@ export interface Wan {
   binds: string[]
 }
 
+export type WanService = 'telnet' | 'ftp' | 'http' | 'https'
+
+/** Gestión remota de la ONU: firewall y qué responde desde internet (la WAN). */
+export interface Management {
+  /** null = no se toca. */
+  firewall: 'low' | 'middle' | 'high' | null
+  ping_wan: boolean
+  /** Lo que no está aquí se cierra desde la WAN. Desde la LAN todo sigue abierto. */
+  wan_access: WanService[]
+}
+
 export interface TemplateBody {
   auth_profile: string
   onu_profile: string | null
@@ -249,6 +260,7 @@ export interface TemplateBody {
   service_ports: ServicePort[]
   wan: Wan | null
   wifi: { ssid_index: number } | null
+  management: Management | null
 }
 
 export interface ProvisionTemplate {

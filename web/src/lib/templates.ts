@@ -1,4 +1,4 @@
-import type { TemplateBody } from '@/api'
+import type { Management, TemplateBody, WanService } from '@/api'
 
 /**
  * La forma corta de una plantilla: un T-CONT, un GEM, un servicio y un service-port en la
@@ -17,7 +17,30 @@ export interface SimpleTemplate {
   nat: boolean
   binds: string[]
   wifi: boolean
+  /** Gestión remota: firewall y servicios abiertos desde internet. */
+  management: boolean
+  /** '' = no se toca el firewall. */
+  firewall: Exclude<Management['firewall'], null> | ''
+  pingWan: boolean
+  wanAccess: WanService[]
 }
+
+export const WAN_SERVICES: { value: WanService; label: string }[] = [
+  { value: 'http', label: 'HTTP (web)' },
+  { value: 'https', label: 'HTTPS (web segura)' },
+  { value: 'telnet', label: 'Telnet' },
+  { value: 'ftp', label: 'FTP' },
+]
+
+/** El orden en que la API los devuelve (el de la OLT). */
+const WAN_ORDER: WanService[] = ['telnet', 'ftp', 'http', 'https']
+
+export const FIREWALL_LEVELS: { value: SimpleTemplate['firewall']; label: string }[] = [
+  { value: 'low', label: 'Bajo' },
+  { value: 'middle', label: 'Medio' },
+  { value: 'high', label: 'Alto' },
+  { value: '', label: 'No cambiar' },
+]
 
 export const UNI_PORTS = ['lan1', 'lan2', 'lan3', 'lan4', 'ssid1', 'ssid2', 'ssid3', 'ssid4']
 
@@ -34,6 +57,10 @@ export function emptySimple(): SimpleTemplate {
     nat: true,
     binds: ['lan1', 'lan2', 'lan3', 'lan4', 'ssid1'],
     wifi: true,
+    management: false,
+    firewall: 'low',
+    pingWan: true,
+    wanAccess: ['http', 'https'],
   }
 }
 
@@ -58,6 +85,13 @@ export function simpleToBody(simple: SimpleTemplate): TemplateBody {
         }
       : null,
     wifi: simple.wifi ? { ssid_index: 1 } : null,
+    management: simple.management
+      ? {
+          firewall: simple.firewall || null,
+          ping_wan: simple.pingWan,
+          wan_access: WAN_ORDER.filter((s) => simple.wanAccess.includes(s)),
+        }
+      : null,
   }
 }
 
@@ -91,6 +125,7 @@ export function bodyToSimple(body: TemplateBody): SimpleTemplate | null {
     return null
   }
   if (body.wifi && body.wifi.ssid_index !== 1) return null
+  const management = body.management ?? null
   return {
     authProfile: body.auth_profile,
     onuProfile: body.onu_profile ?? '',
@@ -103,6 +138,10 @@ export function bodyToSimple(body: TemplateBody): SimpleTemplate | null {
     nat: body.wan?.nat ?? true,
     binds: body.wan ? [...body.wan.binds] : ['lan1', 'lan2', 'lan3', 'lan4', 'ssid1'],
     wifi: body.wifi !== null,
+    management: management !== null,
+    firewall: management ? (management.firewall ?? '') : 'low',
+    pingWan: management?.ping_wan ?? true,
+    wanAccess: management ? [...management.wan_access] : ['http', 'https'],
   }
 }
 
