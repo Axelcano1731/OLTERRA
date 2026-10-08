@@ -5,7 +5,9 @@ import type { ProvisionTemplate } from '@/api'
 import type { CustomerService } from '@/lib/customer'
 import { oltLabel } from '@/lib/oltText'
 
-// Usuario y clave PPPoE y WiFi del cliente: lo que pide el plan elegido, y nada más.
+// Usuario y clave PPPoE y WiFi del cliente: lo que pide el plan elegido, y nada más. Las claves
+// van a la vista (como en el MikroTik): con un campo de contraseña el navegador toma el formulario
+// por un login y rellena el PPPoE con el usuario y la clave que tenga guardados.
 
 const props = defineProps<{
   plan: ProvisionTemplate | undefined
@@ -53,8 +55,12 @@ function show(field: string): string | undefined {
       <input
         :id="`${idPrefix}-pppoe-user`"
         v-model="model.pppoeUser"
-        class="input"
+        class="input font-mono"
+        :name="`${idPrefix}-pppoe-user`"
         autocomplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         autocapitalize="none"
         spellcheck="false"
         :aria-invalid="!!show('pppoeUser')"
@@ -66,9 +72,15 @@ function show(field: string): string | undefined {
       <input
         :id="`${idPrefix}-pppoe-password`"
         v-model="model.pppoePassword"
-        type="password"
-        class="input"
-        autocomplete="new-password"
+        type="text"
+        class="input font-mono"
+        :name="`${idPrefix}-pppoe-secret`"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         :aria-invalid="!!show('pppoePassword')"
       />
       <p v-if="show('pppoePassword')" class="hint text-danger">{{ show('pppoePassword') }}</p>
@@ -100,9 +112,15 @@ function show(field: string): string | undefined {
       <input
         :id="`${idPrefix}-wifi-key`"
         v-model="model.wifiKey"
-        type="password"
-        class="input"
-        autocomplete="new-password"
+        type="text"
+        class="input font-mono"
+        :name="`${idPrefix}-wifi-secret`"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         :aria-invalid="!!show('wifiKey')"
       />
       <p v-if="show('wifiKey')" class="hint text-danger">{{ show('wifiKey') }}</p>

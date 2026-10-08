@@ -10,7 +10,7 @@ import {
   type ProvisionTemplate,
 } from '@/api'
 import { customerPayload, emptyCustomer, forgetSecrets } from '@/lib/customer'
-import { oltLabel } from '@/lib/oltText'
+import { oltLabel, realModel } from '@/lib/oltText'
 import { errorText } from '@/lib/useAsync'
 import { useJob } from '@/lib/useJob'
 
@@ -26,6 +26,8 @@ const props = defineProps<{
 const emit = defineEmits<{ finished: [job: ProvisionJob] }>()
 
 const EQUIPMENT_ID = /^[A-Za-z0-9_.-]{1,32}$/
+// "NULL" en el autofind: la OLT todavía no sabe el modelo. El alta lo lee de la ONU conectada.
+const model = computed(() => realModel(props.row.model))
 
 const open = ref(false)
 const customer = ref('')
@@ -58,9 +60,7 @@ async function authorize(): Promise<void> {
           pon: props.row.pon,
           serial: props.row.serial,
           customer: customer.value.trim(),
-          ...(props.row.model && EQUIPMENT_ID.test(props.row.model)
-            ? { equipment_id: props.row.model }
-            : {}),
+          ...(model.value && EQUIPMENT_ID.test(model.value) ? { equipment_id: model.value } : {}),
           ...customerPayload(plan.value, service),
         })
     forgetSecrets(service)
@@ -94,7 +94,7 @@ function retry(): void {
       </span>
       <div class="min-w-0 flex-1">
         <p class="font-mono text-sm font-medium">{{ row.serial }}</p>
-        <p class="text-xs text-muted">{{ row.model ?? 'ONU' }} · PON {{ row.pon }}</p>
+        <p class="text-xs text-muted">{{ model ?? 'ONU' }} · PON {{ row.pon }}</p>
       </div>
       <button v-if="!open && !job" type="button" class="btn-primary" @click="open = true">
         Autorizar

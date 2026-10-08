@@ -80,6 +80,13 @@ write
 - **Dos fases** (laboratorio 2026-10-07): `pri equid` entra con la ONU recién autorizada, pero la
   WAN responde `Unsupport private protocol` hasta que la ONU se conecta. El alta de la interfaz
   autoriza y guarda primero; la WAN y el WiFi van cuando `show onu state` dice `working`.
+- **Equipment ID**: el autofind puede decir `NULL` (2026-10-08, una V824 recién conectada). No es
+  un modelo: con `pri equid NULL` la OLT guardó `pri equid MONUVPRI` y la ONU no tomó la WAN (se
+  quedó con la que traía de antes). `real_equipment_id` descarta `NULL`, `N/A` y parecidos, y con
+  la ONU conectada manda el `Equipment ID` de `show onu detail-info N`, que es el real.
+- **WAN repetida**: antes de configurar se lee `show running-config onu N`; si ya tiene la WAN del
+  plan (`pri wan_adv index 1 route …`), un "Internet y WiFi" repetido la reescribe sin otro
+  `pri wan_adv add route`.
 - Los puertos de la WAN se adaptan al modelo con `show onu N capability` (`Ethernet UNI
   number`): una V422 tiene 2 LAN, una V824 4. `show onu detail-info N` da el `Equipment ID`.
 - `show interface brief` da en una lectura los PON de la OLT y cada ONU con su descripción y si

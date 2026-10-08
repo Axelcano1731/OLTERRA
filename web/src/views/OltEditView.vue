@@ -194,7 +194,7 @@ async function submit(): Promise<void> {
               v-model="form.password"
               type="password"
               class="input"
-              autocomplete="off"
+              autocomplete="new-password"
               placeholder="Sin cambio"
             />
           </div>
@@ -205,7 +205,7 @@ async function submit(): Promise<void> {
               v-model="form.enablePassword"
               type="password"
               class="input"
-              autocomplete="off"
+              autocomplete="new-password"
               placeholder="Sin cambio"
             />
             <p class="hint">La que pide la OLT al escribir enable.</p>
@@ -217,7 +217,7 @@ async function submit(): Promise<void> {
               v-model="form.snmpCommunity"
               type="password"
               class="input"
-              autocomplete="off"
+              autocomplete="new-password"
               placeholder="Sin cambio"
             />
           </div>

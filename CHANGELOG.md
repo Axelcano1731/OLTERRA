@@ -86,6 +86,14 @@
 
 ### Corregido
 
+- Alta con una ONU cuyo modelo la OLT todavía no sabía (`NULL` en el autofind): se mandaba
+  `pri equid NULL` y la ONU no tomaba la WAN. Ahora se usa el Equipment ID del detalle de la ONU
+  conectada. Un "Internet y WiFi" repetido ya no crea una segunda WAN.
+- El navegador rellenaba el usuario y la clave PPPoE con un usuario y clave que tenía guardados
+  (una ONU real quedó con PPPoE `admin`): las claves PPPoE y WiFi del alta van ahora a la vista,
+  sin campo de contraseña, y las claves de los formularios de OLT no se ofrecen para guardar
+  (`autocomplete="new-password"`). El resultado del alta muestra el usuario PPPoE puesto.
+
 - Alta en la V1600G0-B: no se manda `onu N profile onu` cuando repite el perfil de `onu add`
   (la OLT lo rechaza) y el autofind de ese modelo (`sn:` y tabulaciones) se interpreta.
 - La salida de la OLT perdía columnas: la V1600G0-B coloca cada columna con el cursor

@@ -263,7 +263,7 @@ async function submit(): Promise<void> {
             v-model="form.password"
             type="password"
             class="input"
-            autocomplete="off"
+            autocomplete="new-password"
             :aria-invalid="!!show('password')"
           />
           <p v-if="show('password')" class="hint text-danger">{{ show('password') }}</p>
@@ -277,7 +277,7 @@ async function submit(): Promise<void> {
             v-model="form.enablePassword"
             type="password"
             class="input"
-            autocomplete="off"
+            autocomplete="new-password"
           />
           <p class="hint">
             No hay una de fábrica que valga: es la que el cliente puso en su OLT. Sin ella no se
@@ -293,7 +293,7 @@ async function submit(): Promise<void> {
             v-model="form.snmpCommunity"
             type="password"
             class="input"
-            autocomplete="off"
+            autocomplete="new-password"
           />
         </div>
       </div>

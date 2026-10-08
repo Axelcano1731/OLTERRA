@@ -38,6 +38,7 @@ from olterra.api.state import audit
 from olterra.db.models import Olt, ProvisionJob, ProvisionTemplate
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall
+from olterra.drivers.vsol_gpon.parsers import real_equipment_id
 from olterra.drivers.vsol_gpon.provisioning import (
     ClientData,
     TemplateBody,
@@ -463,7 +464,7 @@ async def authorize_onu(olt_id: UUID, body: AuthorizeIn, ctx: Tenant, state: Sta
         "onu": body.onu,
         "serial": body.serial,
         "description": description,
-        "equipment_id": body.equipment_id,
+        "equipment_id": real_equipment_id(body.equipment_id),
         "pppoe_user": body.pppoe_user,
         "wifi_ssid": wifi_ssid,
     }

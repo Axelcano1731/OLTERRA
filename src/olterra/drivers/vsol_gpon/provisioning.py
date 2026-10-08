@@ -303,12 +303,17 @@ def base_calls(template: TemplateBody, client: ClientData) -> list[CommandCall]:
 
 
 def service_calls(
-    template: TemplateBody, data: OnuServiceData, binds: Sequence[str] | None = None
+    template: TemplateBody,
+    data: OnuServiceData,
+    binds: Sequence[str] | None = None,
+    *,
+    add_wan: bool = True,
 ) -> list[CommandCall]:
     """WAN PPPoE y WiFi (comandos privados de VSOL). Sin guardar: lo agrega quien la llama.
 
     ``binds``: los puertos ya adaptados al modelo de la ONU (``adapt_binds``); si no, los de la
-    plantilla.
+    plantilla. ``add_wan=False`` cuando la configuración de la ONU ya tiene esa WAN (un "Internet y
+    WiFi" repetido): se reescribe sin crear otra.
     """
     if template.wan is not None and not (data.pppoe_user and data.pppoe_password):
         raise ParamError("La plantilla configura PPPoE: faltan el usuario y la clave PPPoE")
@@ -332,8 +337,9 @@ def service_calls(
         calls.append(call("onu.pri_equid", equipment_id=data.equipment_id))
     if template.wan is not None:
         wan = template.wan
+        if add_wan:
+            calls.append(call("onu.wan_add_route"))
         calls += [
-            call("onu.wan_add_route"),
             call("onu.wan_route_mode", wan=wan.index, mtu=wan.mtu),
             call(
                 "onu.wan_pppoe",
