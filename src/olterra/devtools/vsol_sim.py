@@ -148,7 +148,7 @@ _PROVISION = re.compile(
     r"|pri wan_adv index \d+ bind [a-z0-9 ]+"
     r"|pri wifi_ssid \d+ name \S+ hide disable auth_mode wpa2psk encrypt_type tkipaes"
     r" shared_key \S+ rekey_interval 0"
-    r"|pri firewall level (?:low|middle|high)"
+    r"|pri firewall level (?:disable|low|middle|high)"
     r"|pri acl \S+ control enable lan enable wan (?:enable|disable)"
     r" ipv4_control disable ipv6_control disable"
     r")"

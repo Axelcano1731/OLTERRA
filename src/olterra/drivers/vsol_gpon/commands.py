@@ -265,8 +265,8 @@ _COMMANDS = [
         W,
         RUNNING_G0B,
         param_types={"service": "onu_acl_service", "wan_access": "on_off"},
-        notes="La OLT a veces guarda además 'port N' (el puerto por defecto); 'wan disable' "
-        "cierra ese servicio desde internet",
+        notes="Ayuda de la V1600G0-B: telnet, ftp, http, https, tftp, ping, ssh; 'port N' es "
+        "opcional (la OLT a veces lo guarda). 'wan disable' cierra ese servicio desde internet",
     ),
     # --- Configuración del equipo ----------------------------------------------------
     _c(

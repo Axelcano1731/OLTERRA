@@ -85,10 +85,10 @@ class Wifi(BaseModel):
     ssid_index: int = Field(1, ge=1, le=8)
 
 
-# Servicios de la ONU que se pueden abrir desde la WAN (además del ping), en el orden en que la
-# OLT los guarda.
-WAN_SERVICES: tuple[str, ...] = ("telnet", "ftp", "http", "https")
-WanService = Literal["telnet", "ftp", "http", "https"]
+# Servicios de la ONU que se pueden abrir desde la WAN (además del ping), en el orden de la
+# ayuda de la V1600G0-B (`onu N pri acl ?`).
+WAN_SERVICES: tuple[str, ...] = ("telnet", "ftp", "http", "https", "tftp", "ssh")
+WanService = Literal["telnet", "ftp", "http", "https", "tftp", "ssh"]
 _WEB: tuple[WanService, ...] = ("http", "https")
 
 
@@ -98,8 +98,8 @@ class Management(BaseModel):
     Desde la LAN todo sigue abierto. Lo que no está en ``wan_access`` se cierra desde la WAN.
     """
 
-    firewall: Literal["low", "middle", "high"] | None = Field(
-        "low", description="Nivel de firewall de la ONU; null = no se toca"
+    firewall: Literal["disable", "low", "middle", "high"] | None = Field(
+        "low", description="Nivel de firewall de la ONU (disable = apagado); null = no se toca"
     )
     ping_wan: bool = Field(True, description="Responder ping desde internet")
     wan_access: list[WanService] = Field(
@@ -414,11 +414,12 @@ _LINES: list[tuple[str, re.Pattern[str]]] = [
     ),
     ("wan_bind", re.compile(_P + r"pri wan_adv index (?P<i>\d+) bind (?P<binds>.+)")),
     ("wifi", re.compile(_P + r"pri wifi_ssid (?P<i>\d+) name (?P<ssid>\S+) .*")),
-    ("firewall", re.compile(_P + r"pri firewall level (?P<level>low|middle|high)")),
+    ("firewall", re.compile(_P + r"pri firewall level (?P<level>disable|low|middle|high)")),
     (
         "acl",
         re.compile(
-            _P + r"pri acl (?P<service>ping|telnet|ftp|http|https) control enable lan enable "
+            _P + r"pri acl (?P<service>ping|telnet|ftp|http|https|tftp|ssh) control enable "
+            r"lan enable "
             r"wan (?P<wan>enable|disable) ipv4_control disable ipv6_control disable"
             r"(?: port \d+)?"
         ),

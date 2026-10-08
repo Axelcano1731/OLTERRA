@@ -240,12 +240,12 @@ export interface Wan {
   binds: string[]
 }
 
-export type WanService = 'telnet' | 'ftp' | 'http' | 'https'
+export type WanService = 'telnet' | 'ftp' | 'http' | 'https' | 'tftp' | 'ssh'
 
 /** Gestión remota de la ONU: firewall y qué responde desde internet (la WAN). */
 export interface Management {
   /** null = no se toca. */
-  firewall: 'low' | 'middle' | 'high' | null
+  firewall: 'disable' | 'low' | 'middle' | 'high' | null
   ping_wan: boolean
   /** Lo que no está aquí se cierra desde la WAN. Desde la LAN todo sigue abierto. */
   wan_access: WanService[]

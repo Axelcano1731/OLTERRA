@@ -28,17 +28,20 @@ export interface SimpleTemplate {
 export const WAN_SERVICES: { value: WanService; label: string }[] = [
   { value: 'http', label: 'HTTP (web)' },
   { value: 'https', label: 'HTTPS (web segura)' },
+  { value: 'ssh', label: 'SSH' },
   { value: 'telnet', label: 'Telnet' },
   { value: 'ftp', label: 'FTP' },
+  { value: 'tftp', label: 'TFTP' },
 ]
 
 /** El orden en que la API los devuelve (el de la OLT). */
-const WAN_ORDER: WanService[] = ['telnet', 'ftp', 'http', 'https']
+const WAN_ORDER: WanService[] = ['telnet', 'ftp', 'http', 'https', 'tftp', 'ssh']
 
 export const FIREWALL_LEVELS: { value: SimpleTemplate['firewall']; label: string }[] = [
   { value: 'low', label: 'Bajo' },
   { value: 'middle', label: 'Medio' },
   { value: 'high', label: 'Alto' },
+  { value: 'disable', label: 'Apagado' },
   { value: '', label: 'No cambiar' },
 ]
 

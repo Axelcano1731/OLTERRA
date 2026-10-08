@@ -178,13 +178,15 @@ def test_remote_management_opens_only_what_the_plan_says() -> None:
         f"onu 5 pri acl ftp control enable lan enable wan disable {tail}",
         f"onu 5 pri acl http control enable lan enable wan enable {tail}",
         f"onu 5 pri acl https control enable lan enable wan enable {tail}",
+        f"onu 5 pri acl tftp control enable lan enable wan disable {tail}",
+        f"onu 5 pri acl ssh control enable lan enable wan disable {tail}",
         "write",
     ]
     # Sin Equipment ID la OLT no habla el protocolo privado: se avisa antes de tocarla.
     with pytest.raises(ParamError, match="gestión remota"):
         configure_calls(template, OnuServiceData(pon=1, onu=5))
     with pytest.raises(ValidationError):
-        TemplateBody.model_validate({"management": {"wan_access": ["ssh"]}})
+        TemplateBody.model_validate({"management": {"wan_access": ["smtp"]}})
     with pytest.raises(ValidationError):
         TemplateBody.model_validate({"management": {"firewall": "off"}})
 
