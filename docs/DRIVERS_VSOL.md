@@ -61,6 +61,8 @@ onu N pri wan_adv index 1 route ipv4 pppoe proxy disable user <u> pwd <clave> mo
 onu N pri wan_adv index 1 vlan tag wan_vlan <vlan> 0
 onu N pri wan_adv index 1 bind lan1 lan2 … ssid1
 onu N pri wifi_ssid 1 name <ssid> hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key <clave> rekey_interval 0
+onu N pri username admin_control enable <usuario> <clave> user_control disable
+                                                        (o: user_control enable <usuario> <clave>)
 onu N pri firewall level low                            (gestión remota)
 onu N pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
 onu N pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable
@@ -87,8 +89,15 @@ write
   tftp, ssh: la ayuda `onu N pri acl ?` de la V1600G0-B) se manda explícito: `wan enable` si el
   plan lo abre, `wan disable` si no, así un "Internet y WiFi" repetido también cierra lo que se
   quitó. Desde la LAN todo queda abierto. `port N` es opcional (la ayuda lo confirma) y no se
-  manda. El usuario y la contraseña de administración de la ONU todavía no:
-  falta la sintaxis de la OLT (`onu N pri ?`).
+  manda.
+- **Cuentas de la ONU** (`management.admin_user` / `user_account`): la ayuda de la V1600G0-B
+  (2026-10-08) da `onu N pri username admin_control enable <usuario> <clave> user_control
+  {disable | enable <usuario> <clave>}`; `user_control` es obligatorio. Van antes del firewall y
+  de abrir la web. Las claves se guardan cifradas en el plan (`provision_templates.secrets`) y
+  viajan como `{{secret:onu_admin_password}}` / `{{secret:onu_user_password}}`. Si la OLT las
+  muestra en `show running-config`, `redact` las tapa (la segunda palabra tras
+  `admin_control enable` / `user_control enable`). Falta confirmar en la ONU 6 qué hace
+  `user_control disable` (si apaga la cuenta normal o solo no la toca).
 - La OLT guarda la clave PPPoE tapada (`pwd ******`) pero la WiFi **en claro** (`shared_key`):
   `redact` tapa las dos en cualquier salida.
 - Laboratorio 2026-10-07: `onu add` y `onu N desc` entraron bien; `onu N profile onu default`
@@ -189,6 +198,8 @@ inyectar otro comando en la OLT.
 | `onu.wan_vlan` | `onu {onu} pri wan_adv index {wan} vlan tag wan_vlan {vlan} {cos}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wan_bind` | `onu {onu} pri wan_adv index {wan} bind {binds}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wifi_ssid` | `onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key {wifi_key} rekey_interval 0` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:wifi_key}}` |
+| `onu.account_admin` | `onu {onu} pri username admin_control enable {admin_user} {admin_password} user_control disable` | PON | escritura | Ayuda '?' de la V1600G0-B (2026-10-08). Clave en `{{secret:onu_admin_password}}` |
+| `onu.account_admin_user` | `onu {onu} pri username admin_control enable {admin_user} {admin_password} user_control enable {user_name} {user_password}` | PON | escritura | Ídem. Claves en `{{secret:onu_admin_password}}` y `{{secret:onu_user_password}}` |
 | `onu.firewall` | `onu {onu} pri firewall level {level}` | PON | escritura | Configuración guardada de ONU reales y ayuda de la V1600G0-B. `level`: disable, low, middle o high |
 | `onu.acl` | `onu {onu} pri acl {service} control enable lan enable wan {wan_access} ipv4_control disable ipv6_control disable` | PON | escritura | Configuración guardada de ONU reales y ayuda de la V1600G0-B. `service`: ping, telnet, ftp, http, https, tftp, ssh; `wan_access`: enable o disable |
 | `config.save` | `write` | privilegiado | escritura | Manual v2.1 §22.2.1. VSOL pierde lo no guardado al reiniciar |
@@ -197,10 +208,10 @@ inyectar otro comando en la OLT.
 | `snmp.enable_traps` | `snmp-server enable traps snmp` | config | escritura | Manual v2.1 §24.4.2 |
 | `snmp.start` | `snmp-server start` | config | escritura | LibreNMS PR #19368 |
 | `access.permit` | `login-access-list permit {service} {host} {mask}` | config | escritura | LibreNMS PR #19368 y guías públicas |
-| `user.add` | `user add {username} login-password {password}` (lleva clave) | config | escritura | Manual v2.1 §23.4 |
+| `user.add` | `user add {username} login-password {password}` (lleva clave) | config | escritura | Manual v2.1 §23.4; la ayuda de la V1600G0-B confirma la clave en la línea |
 | `user.role_admin` | `user role {username} admin` | config | escritura | Manual v2.1 §23.4. Sintaxis ambigua en el manual |
 | `user.delete` | `user delete {username}` | config | escritura | Manual v2.1 §23.6 |
-| `user.set_login_password` | `user login-password {username} {password}` | config | escritura | Ayuda de la V1600G0-B (`user ?`). **Sin verificar**: falta confirmar si la clave va en la misma línea. La clave nueva viaja sellada (`{{secret:new_password}}`) |
+| `user.set_login_password` | `user login-password {username} {password}` | config | escritura | Ayuda de la V1600G0-B (2026-10-08): después de `<usuario>` solo hay `<cr>`, la OLT **pide la clave aparte**. Esta forma no sirve ahí hasta que el ejecutor responda esa pregunta. La clave nueva viaja sellada (`{{secret:new_password}}`) |
 | `user.set_enable_password` | `user enable-password {username} {password}` | config | escritura | Ídem. Clave nueva en `{{secret:new_enable_password}}` |
 
 Sintaxis distinta por modelo (`CommandOverride`):

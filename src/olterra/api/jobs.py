@@ -276,6 +276,11 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
                 wifi_ssid=req.get("wifi_ssid"),
                 wifi_key=SecretStr(secrets["wifi_key"]) if secrets.get("wifi_key") else None,
             )
+            needed = template.management.secret_fields() if template.management else []
+            if any(not secrets.get(field) for field in needed):
+                raise JobError(
+                    "Faltan las contraseñas de las cuentas de la ONU: vuelve a guardar el plan"
+                )
             detail = job.detail or {}
             binds = (
                 adapt_binds(
@@ -291,7 +296,11 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
                 driver,
                 calls=calls,
                 credential=credential.model_copy(
-                    update={"pppoe_password": data.pppoe_password, "wifi_key": data.wifi_key}
+                    update={
+                        "pppoe_password": data.pppoe_password,
+                        "wifi_key": data.wifi_key,
+                        **{field: SecretStr(secrets[field]) for field in needed},
+                    }
                 ),
                 allow_unverified=state.settings.allow_unverified_writes,
                 priority=Priority.PROVISION,

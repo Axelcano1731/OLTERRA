@@ -191,6 +191,52 @@ def test_remote_management_opens_only_what_the_plan_says() -> None:
         TemplateBody.model_validate({"management": {"firewall": "off"}})
 
 
+def test_onu_accounts_go_first_and_their_passwords_never_in_the_plan() -> None:
+    management = {"firewall": "low", "wan_access": ["https"], "admin_user": "soporte"}
+    data = OnuServiceData(pon=1, onu=5, equipment_id="VSOLV422")
+    admin_only = configure_calls(TemplateBody.model_validate({"management": management}), data)
+    command = VSOL_GPON.command(admin_only[1].key, MODEL, FIRMWARE).render(**admin_only[1].params)
+    # Sintaxis de la ayuda de la V1600G0-B; la clave va como marcador, la pone el ejecutor.
+    assert command == (
+        "onu 5 pri username admin_control enable soporte {{secret:onu_admin_password}} "
+        "user_control disable"
+    )
+    # Antes del firewall y de abrir la web.
+    assert [c.key for c in admin_only][:3] == ["onu.pri_equid", "onu.account_admin", "onu.firewall"]
+    both = TemplateBody.model_validate({"management": {**management, "user_account": "cliente"}})
+    call = next(c for c in configure_calls(both, data) if c.key.startswith("onu.account"))
+    assert (
+        VSOL_GPON.command(call.key, MODEL, FIRMWARE)
+        .render(**call.params)
+        .endswith("user_control enable cliente {{secret:onu_user_password}}")
+    )
+    assert both.management is not None
+    assert both.management.secret_fields() == ["onu_admin_password", "onu_user_password"]
+    with pytest.raises(ValidationError, match="administración"):
+        TemplateBody.model_validate({"management": {"user_account": "cliente"}})
+    with pytest.raises(ValidationError):
+        TemplateBody.model_validate({"management": {"admin_user": "con espacio"}})
+
+
+def test_copying_an_onu_keeps_account_names_but_not_passwords() -> None:
+    from olterra.security.masking import redact
+
+    line = (
+        "onu 3 pri username admin_control enable soporte Clave-Admin-1 "
+        "user_control enable cliente Clave-User-2"
+    )
+    copied = parse_onu_running_config(running(3) + line + "\n")
+    template = TemplateBody.model_validate(copied.template)
+    assert template.management is not None
+    assert template.management.admin_user == "soporte"
+    assert template.management.user_account == "cliente"
+    assert "Clave-Admin-1" not in str(copied.template) and copied.ignored == []
+    # Si la OLT las muestra en claro, nunca llegan a la base ni a la pantalla.
+    masked = redact(line)
+    assert "Clave-Admin-1" not in masked and "Clave-User-2" not in masked
+    assert masked.startswith("onu 3 pri username admin_control enable soporte ******")
+
+
 def test_unsupported_private_protocol_is_an_error() -> None:
     patterns = [re.compile(p, re.MULTILINE) for p in ERRORS]
     assert any(p.search("Unsupport private protocol") for p in patterns)

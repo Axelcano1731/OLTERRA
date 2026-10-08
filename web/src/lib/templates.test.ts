@@ -14,7 +14,13 @@ const COPIED: TemplateBody = {
   service_ports: [{ id: 1, gemport: 1, user_vlan: 111, vlan: 111, cos: 0 }],
   wan: { index: 1, mtu: 1492, vlan: 111, cos: 0, nat: true, binds: ['lan1', 'lan2', 'ssid1'] },
   wifi: { ssid_index: 1 },
-  management: { firewall: 'low', ping_wan: true, wan_access: ['telnet', 'http', 'https'] },
+  management: {
+    firewall: 'low',
+    ping_wan: true,
+    wan_access: ['telnet', 'http', 'https'],
+    admin_user: 'soporte',
+    user_account: null,
+  },
 }
 
 describe('plantilla simple', () => {
@@ -49,13 +55,20 @@ describe('plantilla simple', () => {
       pingWan: false,
       wanAccess: ['https', 'http'],
     })
-    expect(body.management).toEqual({
+    expect(body.management).toMatchObject({
       firewall: null,
       ping_wan: false,
       wan_access: ['http', 'https'],
+      admin_user: 'admin',
+      user_account: null,
     })
     expect(simpleToBody(emptySimple()).management).toBeNull()
     expect(bodyToSimple({ ...COPIED, management: null })?.management).toBe(false)
+    const both = simpleToBody({ ...emptySimple(), management: true, userAccount: true })
+    expect(both.management?.user_account).toBe('user')
+    const none = simpleToBody({ ...emptySimple(), management: true, accounts: false })
+    expect(none.management?.admin_user).toBeNull()
+    expect(none.management?.user_account).toBeNull()
   })
 
   it('siguiente ONU libre', () => {

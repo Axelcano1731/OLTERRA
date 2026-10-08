@@ -25,6 +25,7 @@ from olterra.identifiers import normalize_gpon_serial
 
 _NAME = r"^[A-Za-z0-9_.\-]{1,32}$"
 _LABEL = r"^[A-Za-z0-9_\-]{1,32}$"
+_ACCOUNT = r"^[A-Za-z0-9_.@\-]{1,32}$"
 _UNI = re.compile(r"^(?:lan[1-8]|ssid[1-8])$")
 
 
@@ -107,10 +108,39 @@ class Management(BaseModel):
         description="Servicios de la ONU a los que se entra desde internet",
     )
 
+    admin_user: str | None = Field(
+        None,
+        pattern=_ACCOUNT,
+        description="Usuario de administración de la ONU; null = las cuentas de la ONU no se "
+        "tocan. Su clave se guarda cifrada aparte (onu_admin_password), nunca en este cuerpo",
+    )
+    user_account: str | None = Field(
+        None,
+        pattern=_ACCOUNT,
+        description="Cuenta normal del cliente (user); null = desactivada. Clave aparte "
+        "(onu_user_password)",
+    )
+
     @field_validator("wan_access")
     @classmethod
     def _unique(cls, value: list[WanService]) -> list[WanService]:
         return sorted(set(value), key=WAN_SERVICES.index)
+
+    @model_validator(mode="after")
+    def _accounts(self) -> Management:
+        # La OLT pide las dos cuentas en el mismo comando, empezando por la de administración.
+        if self.user_account is not None and self.admin_user is None:
+            raise ValueError("La cuenta normal de la ONU va junto con la de administración")
+        return self
+
+    def secret_fields(self) -> list[str]:
+        """Las claves que este plan necesita guardadas (cifradas) para poder aplicarse."""
+        fields = []
+        if self.admin_user is not None:
+            fields.append("onu_admin_password")
+        if self.user_account is not None:
+            fields.append("onu_user_password")
+        return fields
 
 
 class TemplateBody(BaseModel):
@@ -324,8 +354,21 @@ def service_calls(
 
 
 def management_calls(management: Management, call: Callable[..., CommandCall]) -> list[CommandCall]:
-    """Firewall y acceso desde la WAN. Cada servicio queda explícito: abierto o cerrado."""
+    """Cuentas, firewall y acceso desde la WAN. Cada servicio queda explícito: abierto o cerrado.
+
+    Las cuentas van primero: la clave de administración cambia antes de abrir la web.
+    """
     calls: list[CommandCall] = []
+    if management.admin_user is not None and management.user_account is not None:
+        calls.append(
+            call(
+                "onu.account_admin_user",
+                admin_user=management.admin_user,
+                user_name=management.user_account,
+            )
+        )
+    elif management.admin_user is not None:
+        calls.append(call("onu.account_admin", admin_user=management.admin_user))
     if management.firewall is not None:
         calls.append(call("onu.firewall", level=management.firewall))
 
@@ -415,6 +458,13 @@ _LINES: list[tuple[str, re.Pattern[str]]] = [
     ("wan_bind", re.compile(_P + r"pri wan_adv index (?P<i>\d+) bind (?P<binds>.+)")),
     ("wifi", re.compile(_P + r"pri wifi_ssid (?P<i>\d+) name (?P<ssid>\S+) .*")),
     ("firewall", re.compile(_P + r"pri firewall level (?P<level>disable|low|middle|high)")),
+    (
+        "accounts",
+        re.compile(
+            _P + r"pri username admin_control enable (?P<admin>\S+) \S+ user_control "
+            r"(?:disable|enable (?P<user>\S+) \S+)"
+        ),
+    ),
     (
         "acl",
         re.compile(
@@ -510,12 +560,16 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
         client["wifi_ssid"] = wifi[0]["ssid"]
     if "equid" in found:
         client["equipment_id"] = found["equid"][0]["id"]
-    if "firewall" in found or "acl" in found:
+    if "firewall" in found or "acl" in found or "accounts" in found:
         from_wan = {m["service"] for m in found.get("acl", []) if m["wan"] == "enable"}
+        accounts = found["accounts"][0] if "accounts" in found else None
         template["management"] = {
             "firewall": found["firewall"][0]["level"] if "firewall" in found else None,
             "ping_wan": "ping" in from_wan,
             "wan_access": [service for service in WAN_SERVICES if service in from_wan],
+            # Los usuarios sí; las claves no se copian: se escriben al guardar el plan.
+            "admin_user": accounts["admin"] if accounts else None,
+            "user_account": accounts["user"] if accounts else None,
         }
     # Lo que se leyó pero no entra a la plantilla (otras WAN, otros SSID) también se avisa.
     for kind in ("wan_pppoe", "wifi"):

@@ -23,6 +23,12 @@ export interface SimpleTemplate {
   firewall: Exclude<Management['firewall'], null> | ''
   pingWan: boolean
   wanAccess: WanService[]
+  /** Cambiar las cuentas de la ONU (las claves van aparte, nunca en el cuerpo del plan). */
+  accounts: boolean
+  adminUser: string
+  /** La cuenta normal del cliente: activa con usuario y clave, o desactivada. */
+  userAccount: boolean
+  userName: string
 }
 
 export const WAN_SERVICES: { value: WanService; label: string }[] = [
@@ -64,6 +70,10 @@ export function emptySimple(): SimpleTemplate {
     firewall: 'low',
     pingWan: true,
     wanAccess: ['http', 'https'],
+    accounts: true,
+    adminUser: 'admin',
+    userAccount: false,
+    userName: 'user',
   }
 }
 
@@ -93,6 +103,8 @@ export function simpleToBody(simple: SimpleTemplate): TemplateBody {
           firewall: simple.firewall || null,
           ping_wan: simple.pingWan,
           wan_access: WAN_ORDER.filter((s) => simple.wanAccess.includes(s)),
+          admin_user: simple.accounts ? simple.adminUser.trim() : null,
+          user_account: simple.accounts && simple.userAccount ? simple.userName.trim() : null,
         }
       : null,
   }
@@ -145,6 +157,10 @@ export function bodyToSimple(body: TemplateBody): SimpleTemplate | null {
     firewall: management ? (management.firewall ?? '') : 'low',
     pingWan: management?.ping_wan ?? true,
     wanAccess: management ? [...management.wan_access] : ['http', 'https'],
+    accounts: management ? management.admin_user !== null : true,
+    adminUser: management?.admin_user ?? 'admin',
+    userAccount: Boolean(management?.user_account),
+    userName: management?.user_account ?? 'user',
   }
 }
 

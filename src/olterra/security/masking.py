@@ -27,6 +27,10 @@ _KEYWORD_VALUE = re.compile(
     r"(\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s]+)"
 )
 
+# VSOL: "onu N pri username admin_control enable <usuario> <clave> user_control enable <usuario>
+# <clave>". La clave es la segunda palabra después de "enable".
+_ONU_ACCOUNT = re.compile(r"\b((?:admin|user)_control[ \t]+enable[ \t]+\S+[ \t]+)(\S+)")
+
 # Palabras que pueden seguir a la palabra clave sin ser el secreto.
 _NOT_A_VALUE = {"ro", "rw", "encrypted", "0", "7", "admin", "normal"}
 
@@ -38,7 +42,7 @@ def _mask_keyword_values(text: str) -> str:
             return match.group(0)
         return f"{match.group(1)}{match.group(2)}{MASK}"
 
-    return _KEYWORD_VALUE.sub(replace, text)
+    return _ONU_ACCOUNT.sub(rf"\g<1>{MASK}", _KEYWORD_VALUE.sub(replace, text))
 
 
 def redact(text: str, known_secrets: Iterable[str] = ()) -> str:

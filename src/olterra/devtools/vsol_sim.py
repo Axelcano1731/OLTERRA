@@ -149,6 +149,7 @@ _PROVISION = re.compile(
     r"|pri wifi_ssid \d+ name \S+ hide disable auth_mode wpa2psk encrypt_type tkipaes"
     r" shared_key \S+ rekey_interval 0"
     r"|pri firewall level (?:disable|low|middle|high)"
+    r"|pri username admin_control enable \S+ \S+ user_control (?:disable|enable \S+ \S+)"
     r"|pri acl \S+ control enable lan enable wan (?:enable|disable)"
     r" ipv4_control disable ipv6_control disable"
     r")"
@@ -303,8 +304,9 @@ class _Cli:
         onu = next((o for o in self._onus() if o.onu == int(match.group(1))), None)
         if onu is None:
             return "Error: onu is not exist"
-        # Como la OLT real: la clave PPPoE se guarda tapada.
+        # Como la OLT real: la clave PPPoE se guarda tapada (las de las cuentas también aquí).
         saved = re.sub(r" pwd \S+", " pwd ******", cmd)
+        saved = re.sub(r"(_control enable \S+) \S+", r"\1 ******", saved)
         if cmd.startswith(f"onu {onu.onu} desc "):
             onu.description = cmd.split(" desc ", 1)[1]
         onu.config.append(saved)

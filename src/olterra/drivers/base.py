@@ -120,6 +120,7 @@ PARAM_TYPES: dict[str, Callable[[Any], str]] = {
     "firewall_level": _pattern(
         r"disable|low|middle|high", "nivel de firewall: disable, low, middle o high"
     ),
+    "onu_account": _pattern(r"[A-Za-z0-9_.@\-]{1,32}", "usuario de la ONU sin espacios"),
     "onu_acl_service": _pattern(
         r"ping|telnet|ftp|http|https|tftp|ssh", "servicio de la ONU inválido"
     ),
