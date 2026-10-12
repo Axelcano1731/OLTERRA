@@ -60,10 +60,15 @@ def test_new_passwords_never_appear_in_the_plan() -> None:
     for secret in (NEW_LOGIN, NEW_ENABLE, "Vieja#Clave-2025", "Enable#Vieja"):
         assert secret not in dumped
     assert plan.access == "write" and plan.on_error == "stop"
-    commands = [step.command for step in plan.steps if isinstance(step, CliCommand)]
-    assert "user login-password olterra {{secret:new_password}}" in commands
-    assert "user enable-password olterra {{secret:new_enable_password}}" in commands
-    assert commands[-2:] == ["end", "write"]  # sale de config y guarda
+    steps = {step.command: step for step in plan.steps if isinstance(step, CliCommand)}
+    # La clave no va en la línea: la OLT la pregunta después del Enter y el ejecutor contesta.
+    login, enable = steps["user login-password olterra"], steps["user enable-password olterra"]
+    assert [r.answer for r in login.prompts] == ["{{secret:new_password}}"]
+    assert [r.answer for r in enable.prompts] == ["{{secret:new_enable_password}}"]
+    assert login.prompts[0].max_times == 2  # la clave y su confirmación
+    # Sin "write": se guarda después, cuando otra sesión entró con la clave nueva.
+    assert list(steps)[-1] == "end"
+    assert "write" not in steps
 
     # Lo que sí lleva el sello: las claves, que solo el ejecutor puede abrir.
     assert plan.credential is not None
@@ -77,6 +82,17 @@ def test_plan_needs_a_new_password_and_a_verified_syntax() -> None:
         build()
     with pytest.raises(PlanBuildError, match="no se validó en laboratorio"):
         build(VSOL_GPON, new_password=SecretStr(NEW_LOGIN))  # hoy: sin captura de laboratorio
+    _, public = generate_keypair()
+    lab = build_credential_change_plan(  # modo laboratorio
+        VSOL_GPON,
+        tenant_id=uuid4(),
+        olt_id=uuid4(),
+        target=Target(host="10.0.0.1"),
+        credential=credential(new_password=SecretStr(NEW_LOGIN)),
+        executor_public_key=public,
+        allow_unverified=True,
+    )
+    assert lab.access == "write"
 
 
 def test_unknown_secret_field_is_rejected() -> None:
@@ -98,23 +114,33 @@ def test_resolve_refuses_missing_values_and_control_characters() -> None:
 
 
 def device(written: list[str]) -> ScriptedTransport:
-    state = {"prompt": "gpon-olt>", "awaiting": False}
+    """OLT de mentira que pregunta la clave nueva y la confirmación después del Enter."""
+    state = {"prompt": "gpon-olt>", "awaiting": "", "first": ""}
 
     def reply(data: str) -> list[str]:
         line = data.strip()
         written.append(line)
-        if state["awaiting"]:
-            state["awaiting"] = False
-            state["prompt"] = "gpon-olt#"
+        if state["awaiting"] == "enable":
+            state["awaiting"], state["prompt"] = "", "gpon-olt#"
             return ["\r\n", "gpon-olt#"]
+        if state["awaiting"] == "new":
+            state["awaiting"], state["first"] = "confirm", line
+            return ["\r\n", "Confirm password:"]
+        if state["awaiting"] == "confirm":
+            state["awaiting"] = ""
+            ok = line == state["first"]
+            # Esta OLT de mentira repite la clave en su aviso: tampoco debe salir en el resultado.
+            text = f"Password {line} changed\r\n" if ok else "% Error: passwords mismatch\r\n"
+            return ["\r\n" + text, str(state["prompt"])]
         echo = line + "\r\n"
         if line == "enable":
-            state["awaiting"] = True
+            state["awaiting"] = "enable"
             return [echo, "Password:"]
         if line == "configure terminal":
             state["prompt"] = "gpon-olt(config)#"
-        if line.startswith("user "):  # esta OLT de mentira repite la clave en su eco
-            return [echo, f"changed {line}\r\n", str(state["prompt"])]
+        if line.startswith("user "):
+            state["awaiting"] = "new"
+            return [echo, "New password:"]
         if line == "end":
             state["prompt"] = "gpon-olt#"
         return [echo, str(state["prompt"])]
@@ -136,8 +162,10 @@ async def test_runner_puts_the_real_password_on_the_wire_but_not_in_the_result()
 
     result = await PlanRunner("prueba", transport_factory=factory).run(plan, opened)
     assert result.status == "ok", result.model_dump_json(indent=1)
-    assert f"user login-password olterra {NEW_LOGIN}" in written
-    assert f"user enable-password olterra {NEW_ENABLE}" in written
+    login = written.index("user login-password olterra")
+    assert written[login + 1 : login + 3] == [NEW_LOGIN, NEW_LOGIN]
+    enable = written.index("user enable-password olterra")
+    assert written[enable + 1 : enable + 3] == [NEW_ENABLE, NEW_ENABLE]
     dumped = result.model_dump_json()
     assert NEW_LOGIN not in dumped and NEW_ENABLE not in dumped  # ni siquiera el eco de la OLT
 

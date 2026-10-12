@@ -161,11 +161,17 @@ class PlanRunner:
     ) -> StepResult:
         try:
             command = step.command
+            answers = [reply.answer for reply in step.prompts]
             if step.uses_secrets():
                 if credential is None:
                     raise ValueError("El paso lleva claves y el plan no trae credencial")
                 command = credential.resolve_secrets(step.command)
-            output = await session.run(command, timeout=step.timeout_s)
+                answers = [credential.resolve_secrets(answer) for answer in answers]
+            replies = [
+                (reply.pattern, answer, reply.max_times)
+                for reply, answer in zip(step.prompts, answers, strict=True)
+            ]
+            output = await session.run(command, timeout=step.timeout_s, replies=replies)
         except ValueError as exc:
             return StepResult(index=index, ok=False, error=redact(str(exc), secrets))
         except CliTimeout as exc:

@@ -9,6 +9,7 @@ from collections.abc import Callable
 import pytest
 
 from olterra.drivers.vsol_gpon import SESSION
+from olterra.drivers.vsol_gpon.commands import PASSWORD_QUESTION
 from olterra.executor.cli import CliError, CliSession, CliTimeout, normalize_terminal_text
 
 
@@ -132,6 +133,81 @@ async def test_multiline_commands_are_refused() -> None:
     await session.login("en4ble")
     with pytest.raises(CliError):
         await session.run("show onu info\nno onu 1", timeout=1)
+
+
+QUESTION = PASSWORD_QUESTION
+
+
+def password_device(*, repeat: bool = False) -> ScriptedTransport:
+    """Pregunta la clave nueva y la confirmación DESPUÉS del Enter, como la V1600G0-B."""
+    state = {"prompt": "gpon-olt#", "asked": 0}
+
+    def reply(data: str) -> list[str]:
+        line = data.strip()
+        if state["asked"] == 1 or (repeat and state["asked"] > 1):
+            state["asked"] += 1
+            return ["\r\n", "Confirm password:"]
+        if state["asked"] == 2:
+            state["asked"] = 0
+            # El aviso llega partido: sin ":" final no debe tomarse por otra pregunta.
+            return ["\r\nPassword changed", " successfully\r\n", str(state["prompt"])]
+        echo = line + "\r\n"
+        if line == "enable":
+            return [echo, "Password:"] if state["prompt"] == "gpon-olt>" else [echo, "gpon-olt#"]
+        if line.startswith("user login-password"):
+            state["asked"] = 1
+            return [echo, "New pass", "word:"]  # la pregunta también llega partida
+        return [echo, str(state["prompt"])]
+
+    return ScriptedTransport(reply, ["gpon-olt#"])
+
+
+async def test_questions_in_the_middle_of_a_command_are_answered() -> None:
+    device = password_device()
+    session = CliSession(device, SESSION, read_chunk_timeout=0.05)
+    await session.login(None)
+    output = await session.run(
+        "user login-password admin", timeout=2, replies=[(QUESTION, "Nueva#2026", 2)]
+    )
+    assert device.written.count("Nueva#2026\n") == 2  # la clave nueva y su confirmación
+    assert "Nueva#2026" not in output
+    assert output.splitlines() == [
+        "New password:",
+        "Confirm password:",
+        "Password changed successfully",
+    ]
+    assert session.prompt == "gpon-olt#"
+
+
+async def test_a_question_that_keeps_coming_back_aborts_the_command() -> None:
+    device = password_device(repeat=True)
+    session = CliSession(device, SESSION, read_chunk_timeout=0.05)
+    await session.login(None)
+    with pytest.raises(CliError, match="volvió a preguntar"):
+        await session.run(
+            "user login-password admin", timeout=2, replies=[(QUESTION, "Nueva#2026", 2)]
+        )
+    assert device.written[-1] == "\x03"  # Ctrl-C: lo siguiente no se toma como respuesta
+
+
+async def test_an_unexpected_question_times_out_without_answering() -> None:
+    device = password_device()
+    session = CliSession(device, SESSION, read_chunk_timeout=0.02)
+    await session.login(None)
+    with pytest.raises(CliTimeout) as info:
+        await session.run("user login-password admin", timeout=0.3)
+    assert info.value.partial_output == "New password:"
+    assert device.written[-1] == "user login-password admin\n"
+
+
+def test_password_question_pattern() -> None:
+    import re
+
+    asks = re.compile(QUESTION)
+    for line in ("New password:", "Confirm Password: ", "Retype:", "Please input passwd:"):
+        assert asks.search(line), line
+    for line in ("Password changed successfully", "gpon-olt(config)#", "user login-password a"):
+        assert not asks.search(line), line
 
 
 def test_normalize_terminal_text() -> None:

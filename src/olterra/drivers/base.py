@@ -11,7 +11,7 @@ from enum import StrEnum
 from fnmatch import fnmatchcase
 from typing import Any
 
-from olterra.executor.plan import CliCommand, SessionProfile, Step, secret_marker
+from olterra.executor.plan import CliCommand, PromptReply, SessionProfile, Step, secret_marker
 
 
 class Access(StrEnum):
@@ -148,6 +148,8 @@ class CommandTemplate:
     # placeholder -> campo de la credencial sellada (``new_password``...). Esa clave NUNCA entra
     # al plan: el paso lleva ``{{secret:campo}}`` y el ejecutor la pone al escribir en la OLT.
     secret_params: Mapping[str, str] = field(default_factory=dict)
+    # Preguntas que la OLT hace a mitad del comando (p. ej. la clave nueva después del Enter).
+    prompts: tuple[PromptReply, ...] = ()
 
     def placeholders(self) -> list[str]:
         return [name for _, name, _, _ in string.Formatter().parse(self.template) if name]
@@ -268,6 +270,7 @@ class Driver:
                     notes=base.notes,
                     param_types=base.param_types,
                     secret_params=base.secret_params,
+                    prompts=base.prompts,
                 )
         return base
 
@@ -335,6 +338,7 @@ class Driver:
                     command=template.render(**call.params),
                     timeout_s=timeout_s,
                     sensitive=template.sensitive,
+                    prompts=template.prompts,
                 )
             )
         switch((CliMode.EXEC, None))

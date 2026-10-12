@@ -11,6 +11,15 @@ PPPoE/WiFi. Lo técnico lo resuelve el trabajo:
 
 Un trabajo ``configure`` (ONU ya autorizada) empieza en ``wait_online``.
 
+Un trabajo ``olt_password`` cambia la clave con la que Olterra entra a la OLT:
+
+    change   pone la clave nueva (la OLT la pregunta después del Enter), SIN guardar
+    check    entra con la clave nueva en OTRA sesión y solo entonces guarda (``write``)
+    store    actualiza la credencial cifrada de Olterra
+
+Si no se puede entrar con la nueva, ``recover`` prueba la anterior para decir en qué quedó: como
+nada se guardó, un reinicio de la OLT devuelve la clave anterior.
+
 En la V1600G0-B la WAN y el WiFi (comandos privados "pri") responden "Unsupport private
 protocol" si la ONU todavía no se conectó: por eso van en una segunda fase.
 
@@ -36,7 +45,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from olterra.api.routes.olts import olt_access, publish_plan, record_plan
 from olterra.api.state import AppState, audit
-from olterra.db.models import PlanRun, ProvisionJob
+from olterra.db.models import Credential as CredentialRow
+from olterra.db.models import Olt, PlanRun, ProvisionJob
 from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall, ParamError
@@ -49,8 +59,14 @@ from olterra.drivers.vsol_gpon.provisioning import (
     base_calls,
     service_calls,
 )
-from olterra.executor.plan import Plan, PlanResult, Priority
-from olterra.orchestrator import PlanBuildError, build_read_plan, build_write_plan
+from olterra.executor.plan import Credential, Plan, PlanResult, Priority
+from olterra.orchestrator import (
+    PlanBuildError,
+    build_credential_change_plan,
+    build_read_plan,
+    build_write_plan,
+    credential_change_calls,
+)
 from olterra.security.vault import Vault
 
 log = logging.getLogger(__name__)
@@ -62,6 +78,7 @@ STALE_AFTER = timedelta(minutes=10)  # igual que en olterra_due_provision_jobs()
 STEPS = {
     "authorize": ("discover", "authorize", "wait_online", "configure", "verify"),
     "configure": ("wait_online", "configure", "verify"),
+    "olt_password": ("change", "check", "store"),
 }
 LABELS = {
     "discover": "Buscar una posición libre en el PON",
@@ -69,6 +86,9 @@ LABELS = {
     "wait_online": "Esperar a que la ONU se conecte",
     "configure": "Configurar internet (PPPoE) y WiFi",
     "verify": "Comprobar la señal",
+    "change": "Poner la clave nueva en la OLT (sin guardar todavía)",
+    "check": "Entrar con la clave nueva y guardarla en la OLT",
+    "store": "Guardar la clave nueva en Olterra",
 }
 
 
@@ -117,7 +137,7 @@ async def create_job(
     source_ip: str | None,
     olt_id: UUID,
     kind: str,
-    template_name: str,
+    template_name: str | None,
     template: dict[str, Any],
     request: dict[str, Any],
     secrets: dict[str, str],
@@ -147,10 +167,10 @@ async def create_job(
             session,
             tenant_id=tenant_id,
             actor=actor,
-            action=f"onu.{kind}",
+            action="olt.password_change_start" if kind == "olt_password" else f"onu.{kind}",
             target_type="olt",
             target_id=str(olt_id),
-            # Nunca claves: qué ONU, para quién y con qué plan.
+            # Nunca claves: qué ONU, para quién y con qué plan (o qué usuario de la OLT).
             after={"job_id": str(job_id), "template": template_name, **request},
             source_ip=source_ip,
         )
@@ -233,9 +253,6 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
     key = state.settings.executor_public_key
     if not key:
         raise JobError("Falta OLTERRA_EXECUTOR_PUBLIC_KEY en el servidor")
-    template = TemplateBody.model_validate(job.template)
-    req = job.request
-    pon, onu = req["pon"], req.get("onu")
     common: dict[str, Any] = {
         "tenant_id": job.tenant_id,
         "olt_id": olt.id,
@@ -244,6 +261,11 @@ async def _start_step(session: AsyncSession, state: AppState, job: ProvisionJob)
         "model": olt.model,
         "firmware": olt.firmware,
     }
+    if job.kind == "olt_password":
+        return await _start_password_step(session, state, job, olt, credential, common)
+    template = TemplateBody.model_validate(job.template)
+    req = job.request
+    pon, onu = req["pon"], req.get("onu")
     try:
         if job.step == "discover":
             calls = [
@@ -361,6 +383,8 @@ async def _after_step(
 ) -> Plan | None:
     run = await session.get(PlanRun, result.plan_id)
     outputs = _outputs(run)
+    if job.kind == "olt_password":
+        return await _after_password_step(session, state, job, result, run, outputs)
     req = job.request
     pon, onu = req["pon"], req.get("onu")
 
@@ -480,6 +504,189 @@ async def _after_step(
     raise JobError(f"Paso desconocido: {job.step}")
 
 
+# --- Cambio de clave de la OLT -----------------------------------------------------------------
+
+
+def _effective_credential(
+    current: Credential, job: ProvisionJob, secrets: dict[str, str]
+) -> Credential:
+    """Con qué se entra después del cambio: la clave nueva donde la OLT la aceptó."""
+    changed = (job.detail or {}).get("changed", {})
+    update: dict[str, Any] = {}
+    if current.enable_password is None:
+        # Sin clave de enable propia, el ejecutor usa la de acceso. Si solo cambia la de acceso,
+        # la de enable de la OLT sigue siendo la anterior: se deja explícita.
+        update["enable_password"] = current.password
+    if changed.get("login"):
+        update["password"] = SecretStr(secrets["new_password"])
+    if changed.get("enable"):
+        update["enable_password"] = SecretStr(secrets["new_enable_password"])
+    return current.model_copy(update=update)
+
+
+async def _start_password_step(
+    session: AsyncSession,
+    state: AppState,
+    job: ProvisionJob,
+    olt: Olt,
+    credential: Credential,
+    common: dict[str, Any],
+) -> Plan:
+    driver = get_driver(olt.driver)
+    dek = await state.tenant_dek(session, job.tenant_id)
+    secrets = _secrets(state, job, dek)
+    allow = state.settings.allow_unverified_writes
+    try:
+        if job.step == "change":
+            with_new = credential.model_copy(
+                update={
+                    "new_password": SecretStr(secrets["new_password"])
+                    if secrets.get("new_password")
+                    else None,
+                    "new_enable_password": SecretStr(secrets["new_enable_password"])
+                    if secrets.get("new_enable_password")
+                    else None,
+                }
+            )
+            calls = credential_change_calls(with_new)
+            plan = build_credential_change_plan(
+                driver, credential=with_new, allow_unverified=allow, **common
+            )
+        elif job.step == "check":
+            # Entrar ya es la prueba: si la clave nueva no sirve, el plan no pasa del login.
+            calls = [CommandCall("config.save"), CommandCall("system.version")]
+            plan = build_write_plan(
+                driver,
+                calls=calls[:1],
+                verify=calls[1:],
+                credential=_effective_credential(credential, job, secrets),
+                allow_unverified=allow,
+                **common,
+            )
+        elif job.step == "recover":
+            calls = [CommandCall("system.version")]
+            plan = build_read_plan(driver, calls=calls, credential=credential, **common)
+        else:
+            raise JobError(f"Paso desconocido: {job.step}")
+    except (KeyError, ParamError, PlanBuildError, ValueError) as exc:
+        raise JobError(str(exc)) from exc
+    await record_plan(session, job.tenant_id, job.requested_by, olt, plan, calls)
+    job.current_plan_id = plan.plan_id
+    return plan
+
+
+async def _after_password_step(
+    session: AsyncSession,
+    state: AppState,
+    job: ProvisionJob,
+    result: PlanResult,
+    run: PlanRun | None,
+    outputs: list[dict[str, Any]],
+) -> Plan | None:
+    req = job.request
+    failure = _failure(outputs, run) or result.error
+
+    if job.step == "change":
+        login = _first(outputs, "user.set_login_password")
+        enable = _first(outputs, "user.set_enable_password")
+        changed = {
+            "login": bool(login and login.get("ok")),
+            "enable": bool(enable and enable.get("ok")),
+        }
+        _set_detail(job, changed=changed)
+        if not changed["login"] and not changed["enable"]:
+            # Puede no haber cambiado nada o haber quedado a medias: la anterior lo dice.
+            _set_detail(
+                job,
+                failed_at="change",
+                problem=f"La OLT no aceptó la clave nueva: {failure or 'sin detalle'}",
+            )
+            _log(job, "change", str((job.detail or {})["problem"]), ok=False)
+            job.step = "recover"
+            return await _start_step(session, state, job)
+        _log(job, "change", "La OLT aceptó la clave nueva (todavía sin guardar)")
+        job.step = "check"
+        return await _start_step(session, state, job)
+
+    if job.step == "check":
+        logged_in = any(step.output is not None for step in result.steps)
+        if not logged_in:
+            _set_detail(
+                job,
+                failed_at="check",
+                problem=f"No se pudo entrar con la clave nueva: {failure or 'sin detalle'}",
+            )
+            _log(job, "check", str((job.detail or {})["problem"]), ok=False)
+            job.step = "recover"
+            return await _start_step(session, state, job)
+        save = _first(outputs, "config.save")
+        saved = bool(save and save.get("ok"))
+        dek = await state.tenant_dek(session, job.tenant_id)
+        olt = await session.get(Olt, job.olt_id)
+        row = await session.get(CredentialRow, olt.credential_id) if olt else None
+        if olt is None or row is None:
+            raise JobError("La OLT o su credencial ya no existen")
+        aad = f"credential:{row.id}"
+        current = Credential.model_validate_json(
+            Vault.decrypt(job.tenant_id, dek, aad, row.ciphertext)
+        )
+        effective = _effective_credential(current, job, _secrets(state, job, dek))
+        row.ciphertext = Vault.encrypt(job.tenant_id, dek, aad, effective.reveal_json())
+        changed = (job.detail or {}).get("changed", {})
+        names = [name for name in ("login", "enable") if changed.get(name)]
+        await audit(
+            session,
+            tenant_id=job.tenant_id,
+            actor=job.requested_by,
+            action="olt.password_change",
+            target_type="olt",
+            target_id=str(job.olt_id),
+            # Cuáles cambiaron, nunca su valor.
+            after={
+                "job_id": str(job.id),
+                "username": req.get("username"),
+                "changed": names,
+                "saved": saved,
+            },
+        )
+        if not saved:
+            raise JobError(
+                "Olterra ya entra con la clave nueva, pero la OLT no la guardó en su memoria "
+                f"({failure or 'sin detalle'}): si se reinicia antes de guardarla, vuelve la anterior"
+            )
+        _log(job, "check", "Entró con la clave nueva y la OLT la guardó")
+        _log(job, "store", "Olterra ya usa la clave nueva")
+        job.step = "store"
+        missing = [
+            label
+            for name, label in (("login", "de acceso"), ("enable", "de enable"))
+            if req.get(name) and not changed.get(name)
+        ]
+        if missing:
+            _finish(
+                job,
+                "failed",
+                f"La clave {' ni la '.join(missing)} no se cambió (la OLT no la aceptó); "
+                "la otra sí quedó cambiada y guardada",
+            )
+        else:
+            _finish(job, "done")
+        return None
+
+    if job.step == "recover":
+        problem = str((job.detail or {}).get("problem") or "No se pudo cambiar la clave")
+        if result.status == "ok":
+            raise JobError(
+                f"{problem}. La OLT sigue aceptando la clave anterior y Olterra la sigue usando"
+            )
+        raise JobError(
+            f"{problem}. Tampoco se pudo entrar con la anterior ({failure or 'sin detalle'}). "
+            "Nada quedó guardado en la OLT: al reiniciarla vuelve la clave anterior"
+        )
+
+    raise JobError(f"Paso desconocido: {job.step}")
+
+
 async def on_result(state: AppState, result: PlanResult) -> None:
     """Si el plan era de un trabajo de alta, lo avanza."""
     async with tenant_session(state.sessions, result.tenant_id) as session:
@@ -520,7 +727,9 @@ async def run_ticker(state: AppState, every: float = 5.0) -> None:
 def steps_view(job: ProvisionJob) -> list[dict[str, Any]]:
     """Los pasos del trabajo para la interfaz: hecho, en curso, pendiente o falló."""
     order = STEPS[job.kind]
-    current = order.index(job.step) if job.step in order else 0
+    # "recover" no es un paso visible: se muestra en el que falló.
+    shown = job.step if job.step in order else (job.detail or {}).get("failed_at", order[0])
+    current = order.index(shown) if shown in order else 0
     entries = (job.detail or {}).get("log", [])
     view = []
     for index, step in enumerate(order):
@@ -531,7 +740,12 @@ def steps_view(job: ProvisionJob) -> list[dict[str, Any]]:
             status = "failed" if job.status == "failed" else "running"
         else:
             status = "pending"
-        if step == "configure" and job.status == "done" and not _wants_private(job):
+        if (
+            step == "configure"
+            and job.kind != "olt_password"
+            and job.status == "done"
+            and not _wants_private(job)
+        ):
             status = "skipped"
         view.append({"key": step, "label": LABELS[step], "status": status, "message": message})
     return view

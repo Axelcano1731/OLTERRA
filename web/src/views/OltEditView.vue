@@ -173,8 +173,12 @@ async function submit(): Promise<void> {
           <h2 class="font-semibold">Credenciales</h2>
         </div>
         <p class="mt-1 text-sm text-muted">
-          Son las de la CLI (SSH) de la OLT, que pueden ser distintas de las de su web. Vacío = no
-          cambia.
+          Son las de la CLI (SSH) de la OLT, que pueden ser distintas de las de su web. Aquí solo se
+          corrige lo que Olterra tiene guardado; vacío = no cambia. Para cambiar la clave en la
+          propia OLT, usa
+          <RouterLink :to="{ name: 'olt-password', params: { id } }" class="font-medium underline"
+            >Cambiar clave</RouterLink
+          >.
         </p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div>

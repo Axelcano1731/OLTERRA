@@ -7,7 +7,7 @@ from ipaddress import IPv4Address
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from olterra.drivers.vsol_gpon.provisioning import TemplateBody, check_cli_secret
 from olterra.identifiers import normalize_gpon_serial
@@ -238,7 +238,7 @@ class JobStep(BaseModel):
 class JobOut(BaseModel):
     id: UUID
     olt_id: UUID
-    kind: Literal["authorize", "configure"]
+    kind: Literal["authorize", "configure", "olt_password"]
     status: Literal["running", "done", "failed"]
     step: str
     template_name: str | None
@@ -249,6 +249,7 @@ class JobOut(BaseModel):
     pppoe_user: str | None
     wifi_ssid: str | None
     equipment_id: str | None
+    username: str | None = Field(None, description="Cambio de clave: el usuario de la OLT")
     phase: str | None
     rx_dbm: float | None
     unverified: list[str] = Field(
@@ -259,6 +260,29 @@ class JobOut(BaseModel):
     error: str | None
     created_at: datetime
     finished_at: datetime | None
+
+
+class OltPasswordChangeIn(BaseModel):
+    """Claves nuevas del usuario con el que Olterra entra a la OLT. Al menos una."""
+
+    new_password: SecretStr | None = Field(None, description="Clave de acceso (SSH y web)")
+    new_enable_password: SecretStr | None = Field(None, description="Clave de enable")
+
+    @field_validator("new_password", "new_enable_password")
+    @classmethod
+    def _printable(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        text = value.get_secret_value()
+        if not 8 <= len(text) <= 64 or any(not "!" <= ch <= "~" for ch in text):
+            raise ValueError("La clave va de 8 a 64 caracteres, sin espacios ni tildes")
+        return value
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> OltPasswordChangeIn:
+        if self.new_password is None and self.new_enable_password is None:
+            raise ValueError("Escribe la clave de acceso nueva, la de enable o las dos")
+        return self
 
 
 class OnuRef(BaseModel):

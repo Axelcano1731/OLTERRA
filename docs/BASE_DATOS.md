@@ -49,7 +49,7 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `provision_templates` | Plantillas de aprovisionamiento de ONU (`body` = perfiles, T-CONT, GEM, VLAN, WAN PPPoE, WiFi, gestión remota). Nada de un cliente. Las claves de las cuentas de la ONU van en `secrets`, cifradas con la DEK del tenant (AAD `provision_template:<id>`); la API solo dice si están guardadas | leer, crear, cambiar, borrar |
 | `users` | Usuarios de la interfaz: usuario único en la plataforma (sin distinguir mayúsculas), hash scrypt, rol, cambio obligatorio de contraseña, intentos fallidos y bloqueo | leer y cambiar (los crea `olterra-admin`) |
 | `user_sessions` | Sesiones de usuario: solo el SHA-256 del secreto del token, vencimiento y cierre | leer, crear, cambiar, borrar |
-| `provision_jobs` | Trabajos de alta de ONU: paso actual, datos del cliente sin claves, detalle y bitácora de pasos. Las claves PPPoE/WiFi van cifradas con la DEK del tenant (`secrets`) y se borran al terminar | leer, crear, cambiar, borrar |
+| `provision_jobs` | Trabajos que avanzan solos: alta de ONU (`authorize`, `configure`) y cambio de clave de la OLT (`olt_password`). Paso actual, datos sin claves, detalle y bitácora de pasos. Las claves (PPPoE/WiFi, o las nuevas de la OLT) van cifradas con la DEK del tenant (`secrets`) y se borran al terminar | leer, crear, cambiar, borrar |
 | `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después | **solo leer y anexar** |
 | `reconciliation_runs` | Corridas de conciliación con sus hallazgos, su origen (`api`, `upload` o `demo`) y, si vienen de archivos, nombre, tipo y registros de cada uno (el contenido no se guarda) | leer, crear, cambiar, borrar |
 
@@ -84,6 +84,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0004` | `provision_templates` con RLS + FORCE y su política |
 | `0005` | `users`, `user_sessions`, `provision_jobs` (RLS + FORCE), `olts.pon_ports` y las funciones `olterra_login_lookup` y `olterra_due_provision_jobs` |
 | `0006` | `provision_templates.secrets`: claves cifradas de las cuentas de la ONU del plan |
+| `0007` | `provision_jobs.kind` admite `olt_password`: el cambio de clave de la OLT usa el mismo motor de trabajos |
 
 ## Correr las migraciones
 

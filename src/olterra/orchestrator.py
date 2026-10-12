@@ -84,14 +84,34 @@ def build_credential_change_plan(
     executor_public_key: str,
     model: str | None = None,
     firmware: str | None = None,
+    allow_unverified: bool = False,
 ) -> Plan:
-    """Plan de ESCRITURA que cambia las claves del usuario con el que entra Olterra.
+    """Plan de ESCRITURA que pone claves nuevas al usuario con el que entra Olterra, SIN guardar.
 
     ``credential`` trae la clave vigente (para entrar) y ``new_password`` / ``new_enable_password``
     (lo que se va a poner). Las claves nuevas viajan solo dentro del sello; los pasos llevan
-    marcadores. Si algún paso falla el plan se detiene y la clave guardada en Olterra NO se
-    cambia (quien lo llama la actualiza solo tras comprobar el acceso con la nueva).
+    marcadores y el ejecutor las escribe cuando la OLT las pregunta.
+
+    No guarda en flash a propósito: quien lo llama abre después otra sesión con la clave nueva y
+    solo entonces guarda (``write``) y actualiza la bóveda (``api/jobs.py``). Si esa prueba falla,
+    nada quedó guardado y un reinicio de la OLT devuelve la clave anterior.
     """
+    return build_write_plan(
+        driver,
+        tenant_id=tenant_id,
+        olt_id=olt_id,
+        target=target,
+        calls=credential_change_calls(credential),
+        credential=credential,
+        executor_public_key=executor_public_key,
+        model=model,
+        firmware=firmware,
+        allow_unverified=allow_unverified,
+    )
+
+
+def credential_change_calls(credential: Credential) -> list[CommandCall]:
+    """Las llamadas del plan de cambio de claves, según qué claves nuevas trae la credencial."""
     if not credential.username:
         raise PlanBuildError("La credencial no tiene usuario")
     calls: list[CommandCall] = []
@@ -101,18 +121,7 @@ def build_credential_change_plan(
         calls.append(CommandCall("user.set_enable_password", {"username": credential.username}))
     if not calls:
         raise PlanBuildError("No hay ninguna clave nueva que poner")
-    calls.append(CommandCall("config.save"))
-    return build_write_plan(
-        driver,
-        tenant_id=tenant_id,
-        olt_id=olt_id,
-        target=target,
-        calls=calls,
-        credential=credential,
-        executor_public_key=executor_public_key,
-        model=model,
-        firmware=firmware,
-    )
+    return calls
 
 
 def unverified_writes(

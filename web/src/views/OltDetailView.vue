@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LoaderCircle, Pencil, Play, RadioTower, RefreshCw, Terminal } from '@lucide/vue'
+import { KeyRound, LoaderCircle, Pencil, Play, RadioTower, RefreshCw, Terminal } from '@lucide/vue'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -156,6 +156,10 @@ watch(waiting, (now, before) => {
           <Pencil class="size-4" />
           Editar
         </RouterLink>
+        <RouterLink :to="{ name: 'olt-password', params: { id } }" class="btn-secondary">
+          <KeyRound class="size-4" />
+          Cambiar clave
+        </RouterLink>
         <DeleteOlt
           :olt="olt.data.value"
           @deleted="
@@ -187,8 +191,10 @@ watch(waiting, (now, before) => {
       title="Se usó la clave de fábrica"
       class="mb-6"
     >
-      Cambia la clave de acceso en la OLT y luego actualízala aquí con Editar: la de fábrica es
-      pública.
+      La de fábrica es pública: cámbiala desde
+      <RouterLink :to="{ name: 'olt-password', params: { id } }" class="font-medium underline"
+        >Cambiar clave</RouterLink
+      >. Olterra la pone en la OLT y la guarda aquí.
     </AlertBox>
 
     <AlertBox v-if="justCreated" tone="success" title="OLT agregada" class="mb-6">

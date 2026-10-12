@@ -17,9 +17,14 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Sequence
 from typing import Protocol
 
 from olterra.executor.plan import SessionProfile
+
+# Pregunta a mitad de un comando: (patrón de la última línea, respuesta ya resuelta, máximo de
+# veces). Ver ``PromptReply`` en el contrato del plan.
+Reply = tuple[str, str, int]
 
 _CSI = re.compile(r"\x1b\[([0-9;?]*)[ -/]*([@-~])")  # ESC [ parámetros letra
 _OTHER_ESCAPE = re.compile(r"\x1b[()][A-Za-z0-9]|\x1b[=>78DEHM]")
@@ -145,13 +150,19 @@ class CliSession:
         self,
         timeout: float,
         *,
-        extra_stop: re.Pattern[str] | None = None,
+        extra_stop: re.Pattern[str] | Sequence[re.Pattern[str]] | None = None,
     ) -> tuple[str, str]:
         """Lee hasta el prompt (o ``extra_stop``). Devuelve ``(texto, última_línea)``.
 
         El texto devuelto no incluye la última línea (el prompt).
         """
         deadline = time.monotonic() + timeout
+        if extra_stop is None:
+            stops: Sequence[re.Pattern[str]] = ()
+        elif isinstance(extra_stop, re.Pattern):
+            stops = (extra_stop,)
+        else:
+            stops = extra_stop
         raw = ""
         while True:
             remaining = deadline - time.monotonic()
@@ -175,7 +186,7 @@ class CliSession:
                 continue
             if self._is_prompt(last):
                 return head, stripped
-            if extra_stop is not None and extra_stop.search(last):
+            if any(stop.search(last) for stop in stops):
                 return head, stripped
 
     # --- Sesión ------------------------------------------------------------------
@@ -210,16 +221,42 @@ class CliSession:
             await self.run(command, timeout=self._profile.login_timeout_s)
         return banner
 
-    async def run(self, command: str, *, timeout: float) -> str:
-        """Ejecuta un comando y devuelve su salida sin eco ni prompt."""
-        if any(ch in command for ch in "\r\n"):
+    async def run(self, command: str, *, timeout: float, replies: Sequence[Reply] = ()) -> str:
+        """Ejecuta un comando y devuelve su salida sin eco ni prompt.
+
+        ``replies`` contesta las preguntas que el comando haga antes de volver al prompt (ver
+        ``PromptReply``); las respuestas ya vienen resueltas y no se devuelven en la salida.
+        """
+        if any(ch in command for ch in "\r\n") or any(
+            ch in answer for _, answer, _ in replies for ch in "\r\n"
+        ):
             raise CliError("Un comando CLI va en una sola línea")
+        questions = [re.compile(pattern) for pattern, _, _ in replies]
+        asked = [0] * len(replies)
+        collected: list[str] = []
+        deadline = time.monotonic() + timeout
         await self._transport.write(command + self._profile.newline)
         try:
-            text, self.prompt = await self._read_until(timeout)
+            while True:
+                text, last = await self._read_until(
+                    max(deadline - time.monotonic(), 0.001), extra_stop=questions
+                )
+                collected.append(text)
+                if self._is_prompt(last):
+                    self.prompt = last
+                    break
+                index = next(i for i, q in enumerate(questions) if q.search(last))
+                if asked[index] >= replies[index][2]:
+                    # Ctrl-C: que lo próximo que se escriba no quede como respuesta.
+                    await self._transport.write("\x03")
+                    raise CliError(f"La OLT volvió a preguntar «{last}»")
+                asked[index] += 1
+                collected.append(last)
+                await self._transport.write(replies[index][1] + self._profile.newline)
         except CliTimeout as exc:
-            raise CliTimeout(str(exc), _strip_echo(exc.partial_output, command)) from exc
-        return _strip_echo(text, command)
+            partial = _join([*collected, exc.partial_output])
+            raise CliTimeout(str(exc), _strip_echo(partial, command)) from exc
+        return _strip_echo(_join(collected), command)
 
     def find_error(self, output: str) -> str | None:
         """Primera línea de la salida que calza con un mensaje de error de la CLI."""
@@ -233,6 +270,13 @@ class CliSession:
 
     async def close(self) -> None:
         await self._transport.close()
+
+
+def _join(parts: list[str]) -> str:
+    """Une lo leído entre preguntas (un solo trozo, el caso común, queda tal cual)."""
+    if len(parts) == 1:
+        return parts[0]
+    return "\n".join(piece for piece in (part.strip("\n") for part in parts) if piece)
 
 
 def _strip_echo(text: str, command: str) -> str:
