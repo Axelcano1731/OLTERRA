@@ -22,6 +22,7 @@ import OnuActions from '@/components/OnuActions.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { fold } from '@/lib/format'
+import { JOB_STATUS } from '@/lib/labels'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
 
@@ -136,12 +137,6 @@ function onFinished(job?: ProvisionJob): void {
   void recent.reload()
   void refresh()
 }
-
-const JOB_STATUS = {
-  running: { label: 'En curso', tone: 'accent' },
-  done: { label: 'Listo', tone: 'success' },
-  failed: { label: 'No terminó', tone: 'danger' },
-} as const
 
 function switchOlt(event: Event): void {
   const id = (event.target as HTMLSelectElement).value

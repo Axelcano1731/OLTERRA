@@ -87,6 +87,7 @@ autorizar) y con una ONU con atenuador (potencia baja). Así quedan muestras de 
 | 8 | ¿Cuánto tarda y cuánta CPU sube `show pon onu all rx-power` con 64+ ONUs? | `show sys cpu-usage` antes y durante | Intervalo del sondeo por CLI |
 | 9 | ¿Qué traps manda la OLT y con qué varbinds? | `snmp-server host` apuntando al portátil + `snmptrapd` o Wireshark | Receptor de traps de la fase 1 |
 | 10 | ¿Qué IP de gestión trae de fábrica cada modelo? | Mirar antes de cambiarla | Documentación del alta (ARQUITECTURA §A.3) |
+| 11 | ¿Qué pregunta exactamente la OLT tras `user login-password <usuario>` y `user enable-password <usuario>` (texto, confirmación, reglas de la clave)? | **Cambiar clave** en la interfaz, en modo laboratorio, contra la OLT de pruebas; el historial de la OLT guarda la salida (con la clave tapada). Esa salida se vuelve la captura en `tests/fixtures` y el comando pasa a `verified=True` | Si `PASSWORD_QUESTION` alcanza y si el cambio de clave sale del modo laboratorio (ARQUITECTURA §A.16) |
 
 ## 5. Túnel contra el CHR
 

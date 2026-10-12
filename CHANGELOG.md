@@ -4,6 +4,20 @@
 
 ### Agregado
 
+- Cambiar la clave de la OLT desde Olterra (pantalla **Cambiar clave** en el detalle de la OLT,
+  `POST /v1/olts/{id}/password`): la de acceso, la de enable o las dos. Es un trabajo que pone la
+  clave nueva sin guardar, entra con ella en otra sesión y solo entonces guarda (`write`) y
+  actualiza la credencial cifrada; si no puede entrar con la nueva no guarda nada y comprueba si
+  la anterior sigue sirviendo. Las claves nuevas viajan selladas y se tapan en cualquier salida;
+  la bitácora anota cuáles cambiaron, nunca su valor. Migración `0007`.
+- Ejecutor: un paso CLI puede contestar preguntas que la OLT hace a mitad del comando
+  (`PromptReply`: patrón de la pregunta, respuesta que puede ser un `{{secret:campo}}` y máximo de
+  veces). Si la pregunta vuelve más veces, aborta con Ctrl-C. La V1600G0-B pide la clave nueva
+  después de `user login-password <usuario>` (y su confirmación): `user.set_login_password` y
+  `user.set_enable_password` pasan a esa forma. Siguen sin validar (modo laboratorio).
+- El simulador VSOL entiende `user login-password` y `user enable-password` con la pregunta y la
+  confirmación.
+
 - Gestión remota de la ONU en el plan: usuario y contraseña de administración de la ONU (y la
   cuenta normal del cliente), nivel de firewall (o apagado), responder ping desde internet y qué
   servicios (HTTP, HTTPS, SSH, Telnet, FTP, TFTP) se abren desde la WAN; lo no marcado se cierra

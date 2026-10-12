@@ -74,25 +74,64 @@ def secret_marker(field: str) -> str:
     return "{{secret:" + field + "}}"
 
 
+def _check_line(value: str) -> str:
+    if any(ch in value for ch in "\r\n") or any(ord(ch) < 32 and ch != "\t" for ch in value):
+        raise ValueError("Un comando CLI va en una sola línea y sin caracteres de control")
+    for name in _SECRET_PLACEHOLDER.findall(value):
+        if name not in SECRET_FIELDS:
+            raise ValueError(f"Campo secreto desconocido: {name}")
+    return value
+
+
+class PromptReply(BaseModel):
+    """Pregunta que la CLI hace a mitad de un comando y cómo contestarla.
+
+    Hay comandos que no reciben todo en la línea: ``user login-password admin`` y luego la OLT
+    pregunta la clave nueva (y la confirmación). Si la última línea recibida calza con
+    ``pattern`` (antes de volver el prompt), el ejecutor escribe ``answer`` y sigue leyendo. Si la
+    misma pregunta vuelve más de ``max_times`` veces, el paso falla: se aborta con Ctrl-C para no
+    escribir el comando siguiente como respuesta.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    pattern: str
+    # Puede llevar ``{{secret:campo}}``: la respuesta suele ser una clave.
+    answer: str
+    max_times: int = Field(default=1, ge=1, le=4)
+
+    @field_validator("pattern")
+    @classmethod
+    def _compiles(cls, value: str) -> str:
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"Patrón de pregunta inválido: {exc}") from exc
+        return value
+
+    @field_validator("answer")
+    @classmethod
+    def _single_line(cls, value: str) -> str:
+        return _check_line(value)
+
+
 class CliCommand(BaseModel):
     kind: Literal["cli"] = "cli"
     command: str
     timeout_s: float = 30.0
     # Si es True, el comando no se devuelve en claro en el resultado (lleva una clave).
     sensitive: bool = False
+    # Campo nuevo (opcional): un ejecutor viejo lo ignora y el paso termina por tiempo.
+    prompts: tuple[PromptReply, ...] = ()
 
     @field_validator("command")
     @classmethod
     def _single_line(cls, value: str) -> str:
-        if any(ch in value for ch in "\r\n") or any(ord(ch) < 32 and ch != "\t" for ch in value):
-            raise ValueError("Un comando CLI va en una sola línea y sin caracteres de control")
-        for name in _SECRET_PLACEHOLDER.findall(value):
-            if name not in SECRET_FIELDS:
-                raise ValueError(f"Campo secreto desconocido: {name}")
-        return value
+        return _check_line(value)
 
     def uses_secrets(self) -> bool:
-        return _SECRET_PLACEHOLDER.search(self.command) is not None
+        texts = [self.command, *(reply.answer for reply in self.prompts)]
+        return any(_SECRET_PLACEHOLDER.search(text) for text in texts)
 
 
 class SnmpWalk(BaseModel):

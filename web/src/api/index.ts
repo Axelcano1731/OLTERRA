@@ -7,6 +7,7 @@ import type {
   OltCreate,
   OltCreated,
   OltDefaults,
+  OltPasswordChange,
   OltUpdate,
   OnuRef,
   ProvisionTemplate,
@@ -77,8 +78,11 @@ export const configureOnu = (oltId: string, body: ConfigureIn) =>
   api<ProvisionJob>(`/v1/olts/${encodeURIComponent(oltId)}/onus/configure`, { json: body })
 export const getJob = (id: string, signal?: AbortSignal) =>
   api<ProvisionJob>(`/v1/provision-jobs/${encodeURIComponent(id)}`, { signal })
-export const listJobs = (oltId: string) =>
-  api<ProvisionJob[]>(`/v1/olts/${encodeURIComponent(oltId)}/provision-jobs`)
+export const listJobs = (oltId: string, kind: 'onu' | 'olt_password' = 'onu') =>
+  api<ProvisionJob[]>(`/v1/olts/${encodeURIComponent(oltId)}/provision-jobs?kind=${kind}`)
+/** Cambia la clave en la OLT: la pone, entra con ella y solo entonces la guarda (trabajo). */
+export const changeOltPassword = (oltId: string, body: OltPasswordChange) =>
+  api<ProvisionJob>(`/v1/olts/${encodeURIComponent(oltId)}/password`, { json: body })
 export const rebootOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
 export const deleteOnu = (oltId: string, body: OnuRef) =>

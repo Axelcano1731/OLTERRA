@@ -1,4 +1,4 @@
-import type { PlanStatus, ReconFileKind, ReconSummary } from '@/api'
+import type { PlanStatus, ProvisionJob, ReconFileKind, ReconSummary } from '@/api'
 
 export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info'
 
@@ -21,6 +21,12 @@ export function oltStatus(status: string): { label: string; tone: Tone } {
   if (status === 'online') return { label: 'Responde', tone: 'success' }
   if (status === 'unreachable') return { label: 'Sin respuesta', tone: 'danger' }
   return { label: status, tone: 'neutral' }
+}
+
+export const JOB_STATUS: Record<ProvisionJob['status'], { label: string; tone: Tone }> = {
+  running: { label: 'En curso', tone: 'accent' },
+  done: { label: 'Listo', tone: 'success' },
+  failed: { label: 'No terminó', tone: 'danger' },
 }
 
 export const RECON_SOURCE: Record<ReconSummary['source'], string> = {

@@ -1,6 +1,7 @@
 """Aprovisionamiento: planes (plantillas), búsqueda de ONU, alta, internet/WiFi, reinicio y borrado.
 
-El alta y "configurar internet" son trabajos (``api/jobs.py``) que avanzan solos. Reiniciar y
+El alta, "configurar internet" y el cambio de clave de la OLT son trabajos (``api/jobs.py``) que
+avanzan solos. Reiniciar y
 borrar son un plan cada uno, que se detiene al primer error y guarda en flash. Las claves del
 cliente (PPPoE, WiFi) viajan solo en la credencial sellada al ejecutor y, mientras el trabajo las
 necesita, cifradas con la llave del ISP: ni el plan guardado, ni NATS, ni la bitácora las ven.
@@ -12,7 +13,7 @@ correrlo y dice cuál falta, salvo con ``OLTERRA_ALLOW_UNVERIFIED_WRITES`` (labo
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -28,6 +29,7 @@ from olterra.api.schemas import (
     ConfigureIn,
     JobOut,
     JobStep,
+    OltPasswordChangeIn,
     OnuRef,
     PlanOut,
     TemplateIn,
@@ -47,7 +49,12 @@ from olterra.drivers.vsol_gpon.provisioning import (
     service_calls,
 )
 from olterra.executor.plan import Credential, Priority
-from olterra.orchestrator import build_read_plan, build_write_plan, unverified_writes
+from olterra.orchestrator import (
+    build_read_plan,
+    build_write_plan,
+    credential_change_calls,
+    unverified_writes,
+)
 from olterra.security.vault import Vault
 
 DEFAULT_PON_PORTS = 4
@@ -349,6 +356,7 @@ async def _job_out(session: Any, job_id: UUID) -> JobOut:
         pppoe_user=req.get("pppoe_user"),
         wifi_ssid=req.get("wifi_ssid"),
         equipment_id=req.get("equipment_id"),
+        username=req.get("username"),
         phase=detail.get("phase"),
         rx_dbm=detail.get("rx_dbm"),
         unverified=detail.get("unverified", []),
@@ -495,6 +503,76 @@ async def configure_onu(olt_id: UUID, body: ConfigureIn, ctx: Tenant, state: Sta
     return await _start(olt_id, ctx, state, "configure", body.template_id, request, _secrets(body))
 
 
+@router.post(
+    "/v1/olts/{olt_id}/password", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED
+)
+async def change_olt_password(
+    olt_id: UUID, body: OltPasswordChangeIn, ctx: Tenant, state: State
+) -> JobOut:
+    """Cambia en la OLT la clave con la que entra Olterra (y/o la de enable) y la guarda cifrada.
+
+    Es un trabajo (``api/jobs.py``): pone la clave nueva sin guardar, entra con ella en otra
+    sesión y solo entonces guarda en la OLT y en Olterra. Si no puede entrar con la nueva, no
+    guarda nada y dice si la anterior sigue sirviendo. Se avanza con ``/v1/provision-jobs/{id}``.
+    """
+    ctx.require("olt:write")
+    executor_key(state)
+    state.require_bus()
+    async with ctx.session() as session:
+        olt, credential, _ = await olt_access(session, ctx.tenant_id, state, olt_id)
+        busy = (
+            await session.execute(
+                select(ProvisionJob.id).where(
+                    ProvisionJob.olt_id == olt_id,
+                    ProvisionJob.kind == "olt_password",
+                    ProvisionJob.status == "running",
+                )
+            )
+        ).first()
+        if busy is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "Ya se está cambiando la clave de esta OLT"
+            )
+    secrets: dict[str, str] = {}
+    if body.new_password is not None:
+        secrets["new_password"] = body.new_password.get_secret_value()
+    if body.new_enable_password is not None:
+        secrets["new_enable_password"] = body.new_enable_password.get_secret_value()
+    sample = credential.model_copy(
+        update={"new_password": body.new_password, "new_enable_password": body.new_enable_password}
+    )
+    calls = [*credential_change_calls(sample), CommandCall("config.save")]
+    pending = unverified_writes(get_driver(olt.driver), calls, olt.model, olt.firmware)
+    if pending and not state.settings.allow_unverified_writes:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Cambiar la clave en este modelo y firmware todavía no está validado en laboratorio. "
+            "Falta: " + ", ".join(pending),
+        )
+    job_id = await jobs.create_job(
+        state,
+        tenant_id=ctx.tenant_id,
+        actor=ctx.actor,
+        source_ip=ctx.client_ip,
+        olt_id=olt_id,
+        kind="olt_password",
+        template_name=None,
+        template={},
+        request={
+            "username": credential.username,
+            "login": body.new_password is not None,
+            "enable": body.new_enable_password is not None,
+        },
+        secrets=secrets,
+    )
+    async with ctx.session() as session:
+        if pending:
+            job = await session.get(ProvisionJob, job_id)
+            if job is not None:
+                job.detail = {**(job.detail or {}), "unverified": pending}
+        return await _job_out(session, job_id)
+
+
 @router.get("/v1/provision-jobs/{job_id}", response_model=JobOut)
 async def get_job(job_id: UUID, ctx: Tenant) -> JobOut:
     ctx.require("olt:read")
@@ -503,14 +581,18 @@ async def get_job(job_id: UUID, ctx: Tenant) -> JobOut:
 
 
 @router.get("/v1/olts/{olt_id}/provision-jobs", response_model=list[JobOut])
-async def list_jobs(olt_id: UUID, ctx: Tenant) -> list[JobOut]:
+async def list_jobs(
+    olt_id: UUID, ctx: Tenant, kind: Literal["onu", "olt_password"] = "onu"
+) -> list[JobOut]:
+    """Los últimos trabajos de la OLT: altas e internet/WiFi, o (``kind``) cambios de clave."""
     ctx.require("olt:read")
+    kinds = ("olt_password",) if kind == "olt_password" else ("authorize", "configure")
     async with ctx.session() as session:
         ids = (
             (
                 await session.execute(
                     select(ProvisionJob.id)
-                    .where(ProvisionJob.olt_id == olt_id)
+                    .where(ProvisionJob.olt_id == olt_id, ProvisionJob.kind.in_(kinds))
                     .order_by(ProvisionJob.created_at.desc())
                     .limit(20)
                 )

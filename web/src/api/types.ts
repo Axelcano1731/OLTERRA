@@ -87,6 +87,12 @@ export interface OltUpdate {
   snmp_community?: string
 }
 
+/** Claves nuevas del usuario con el que Olterra entra a la OLT (al menos una). */
+export interface OltPasswordChange {
+  new_password?: string
+  new_enable_password?: string
+}
+
 export type CommandScope = 'olt' | 'pon' | 'onu'
 
 export interface Command {
@@ -323,11 +329,11 @@ export interface JobStep {
   message: string | null
 }
 
-/** Un alta (o "configurar internet") que avanza sola en el servidor. */
+/** Un alta, "configurar internet" o un cambio de clave de la OLT, que avanza solo en el servidor. */
 export interface ProvisionJob {
   id: string
   olt_id: string
-  kind: 'authorize' | 'configure'
+  kind: 'authorize' | 'configure' | 'olt_password'
   status: 'running' | 'done' | 'failed'
   step: string
   template_name: string | null
@@ -338,6 +344,8 @@ export interface ProvisionJob {
   pppoe_user: string | null
   wifi_ssid: string | null
   equipment_id: string | null
+  /** Cambio de clave: el usuario de la OLT al que se le cambió. */
+  username: string | null
   phase: string | null
   rx_dbm: number | null
   /** Comandos sin validar que corre (solo en modo laboratorio). */

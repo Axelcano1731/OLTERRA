@@ -57,6 +57,13 @@ export const router = createRouter({
           meta: { title: 'Editar OLT' },
         },
         {
+          path: 'olts/:id/clave',
+          name: 'olt-password',
+          component: () => import('@/views/OltPasswordView.vue'),
+          props: true,
+          meta: { title: 'Cambiar clave' },
+        },
+        {
           path: 'olts/:id',
           name: 'olt',
           component: () => import('@/views/OltDetailView.vue'),

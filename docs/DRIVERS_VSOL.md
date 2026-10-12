@@ -218,8 +218,8 @@ inyectar otro comando en la OLT.
 | `user.add` | `user add {username} login-password {password}` (lleva clave) | config | escritura | Manual v2.1 §23.4; la ayuda de la V1600G0-B confirma la clave en la línea |
 | `user.role_admin` | `user role {username} admin` | config | escritura | Manual v2.1 §23.4. Sintaxis ambigua en el manual |
 | `user.delete` | `user delete {username}` | config | escritura | Manual v2.1 §23.6 |
-| `user.set_login_password` | `user login-password {username} {password}` | config | escritura | Ayuda de la V1600G0-B (2026-10-08): después de `<usuario>` solo hay `<cr>`, la OLT **pide la clave aparte**. Esta forma no sirve ahí hasta que el ejecutor responda esa pregunta. La clave nueva viaja sellada (`{{secret:new_password}}`) |
-| `user.set_enable_password` | `user enable-password {username} {password}` | config | escritura | Ídem. Clave nueva en `{{secret:new_enable_password}}` |
+| `user.set_login_password` | `user login-password {username}` y la clave en la pregunta | config | escritura | Ayuda de la V1600G0-B (2026-10-08): después de `<usuario>` solo hay `<cr>`, la OLT **pide la clave después del Enter**. El paso lleva una respuesta (`PromptReply`) a la pregunta de clave (`PASSWORD_QUESTION`: "password", "confirm", "retype"… terminada en `:`), hasta 2 veces (clave y confirmación), con `{{secret:new_password}}`. Falta capturar el texto exacto de la pregunta |
+| `user.set_enable_password` | `user enable-password {username}` y la clave en la pregunta | config | escritura | Ídem. Clave nueva en `{{secret:new_enable_password}}` |
 
 Sintaxis distinta por modelo (`CommandOverride`):
 

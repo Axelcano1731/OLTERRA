@@ -58,6 +58,8 @@ class SimConfig:
     terminal_length_supported: bool = True
     onus: list[SimOnu] = field(default_factory=list)
     autofind: list[tuple[int, str]] = field(default_factory=list)
+    # Pruebas: False = la OLT dice que cambió la clave pero se queda con la anterior.
+    password_change_applies: bool = True
     # (comando, pon) -> salida grabada. pon None = cualquier modo.
     replay: dict[tuple[str, int | None], str] = field(default_factory=dict)
 
@@ -266,6 +268,22 @@ class _Cli:
                 f"Software Version     : {self.c.firmware}\n"
                 "Compile Time         : 2026-01-01 00:00:00"
             ), False
+        # Como la V1600G0-B: el usuario va en la línea y la clave se pregunta después del Enter.
+        match = re.fullmatch(r"user (login|enable)-password (\S+)", cmd)
+        if match and self.mode == "config":
+            if match.group(2) != self.c.username:
+                return "% User does not exist.", False
+            first = await ask("New password:")
+            second = await ask("Confirm password:")
+            if not first or first != second:
+                return "% Error: the two passwords do not match.", False
+            if not self.c.password_change_applies:
+                pass
+            elif match.group(1) == "login":
+                self.c.password = first
+            else:
+                self.c.enable_password = first
+            return "Password changed successfully.", False
         match = re.fullmatch(r"interface gpon 0/(\d+)", cmd)
         if match and self.mode in ("config", "pon"):
             pon = int(match.group(1))

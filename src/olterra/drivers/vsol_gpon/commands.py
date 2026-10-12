@@ -22,9 +22,14 @@ from olterra.drivers.vsol_gpon.sources import (
     RUNNING_G0B,
     manual,
 )
+from olterra.executor.plan import PromptReply, secret_marker
 
 R, W = Access.READ, Access.WRITE
 EXEC, CONFIG, PON = CliMode.EXEC, CliMode.CONFIG, CliMode.PON
+
+# Pregunta de clave a mitad de un comando: "New password:", "Confirm password:", "Retype:"… Se
+# exige el ":" final para no confundirla con un aviso como "Password changed successfully".
+PASSWORD_QUESTION = r"(?i)(?:pass ?w(?:or)?d|confirm|retype|re-?enter|again)[^\n]*:\s*$"  # noqa: S105 - es la pregunta
 
 
 def _c(
@@ -351,30 +356,38 @@ _COMMANDS = [
         notes="La sintaxis del manual es ambigua: '{admin | normal enable-password …}'",
     ),
     _c("user.delete", "user delete {username}", CONFIG, W, manual("23.6")),
-    # Cambio de claves de acceso. La clave nueva va por ``secret_params``: el plan lleva el
-    # marcador y el ejecutor la toma de la credencial sellada. SIN verificar y SIN usar todavía:
-    # la ayuda de la V1600G0-B (2026-10-08) muestra `user login-password <usuario>` y luego solo
-    # <cr>, o sea que la OLT pide la clave nueva DESPUÉS del Enter. Falta que el ejecutor responda
-    # esa pregunta; hasta entonces esta forma (clave en la línea) no sirve en ese modelo.
+    # Cambio de claves de acceso. La ayuda de la V1600G0-B (2026-10-08) muestra
+    # `user login-password <usuario>` y luego solo <cr>: la OLT pide la clave nueva DESPUÉS del
+    # Enter (y casi seguro la confirmación). El ejecutor contesta esas preguntas con la clave de la
+    # credencial sellada; la clave no va en la línea ni en el plan. Sin captura de la pregunta
+    # todavía: el texto exacto se confirma con la primera corrida en el laboratorio.
     _c(
         "user.set_login_password",
-        "user login-password {username} {password}",
+        "user login-password {username}",
         CONFIG,
         W,
-        LAB_G0B,
-        sensitive=True,
-        secret_params={"password": "new_password"},
-        notes="Clave de acceso (SSH/web) de un usuario. Sintaxis por confirmar en laboratorio",
+        HELP_G0B,
+        prompts=(
+            PromptReply(
+                pattern=PASSWORD_QUESTION, answer=secret_marker("new_password"), max_times=2
+            ),
+        ),
+        notes="Clave de acceso (SSH/web) de un usuario: la OLT la pregunta después del Enter",
     ),
     _c(
         "user.set_enable_password",
-        "user enable-password {username} {password}",
+        "user enable-password {username}",
         CONFIG,
         W,
-        LAB_G0B,
-        sensitive=True,
-        secret_params={"password": "new_enable_password"},
-        notes="Clave de enable de un usuario. Sintaxis por confirmar en laboratorio",
+        HELP_G0B,
+        prompts=(
+            PromptReply(
+                pattern=PASSWORD_QUESTION,
+                answer=secret_marker("new_enable_password"),
+                max_times=2,
+            ),
+        ),
+        notes="Clave de enable de un usuario: la OLT la pregunta después del Enter",
     ),
 ]
 

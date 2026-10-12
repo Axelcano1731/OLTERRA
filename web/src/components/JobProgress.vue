@@ -46,7 +46,12 @@ const ICONS: Record<JobStepStatus, { icon: unknown; tone: string }> = {
     </ol>
 
     <AlertBox v-if="job.status === 'done'" tone="success" title="Listo">
-      <template v-if="job.kind === 'authorize'">
+      <template v-if="job.kind === 'olt_password'">
+        La OLT y Olterra ya usan la clave nueva<template v-if="job.username">
+          del usuario <b>{{ job.username }}</b></template
+        >.
+      </template>
+      <template v-else-if="job.kind === 'authorize'">
         La ONU de <b>{{ job.description }}</b> quedó en el PON {{ job.pon }}, posición
         {{ job.onu }}.
       </template>

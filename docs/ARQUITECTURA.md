@@ -333,6 +333,7 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Identidad única entre los tres productos: falta decidir quién es el proveedor de identidad.
   La fase 0 usa llaves de API por tenant.
 - Las credenciales de fábrica de la OLT están en el manual público: el alta debe cambiarlas.
+  *(Desde 2026-10-11 se cambian desde Olterra: A.16.)*
 
 ### A.11 Interfaz web
 
@@ -410,3 +411,22 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
   Mientras tanto, el respaldo de Olterra es propio (solo su esquema).
 - **Separar después** es mover un esquema: `pg_dump -n olterra` a un proyecto nuevo y cambiar el
   `.env`. Las tablas ya están aisladas, y por eso el costo de separar es bajo.
+
+### A.16 Cambio de clave de la OLT
+
+- **La OLT pregunta la clave después del Enter.** En la V1600G0-B, `user login-password <usuario>`
+  no lleva la clave en la línea: la pide en una pregunta aparte (y la confirmación). El ejecutor
+  aprendió a contestar preguntas a mitad de un comando (`PromptReply`) sin saber de VSOL: el driver
+  dice qué pregunta esperar y que la respuesta es `{{secret:new_password}}`; el ejecutor la toma
+  del sello justo al escribirla. Si la pregunta vuelve más veces de las previstas, aborta con
+  Ctrl-C para no tomar el comando siguiente como respuesta.
+- **Nada se guarda hasta entrar con la clave nueva.** Es la rotación del plan (sección de
+  seguridad) hecha trabajo (`api/jobs.py`, tipo `olt_password`): poner la clave sin `write`, abrir
+  otra sesión con la nueva y solo entonces guardar en la OLT y en la bóveda. Si esa sesión no
+  entra, se prueba la anterior para decir en qué quedó; como la OLT no guardó, un reinicio
+  devuelve la clave anterior. Así un error de sintaxis o una regla de claves de un firmware no
+  deja a Olterra (ni al ISP) fuera de su OLT.
+- Si la OLT no tenía clave de enable propia guardada (se usaba la de acceso) y solo cambia la de
+  acceso, la de enable anterior queda explícita en la bóveda.
+- Pendiente: capturar la pregunta real en el laboratorio (LABORATORIO, pregunta 11) para sacarlo
+  del modo laboratorio, y la rotación programada.
