@@ -240,6 +240,30 @@ class ProvisionJob(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class OltBackup(Base):
+    __tablename__ = "olt_backups"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE")
+    )
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    trigger: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="pending")
+    requested_by: Mapped[str] = mapped_column(Text)
+    # "show running-config" con las claves tapadas, comprimido y cifrado con la llave del ISP.
+    content: Mapped[bytes | None] = mapped_column(LargeBinary)
+    sha256: Mapped[str | None] = mapped_column(Text)
+    size_bytes: Mapped[int | None] = mapped_column(Integer)
+    line_count: Mapped[int | None] = mapped_column(Integer)
+    changed: Mapped[bool | None] = mapped_column(Boolean)
+    added: Mapped[int | None] = mapped_column(Integer)
+    removed: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ProvisionTemplate(Base):
     __tablename__ = "provision_templates"
     id: Mapped[uuid.UUID] = _uuid_pk()

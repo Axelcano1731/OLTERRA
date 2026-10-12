@@ -5,6 +5,7 @@ import {
   LayoutTemplate,
   RadioTower,
   LayoutDashboard,
+  ScrollText,
   LogOut,
   MapPin,
   Menu,
@@ -12,10 +13,10 @@ import {
   Waypoints,
   X,
 } from '@lucide/vue'
-import { ref, watch, type Component } from 'vue'
+import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 
-import { session, signOut } from '@/session'
+import { can, session, signOut } from '@/session'
 
 import Logo from './Logo.vue'
 
@@ -24,6 +25,8 @@ interface NavItem {
   label: string
   icon: Component
   routes: string[]
+  /** Permiso que hace falta para verlo. */
+  scope?: string
 }
 
 const NAV: NavItem[] = [
@@ -38,7 +41,7 @@ const NAV: NavItem[] = [
     to: { name: 'olts' },
     label: 'OLT',
     icon: Server,
-    routes: ['olts', 'olt-new', 'olt', 'olt-edit'],
+    routes: ['olts', 'olt-new', 'olt', 'olt-edit', 'olt-password', 'olt-backups'],
   },
   {
     to: { name: 'templates' },
@@ -53,6 +56,13 @@ const NAV: NavItem[] = [
     icon: GitCompareArrows,
     routes: ['recons', 'recon-new', 'recon'],
   },
+  {
+    to: { name: 'audit' },
+    label: 'Bitácora',
+    icon: ScrollText,
+    routes: ['audit'],
+    scope: 'audit:read',
+  },
 ]
 
 // Lo que viene según el plan (docs/ARQUITECTURA.md): se ve, pero no se puede abrir.
@@ -64,6 +74,7 @@ const SOON = [
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
+const nav = computed(() => NAV.filter((item) => !item.scope || can(item.scope)))
 
 watch(
   () => route.fullPath,
@@ -118,7 +129,7 @@ async function logout(): Promise<void> {
 
       <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label="Principal">
         <RouterLink
-          v-for="item in NAV"
+          v-for="item in nav"
           :key="item.label"
           :to="item.to"
           :aria-current="isActive(item) ? 'page' : undefined"

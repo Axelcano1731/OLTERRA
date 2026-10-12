@@ -405,3 +405,60 @@ export interface OnuRunningConfig {
   }
   ignored: string[]
 }
+
+/** Un respaldo de la configuración de la OLT ("show running-config", con las claves tapadas). */
+export interface Backup {
+  id: string
+  olt_id: string
+  trigger: 'auto' | 'manual'
+  status: 'pending' | 'ok' | 'failed'
+  requested_by: string
+  size_bytes: number | null
+  line_count: number | null
+  /** Distinto del respaldo anterior. */
+  changed: boolean | null
+  added: number | null
+  removed: number | null
+  error: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+export interface BackupDetail extends Backup {
+  content: string
+}
+
+export interface DiffLine {
+  kind: '+' | '-' | ' ' | '@'
+  text: string
+}
+
+export interface BackupDiff {
+  to_id: string
+  /** El respaldo anterior con el que se compara (null si es el primero). */
+  from_id: string | null
+  from_created_at: string | null
+  added: number
+  removed: number
+  lines: DiffLine[]
+}
+
+/** Una entrada de la bitácora: quién, qué, cuándo, desde dónde, antes y después. */
+export interface AuditEntry {
+  id: number
+  actor: string
+  action: string
+  target_type: string | null
+  target_id: string | null
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  source_ip: string | null
+  created_at: string
+}
+
+export interface AuditQuery {
+  limit?: number
+  before?: number
+  target_id?: string
+  action?: string
+}

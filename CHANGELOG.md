@@ -4,6 +4,16 @@
 
 ### Agregado
 
+- Respaldos de la configuración de la OLT (`show running-config`): solos cada
+  `OLTERRA_BACKUP_EVERY_HOURS` (24) en cada OLT que ya respondió, y a pedido con **Respaldar
+  ahora**. Se guardan comprimidos y cifrados con la llave del ISP, con las claves tapadas; un
+  respaldo sin cambios no guarda otra copia. Pantalla **Respaldos** con la diferencia entre
+  versiones y descarga. `GET/POST /v1/olts/{id}/backups`, `GET /v1/backups/{id}` y
+  `/v1/backups/{id}/diff`. Migración `0008`.
+- Bitácora en la interfaz (**Bitácora**, solo admin): quién hizo qué, cuándo y desde dónde, con
+  el antes y el después; filtros por OLT y tipo. `GET /v1/audit` (permiso `audit:read`).
+- El simulador VSOL responde `show running-config` completo.
+
 - Cambiar la clave de la OLT desde Olterra (pantalla **Cambiar clave** en el detalle de la OLT,
   `POST /v1/olts/{id}/password`): la de acceso, la de enable o las dos. Es un trabajo que pone la
   clave nueva sin guardar, entra con ella en otra sesión y solo entonces guarda (`write`) y

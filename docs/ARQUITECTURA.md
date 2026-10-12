@@ -430,3 +430,21 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
   acceso, la de enable anterior queda explícita en la bóveda.
 - Pendiente: capturar la pregunta real en el laboratorio (LABORATORIO, pregunta 11) para sacarlo
   del modo laboratorio, y la rotación programada.
+
+### A.17 Respaldos de la configuración
+
+- **Con las claves tapadas.** El ejecutor tapa las claves de toda salida antes de que suba por
+  NATS (A.6). Un respaldo de `show running-config` sale igual: sirve para saber qué cambió y
+  cuándo, y para rehacer la configuración, pero las claves (de la OLT, PPPoE, WiFi) no vuelven.
+  Guardarlas exigiría que la salida viajara sellada hacia la nube: queda para cuando haga falta
+  restaurar con un clic.
+- **Cifrados y sin copias repetidas.** Es la red entera del ISP, con nombres de clientes (Ley
+  1581): se guarda comprimida y cifrada con la llave del ISP, y la huella (`sha256`) dice si
+  cambió sin descifrar nada. Como casi ningún día cambia, un respaldo sin cambios no guarda otra
+  copia: la base es compartida (A.13).
+- **Prioridad baja.** El respaldo diario va con prioridad de sondeo: lo que pida un usuario pasa
+  primero en la cola de la OLT. Una OLT que nunca respondió no se respalda, y un respaldo fallido
+  cuenta como hecho hasta el día siguiente (no se insiste cada cinco minutos contra una OLT caída).
+- Pendiente: retención (hoy se guardan todos), respaldo automático antes de un cambio masivo y
+  avisar cuando la configuración cambió fuera de Olterra.
+

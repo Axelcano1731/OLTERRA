@@ -50,7 +50,8 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `users` | Usuarios de la interfaz: usuario único en la plataforma (sin distinguir mayúsculas), hash scrypt, rol, cambio obligatorio de contraseña, intentos fallidos y bloqueo | leer y cambiar (los crea `olterra-admin`) |
 | `user_sessions` | Sesiones de usuario: solo el SHA-256 del secreto del token, vencimiento y cierre | leer, crear, cambiar, borrar |
 | `provision_jobs` | Trabajos que avanzan solos: alta de ONU (`authorize`, `configure`) y cambio de clave de la OLT (`olt_password`). Paso actual, datos sin claves, detalle y bitácora de pasos. Las claves (PPPoE/WiFi, o las nuevas de la OLT) van cifradas con la DEK del tenant (`secrets`) y se borran al terminar | leer, crear, cambiar, borrar |
-| `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después | **solo leer y anexar** |
+| `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después. Se lee en `GET /v1/audit` (permiso `audit:read`) | **solo leer y anexar** |
+| `olt_backups` | Respaldos de `show running-config` de cada OLT, con las claves tapadas por el ejecutor, comprimidos y cifrados con la DEK del tenant (AAD `olt_backup:<id>`). `sha256` dice si cambió; un respaldo sin cambios no guarda otra copia (se lee la del último con la misma huella) | leer, crear, cambiar, borrar |
 | `reconciliation_runs` | Corridas de conciliación con sus hallazgos, su origen (`api`, `upload` o `demo`) y, si vienen de archivos, nombre, tipo y registros de cada uno (el contenido no se guarda) | leer, crear, cambiar, borrar |
 
 ## Funciones que no esperan al tenant
@@ -63,6 +64,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 |---|---|---|
 | `olterra_login_lookup(usuario)` | Entrar: el usuario escribe su nombre, no su ISP | `(tenant_id, user_id)` si existe, está activo y su ISP también |
 | `olterra_due_provision_jobs()` | El reloj de la API que avanza los trabajos de alta | `(tenant_id, job_id)` de los que les toca o se quedaron sin respuesta |
+| `olterra_due_backups(interval)` | El reloj de respaldos | `(tenant_id, olt_id)` de las OLT que ya respondieron alguna vez y no tienen respaldo en ese intervalo (ni uno en curso) |
 
 ## Para sumar una tabla de tenant
 
@@ -85,6 +87,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0005` | `users`, `user_sessions`, `provision_jobs` (RLS + FORCE), `olts.pon_ports` y las funciones `olterra_login_lookup` y `olterra_due_provision_jobs` |
 | `0006` | `provision_templates.secrets`: claves cifradas de las cuentas de la ONU del plan |
 | `0007` | `provision_jobs.kind` admite `olt_password`: el cambio de clave de la OLT usa el mismo motor de trabajos |
+| `0008` | `olt_backups` (RLS + FORCE, FK compuesta a `olts`) y la función `olterra_due_backups` |
 
 ## Correr las migraciones
 

@@ -16,9 +16,21 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from olterra import __version__
-from olterra.api import jobs
+from olterra.api import backups, jobs
 from olterra.api.deps import State
-from olterra.api.routes import auth, me, olts, plans, provisioning, reconciliation, tunnel
+from olterra.api.routes import (
+    audit_log,
+    auth,
+    me,
+    olts,
+    plans,
+    provisioning,
+    reconciliation,
+    tunnel,
+)
+from olterra.api.routes import (
+    backups as backup_routes,
+)
 from olterra.api.state import AppState, PlanPublisher, ServiceUnavailable
 from olterra.config import Settings, get_settings
 from olterra.db.session import create_engine, session_factory
@@ -73,6 +85,7 @@ def create_app(
             bus=bus,
         )
         state.result_hooks.append(lambda result: jobs.on_result(state, result))
+        state.result_hooks.append(lambda result: backups.on_result(state, result))
         nats_bus: NatsBus | None = None
         if bus is None and connect_nats:
             try:
@@ -83,6 +96,8 @@ def create_app(
                 state.background.append(asyncio.create_task(_consume_results(nats_bus, state)))
                 # Despierta los trabajos de alta que esperan a que la ONU se conecte.
                 state.background.append(asyncio.create_task(jobs.run_ticker(state)))
+                # Respalda sola la configuración de cada OLT (OLTERRA_BACKUP_EVERY_HOURS).
+                state.background.append(asyncio.create_task(backups.run_scheduler(state)))
             except Exception as exc:  # la API arranca igual; /health lo muestra
                 log.warning("Sin NATS en %s: %s", settings.nats_url, exc)
         app.state.olterra = state
@@ -134,6 +149,16 @@ def create_app(
             "vault": "lista" if state.vault is not None else "sin llave maestra",
         }
 
-    for module in (auth, me, olts, plans, provisioning, tunnel, reconciliation):
+    for module in (
+        auth,
+        me,
+        olts,
+        plans,
+        provisioning,
+        backup_routes,
+        audit_log,
+        tunnel,
+        reconciliation,
+    ):
         app.include_router(module.router)
     return app

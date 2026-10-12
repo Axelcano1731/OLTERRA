@@ -1,5 +1,10 @@
 import { api } from './client'
 import type {
+  AuditEntry,
+  AuditQuery,
+  Backup,
+  BackupDetail,
+  BackupDiff,
   Command,
   Health,
   Me,
@@ -87,6 +92,28 @@ export const rebootOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
 export const deleteOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/delete`, { json: body })
+
+export const listBackups = (oltId: string) =>
+  api<Backup[]>(`/v1/olts/${encodeURIComponent(oltId)}/backups`)
+/** Respalda ya la configuración de la OLT (una lectura de show running-config). */
+export const backupNow = (oltId: string) =>
+  api<Backup>(`/v1/olts/${encodeURIComponent(oltId)}/backups`, { method: 'POST' })
+export const getBackup = (id: string) => api<BackupDetail>(`/v1/backups/${encodeURIComponent(id)}`)
+/** Qué cambió desde el respaldo anterior (o desde ``against``). */
+export const diffBackup = (id: string, against?: string) =>
+  api<BackupDiff>(
+    `/v1/backups/${encodeURIComponent(id)}/diff` +
+      (against ? `?against=${encodeURIComponent(against)}` : ''),
+  )
+
+export const listAudit = (query: AuditQuery = {}) => {
+  const params = new URLSearchParams()
+  for (const [name, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(name, String(value))
+  }
+  const search = params.toString()
+  return api<AuditEntry[]>(`/v1/audit${search ? `?${search}` : ''}`)
+}
 
 export const listRouters = () => api<TunnelRouter[]>('/v1/tunnel/routers')
 export const createRouter = (name: string, routerosVersion?: string) =>

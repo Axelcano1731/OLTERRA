@@ -268,6 +268,8 @@ class _Cli:
                 f"Software Version     : {self.c.firmware}\n"
                 "Compile Time         : 2026-01-01 00:00:00"
             ), False
+        if cmd == "show running-config" and self.mode in ("config", "pon"):
+            return self._full_running_config(), False
         # Como la V1600G0-B: el usuario va en la línea y la clave se pregunta después del Enter.
         match = re.fullmatch(r"user (login|enable)-password (\S+)", cmd)
         if match and self.mode == "config":
@@ -301,6 +303,27 @@ class _Cli:
             return "Error: onu is not exist"
         lines = match.config or [f"onu add {onu} profile {match.profile} sn {match.serial}"]
         return "\n".join([f"----------onu {onu} running-config----------", *lines])
+
+    def _full_running_config(self) -> str:
+        """Configuración completa sintética: equipo, usuario y cada PON con sus ONU."""
+        lines = [
+            "!",
+            f"hostname {self.c.hostname}",
+            f"user add {self.c.username} login-password {self.c.password}",
+            "snmp-server community olterra-sim-ro ro",
+            "!",
+        ]
+        for pon in range(1, self.c.pon_ports + 1):
+            onus = [o for o in self.c.onus if o.pon == pon]
+            if not onus:
+                continue
+            lines.append(f"interface gpon 0/{pon}")
+            for o in onus:
+                lines += [f" {line}" for line in o.config] or [
+                    f" onu add {o.onu} profile {o.profile} sn {o.serial}"
+                ]
+            lines.append("!")
+        return "\n".join(lines)
 
     def _onu_state(self) -> str:
         lines = [
