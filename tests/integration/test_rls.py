@@ -15,7 +15,9 @@ from olterra.admin import create_api_key, create_tenant
 from olterra.db.models import (
     ApiKey,
     AuditLog,
+    Credential,
     Olt,
+    OltBackup,
     ProvisionJob,
     ProvisionTemplate,
     Tenant,
@@ -182,6 +184,51 @@ async def test_users_sessions_and_provision_jobs_are_isolated(world: World) -> N
             )
         ).all()
     assert (world.b, job_id) in [tuple(row) for row in due]
+
+
+async def test_olt_backups_are_isolated(world: World) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    async with tenant_session(world.app, world.b) as session:
+        olt_b = (await session.execute(select(Olt).where(Olt.name == "OLT-B"))).scalar_one()
+        credential = Credential(tenant_id=world.b, kind="olt", label="OLT-B", ciphertext=b"x")
+        session.add(credential)
+        await session.flush()
+        olt_b.credential_id = credential.id
+        olt_b.last_seen_at = datetime.now(UTC)  # ya respondió alguna vez
+        olt_b_id = olt_b.id
+        backup = OltBackup(tenant_id=world.b, olt_id=olt_b_id, trigger="auto", requested_by="x")
+        session.add(backup)
+        await session.flush()
+        backup_id = backup.id
+    async with tenant_session(world.app, world.a) as session:
+        assert (await session.execute(select(OltBackup.id))).all() == []
+    with pytest.raises(DBAPIError, match="row-level security"):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                OltBackup(tenant_id=world.b, olt_id=olt_b_id, trigger="manual", requested_by="a")
+            )
+    # Un respaldo de A no puede colgar de la OLT de B (FK compuesta).
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                OltBackup(tenant_id=world.a, olt_id=olt_b_id, trigger="manual", requested_by="a")
+            )
+
+    # El reloj ve, sin tenant, solo identificadores de las OLT que tocan.
+    async def due() -> list[tuple[UUID, UUID]]:
+        async with world.app() as session:
+            rows = await session.execute(
+                text("SELECT tenant_id, olt_id FROM olterra_due_backups(interval '1 day')")
+            )
+            return [tuple(row) for row in rows.all()]
+
+    assert (world.b, olt_b_id) not in await due()  # tiene uno en curso
+    async with tenant_session(world.app, world.b) as session:
+        old = await session.get(OltBackup, backup_id)
+        assert old is not None
+        old.status, old.created_at = "failed", datetime.now(UTC) - timedelta(days=2)
+    assert (world.b, olt_b_id) in await due()
 
 
 async def test_foreign_keys_cannot_point_to_another_tenant(world: World) -> None:

@@ -440,3 +440,62 @@ class ReconSummary(BaseModel):
 
 class ReconOut(ReconSummary):
     findings: list[dict[str, Any]]
+
+
+class BackupOut(BaseModel):
+    """Un respaldo de la configuración de la OLT (sin el contenido)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    olt_id: UUID
+    trigger: Literal["auto", "manual"]
+    status: Literal["pending", "ok", "failed"]
+    requested_by: str
+    size_bytes: int | None
+    line_count: int | None
+    changed: bool | None = Field(description="Distinto del respaldo anterior")
+    added: int | None
+    removed: int | None
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class BackupDetail(BackupOut):
+    content: str = Field(description="show running-config, con las claves tapadas")
+
+
+class DiffLine(BaseModel):
+    kind: Literal["+", "-", " ", "@"]
+    text: str
+
+
+class BackupDiff(BaseModel):
+    to_id: UUID
+    from_id: UUID | None = Field(description="El respaldo anterior con el que se compara")
+    from_created_at: datetime | None
+    added: int
+    removed: int
+    lines: list[DiffLine]
+
+
+class AuditOut(BaseModel):
+    """Una entrada de la bitácora: quién, qué, cuándo, desde dónde, antes y después."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    actor: str
+    action: str
+    target_type: str | None
+    target_id: str | None
+    before: dict[str, Any] | None
+    after: dict[str, Any] | None
+    source_ip: str | None
+    created_at: datetime
+
+    @field_validator("source_ip", mode="before")
+    @classmethod
+    def _ip(cls, value: Any) -> str | None:
+        return _ip_text(value)

@@ -35,12 +35,16 @@ export const RECON_SOURCE: Record<ReconSummary['source'], string> = {
   demo: 'Demo',
 }
 
-/** "llave:local" → "Llave local": así guarda la API quién pidió algo. */
+/** "llave:local" → "Llave local", "usuario:ana" → "ana": así guarda la API quién pidió algo. */
 export function actorLabel(actor: string): string {
   const separator = actor.indexOf(':')
   const kind = actor.slice(0, separator)
   const name = actor.slice(separator + 1)
-  return separator > 0 && kind === 'llave' && name ? `Llave ${name}` : actor
+  if (separator <= 0 || !name) return actor
+  if (kind === 'llave') return `Llave ${name}`
+  if (kind === 'usuario') return name
+  if (kind === 'olterra') return 'Olterra (automático)'
+  return actor
 }
 
 export const FILE_KIND: Record<ReconFileKind, string> = {

@@ -141,9 +141,15 @@ watch(waiting, (now, before) => {
           </StatusPill>
           <span>{{ olt.data.value.model ?? 'Modelo sin indicar' }}</span>
           <span v-if="olt.data.value.firmware">· {{ olt.data.value.firmware }}</span>
+          <RouterLink
+            v-if="can('audit:read')"
+            :to="{ name: 'audit', query: { olt: id } }"
+            class="underline hover:text-ink"
+            >· Bitácora</RouterLink
+          >
         </div>
       </template>
-      <template v-if="can('olt:write')" #actions>
+      <template #actions>
         <RouterLink
           v-if="can('onu:write')"
           :to="{ name: 'olt-provision', params: { id } }"
@@ -152,25 +158,31 @@ watch(waiting, (now, before) => {
           <RadioTower class="size-4" />
           Aprovisionar
         </RouterLink>
-        <RouterLink :to="{ name: 'olt-edit', params: { id } }" class="btn-secondary">
-          <Pencil class="size-4" />
-          Editar
+        <RouterLink :to="{ name: 'olt-backups', params: { id } }" class="btn-secondary">
+          <Archive class="size-4" />
+          Respaldos
         </RouterLink>
-        <RouterLink :to="{ name: 'olt-password', params: { id } }" class="btn-secondary">
-          <KeyRound class="size-4" />
-          Cambiar clave
-        </RouterLink>
-        <DeleteOlt
-          :olt="olt.data.value"
-          @deleted="
-            (gone) =>
-              router.push({
-                name: 'olts',
-                query: { borrada: gone.name, router: gone.router_id ? '1' : '0' },
-              })
-          "
-          @failed="deleteError = $event"
-        />
+        <template v-if="can('olt:write')">
+          <RouterLink :to="{ name: 'olt-edit', params: { id } }" class="btn-secondary">
+            <Pencil class="size-4" />
+            Editar
+          </RouterLink>
+          <RouterLink :to="{ name: 'olt-password', params: { id } }" class="btn-secondary">
+            <KeyRound class="size-4" />
+            Cambiar clave
+          </RouterLink>
+          <DeleteOlt
+            :olt="olt.data.value"
+            @deleted="
+              (gone) =>
+                router.push({
+                  name: 'olts',
+                  query: { borrada: gone.name, router: gone.router_id ? '1' : '0' },
+                })
+            "
+            @failed="deleteError = $event"
+          />
+        </template>
       </template>
     </PageHeader>
 

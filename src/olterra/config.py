@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     # SOLO para validar en el laboratorio: deja correr escrituras cuya sintaxis aún no tiene
     # captura (verified=False). En producción, apagado: la API responde qué falta validar.
     allow_unverified_writes: bool = False
+    # Cada cuántas horas se respalda sola la configuración de cada OLT que ya respondió (0 = no).
+    backup_every_hours: float = 24.0
     # Credenciales de FÁBRICA de una OLT VSOL nueva (nunca se ha entrado por SSH): se aplican solo
     # cuando el cliente deja la clave vacía al agregarla. Es un secreto de la plataforma: va en
     # .env (OLTERRA_VSOL_DEFAULT_PASSWORD), nunca en el repo, y la API no lo devuelve jamás.

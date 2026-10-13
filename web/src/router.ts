@@ -57,6 +57,19 @@ export const router = createRouter({
           meta: { title: 'Editar OLT' },
         },
         {
+          path: 'olts/:id/respaldos',
+          name: 'olt-backups',
+          component: () => import('@/views/OltBackupsView.vue'),
+          props: true,
+          meta: { title: 'Respaldos' },
+        },
+        {
+          path: 'bitacora',
+          name: 'audit',
+          component: () => import('@/views/AuditView.vue'),
+          meta: { title: 'Bitácora' },
+        },
+        {
           path: 'olts/:id/clave',
           name: 'olt-password',
           component: () => import('@/views/OltPasswordView.vue'),

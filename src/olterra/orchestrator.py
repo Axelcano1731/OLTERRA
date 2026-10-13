@@ -54,6 +54,7 @@ def build_read_plan(
     model: str | None = None,
     firmware: str | None = None,
     priority: Priority = Priority.USER,
+    timeout_s: float = 30.0,
 ) -> Plan:
     """Plan de solo lectura con la credencial sellada para el ejecutor."""
     for call in calls:
@@ -68,7 +69,7 @@ def build_read_plan(
         on_error="continue",
         target=target,
         session=driver.session,
-        steps=driver.build_cli_steps(calls, model=model, firmware=firmware),
+        steps=driver.build_cli_steps(calls, model=model, firmware=firmware, timeout_s=timeout_s),
     )
     sealed = seal(executor_public_key, credential.reveal_json(), plan.seal_context())
     return plan.model_copy(update={"credential": sealed})
