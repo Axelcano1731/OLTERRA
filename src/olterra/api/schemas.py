@@ -499,3 +499,69 @@ class AuditOut(BaseModel):
     @classmethod
     def _ip(cls, value: Any) -> str | None:
         return _ip_text(value)
+
+
+class OnuStatusOut(BaseModel):
+    """Lo último que se sabe de una ONU (del monitoreo)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    olt_id: UUID
+    pon: int
+    onu: int
+    serial: str | None
+    description: str | None
+    phase: str | None
+    phase_label: str = Field(description="La fase en palabras: En línea, Sin luz (fibra)…")
+    online: bool
+    rx_dbm: float | None
+    status_since: datetime = Field(description="Desde cuándo está en línea o caída")
+    last_online_at: datetime | None
+    updated_at: datetime
+
+
+class OnuSampleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    at: datetime
+    online: bool
+    rx_dbm: float | None
+
+
+class AlarmOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    olt_id: UUID
+    olt_name: str | None = None
+    pon: int = Field(description="0 = toda la OLT")
+    onu: int = Field(description="0 = toda la OLT o todo el PON")
+    kind: Literal["olt_unreachable", "pon_down", "onu_offline", "rx_low", "rx_high"]
+    severity: Literal["critical", "warning"]
+    message: str
+    started_at: datetime
+    last_seen_at: datetime
+    cleared_at: datetime | None
+
+
+class OltHealth(BaseModel):
+    id: UUID
+    name: str
+    status: str
+    monitored_at: datetime | None = Field(description="Último sondeo que salió bien")
+    onus: int
+    online: int
+    offline: int
+    low_signal: int
+    alarms: int
+
+
+class MonitoringSummary(BaseModel):
+    every_minutes: float = Field(description="Cada cuánto se sondea (0 = apagado)")
+    onus: int
+    online: int
+    offline: int
+    low_signal: int
+    critical: int = Field(description="Alarmas críticas abiertas")
+    warning: int = Field(description="Avisos abiertos")
+    olts: list[OltHealth]

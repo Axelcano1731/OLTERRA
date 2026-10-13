@@ -448,3 +448,24 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Pendiente: retención (hoy se guardan todos), respaldo automático antes de un cambio masivo y
   avisar cuando la configuración cambió fuera de Olterra.
 
+### A.18 Monitoreo
+
+- **Por CLI, cada 5 minutos, con prioridad baja.** En la V1600G0-B, `show interface brief` da
+  todas las ONU con su cliente, y por PON `show onu state` da la fase y
+  `show pon onu all rx-power` la señal; los tres tienen captura. El SNMP por ONU no está en todos
+  los modelos (A.2) y queda para cuando se sondee qué tablas responde cada OLT. El sondeo va
+  detrás de lo que pida un usuario en la cola de la OLT.
+- **En PostgreSQL, no en VictoriaMetrics, por ahora.** Mientras la base sea la compartida (A.13) y
+  las OLT sean pocas, una serie de tiempo aparte es otro servicio que operar. Para no llenar la
+  base: el sondeo se procesa y se borra (no queda en el historial de consultas), el estado actual
+  es una fila por ONU, y el historial de señal guarda una muestra por hora o cuando algo cambia
+  (1 dB, caída o regreso), 30 días. Con miles de ONU o métricas de tráfico, VictoriaMetrics.
+- **Reglas.** Ventana GPON clase B+ de −8 a −27 dBm, con aviso desde −25 para actuar antes de que
+  el cliente se quede sin servicio. Una ONU sin luz (LOS) es crítica; apagada (dyingGasp) es un
+  aviso: lo más probable es que el cliente la desconectó. Si la mayoría de las ONU de un PON caen
+  a la vez (tres o más y el 70 %), la alarma es del PON, con la causa que más se repite: LOS →
+  corte de fibra o splitter, dyingGasp → corte de energía en la zona. Es la versión sin mapa de la
+  correlación de fallas: con el mapa FTTH, el ancestro común será la caja o el tramo.
+- Pendiente: avisos (Telegram, correo o WhatsApp por Converza), tráfico por PON y CPU y
+  temperatura de la OLT.
+

@@ -4,6 +4,15 @@
 
 ### Agregado
 
+- Monitoreo (pantalla **Monitoreo**, ya activa en el menú): cada `OLTERRA_MONITOR_EVERY_MINUTES`
+  (5) se consulta cada OLT con prioridad baja (`show interface brief`, `show onu state` y
+  `show pon onu all rx-power` por PON) y se guarda el estado de cada ONU, su señal (una muestra
+  por hora o al cambiar; 30 días) y las alarmas: ONU caída (sin luz, sin energía, desconectada),
+  señal baja (−25 aviso, −27 crítica) o alta (−8), caída de PON con su causa probable y OLT sin
+  respuesta. Se cierran solas. Gráfico de señal de 7 días por ONU. `GET /v1/monitoring/summary`,
+  `/v1/monitoring/onus`, `/v1/monitoring/onus/{olt}/{pon}/{onu}`, `GET /v1/alarms` y
+  `POST /v1/olts/{id}/monitoring/poll`. Migración `0009`.
+
 - Respaldos de la configuración de la OLT (`show running-config`): solos cada
   `OLTERRA_BACKUP_EVERY_HOURS` (24) en cada OLT que ya respondió, y a pedido con **Respaldar
   ahora**. Se guardan comprimidos y cifrados con la llave del ISP, con las claves tapadas; un

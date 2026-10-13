@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     allow_unverified_writes: bool = False
     # Cada cuántas horas se respalda sola la configuración de cada OLT que ya respondió (0 = no).
     backup_every_hours: float = 24.0
+    # Cada cuántos minutos se sondea el estado y la potencia de las ONU de cada OLT (0 = no).
+    monitor_every_minutes: float = 5.0
+    # Días que se guarda el historial de potencia de las ONU.
+    monitor_retention_days: int = 30
     # Credenciales de FÁBRICA de una OLT VSOL nueva (nunca se ha entrado por SSH): se aplican solo
     # cuando el cliente deja la clave vacía al agregarla. Es un secreto de la plataforma: va en
     # .env (OLTERRA_VSOL_DEFAULT_PASSWORD), nunca en el repo, y la API no lo devuelve jamás.

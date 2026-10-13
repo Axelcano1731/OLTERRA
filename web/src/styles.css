@@ -32,6 +32,9 @@
   --color-info-soft: #e8f0fe;
   --color-success: #047857;
   --color-success-soft: #e3f5ee;
+
+  /* Línea de los gráficos: validada contra la superficie de cada modo (lightness y contraste). */
+  --color-chart-line: #4f5bd5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -60,6 +63,7 @@
     --color-info-soft: #172a46;
     --color-success: #34d399;
     --color-success-soft: #123227;
+    --color-chart-line: #7d85f7;
   }
 }
 

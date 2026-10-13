@@ -462,3 +462,77 @@ export interface AuditQuery {
   target_id?: string
   action?: string
 }
+
+/** Lo último que se sabe de una ONU (del monitoreo). */
+export interface OnuStatus {
+  olt_id: string
+  pon: number
+  onu: number
+  serial: string | null
+  description: string | null
+  phase: string | null
+  /** La fase en palabras: En línea, Sin luz (fibra)… */
+  phase_label: string
+  online: boolean
+  rx_dbm: number | null
+  /** Desde cuándo está en línea o caída. */
+  status_since: string
+  last_online_at: string | null
+  updated_at: string
+}
+
+export interface OnuSample {
+  at: string
+  online: boolean
+  rx_dbm: number | null
+}
+
+export type AlarmKind = 'olt_unreachable' | 'pon_down' | 'onu_offline' | 'rx_low' | 'rx_high'
+
+export interface Alarm {
+  id: string
+  olt_id: string
+  olt_name: string | null
+  /** 0 = toda la OLT. */
+  pon: number
+  /** 0 = toda la OLT o todo el PON. */
+  onu: number
+  kind: AlarmKind
+  severity: 'critical' | 'warning'
+  message: string
+  started_at: string
+  last_seen_at: string
+  cleared_at: string | null
+}
+
+export interface OltHealth {
+  id: string
+  name: string
+  status: string
+  monitored_at: string | null
+  onus: number
+  online: number
+  offline: number
+  low_signal: number
+  alarms: number
+}
+
+export interface MonitoringSummary {
+  /** Cada cuánto se sondea (0 = apagado). */
+  every_minutes: number
+  onus: number
+  online: number
+  offline: number
+  low_signal: number
+  critical: number
+  warning: number
+  olts: OltHealth[]
+}
+
+export interface OnuHistory {
+  status: OnuStatus
+  samples: OnuSample[]
+  alarms: Alarm[]
+}
+
+export type OnuFilter = 'all' | 'online' | 'offline' | 'low'

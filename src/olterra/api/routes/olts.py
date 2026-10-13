@@ -413,7 +413,8 @@ async def list_plans(
                 PlanRun.created_at,
                 PlanRun.finished_at,
             )
-            .where(PlanRun.olt_id == olt_id)
+            # Los sondeos del monitoreo no son consultas de nadie (y se borran al procesarse).
+            .where(PlanRun.olt_id == olt_id, PlanRun.requested_by != "olterra:monitoreo")
             .order_by(PlanRun.created_at.desc())
             .limit(limit)
         )

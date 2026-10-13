@@ -63,6 +63,8 @@ Ver `.env.example`. Las importantes:
 | `OLTERRA_DATABASE_URL` | API | Con el rol `olterra_app` |
 | `OLTERRA_MIGRATIONS_DATABASE_URL` | migraciones, `olterra-admin` | Con el rol `olterra_owner` |
 | `OLTERRA_DB_POOL_SIZE`, `OLTERRA_DB_MAX_OVERFLOW` | API | Conexiones por proceso (3 y 2): la base de producción es compartida y tiene un tope |
+| `OLTERRA_MONITOR_EVERY_MINUTES` | API | Cada cuántos minutos se sondea cada OLT para el monitoreo (5; `0` lo apaga) |
+| `OLTERRA_MONITOR_RETENTION_DAYS` | API | Días de historial de señal de las ONU (30) |
 | `OLTERRA_BACKUP_EVERY_HOURS` | API | Cada cuántas horas se respalda sola la configuración de cada OLT (24; `0` apaga el reloj) |
 | `OLTERRA_MASTER_KEY` | API, `olterra-admin` | Llave maestra de la bóveda (`olterra-admin generar-llave-maestra`) |
 | `OLTERRA_EXECUTOR_PUBLIC_KEY` | API | Para sellar credenciales |
