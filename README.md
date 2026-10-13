@@ -23,7 +23,8 @@ Estado: **fase 0** (esqueleto técnico, laboratorio y pilotos). Plan completo en
 | Respaldo y bitácora | La configuración de cada OLT se respalda sola cada día (y a pedido), cifrada, con las diferencias entre versiones; la bitácora muestra quién hizo qué, cuándo y desde dónde |
 | Cambio de clave de la OLT | La de acceso y la de enable desde Olterra: la pone sin guardar, entra con ella en otra sesión y solo entonces la guarda en la OLT y en la bóveda. Si algo falla, nada queda guardado. Validándose en la OLT del laboratorio |
 | Aprovisionamiento de ONU | En un solo flujo: Olterra busca las ONU nuevas en todos los PON; el operador pone nombre del cliente, plan y PPPoE, y el alta (posición libre, servicio, esperar la conexión, WAN y WiFi según el modelo, señal) avanza sola. Planes copiados de un cliente que ya navega. Validándose en la OLT del laboratorio |
-| Mapa FTTH, monitoreo, app de campo | Fases 1 a 3 |
+| Monitoreo y alarmas | Cada 5 minutos Olterra lee el estado y la señal de cada ONU: en línea, caídas (sin luz, sin energía, desconectada), señal baja o alta, caídas de PON con su causa probable y OLT sin respuesta. Historial de señal de 30 días. Faltan los avisos por Telegram/correo/WhatsApp |
+| Mapa FTTH, app de campo | Fases 2 y 3 |
 
 ## Probarlo en un minuto
 

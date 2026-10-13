@@ -142,6 +142,10 @@ class Olt(Base):
     capabilities: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     location: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Monitoreo: cuándo se pidió el último sondeo, cuál está en curso y cuándo terminó uno bien.
+    monitor_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    monitor_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    monitored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -262,6 +266,68 @@ class OltBackup(Base):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created()
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OnuStatus(Base):
+    """Lo último que se sabe de cada ONU (lo reescribe cada sondeo del monitoreo)."""
+
+    __tablename__ = "onu_status"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE"), primary_key=True
+    )
+    pon: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    onu: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    serial: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    phase: Mapped[str | None] = mapped_column(Text)
+    online: Mapped[bool] = mapped_column(Boolean)
+    rx_dbm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    status_since: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_online_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OnuSample(Base):
+    __tablename__ = "onu_samples"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE"), primary_key=True
+    )
+    pon: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    onu: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True, server_default=func.now()
+    )
+    online: Mapped[bool] = mapped_column(Boolean)
+    rx_dbm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+
+
+class Alarm(Base):
+    __tablename__ = "alarms"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE")
+    )
+    # 0 = toda la OLT o todo el PON.
+    pon: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    onu: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    kind: Mapped[str] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(Text)
+    message: Mapped[str] = mapped_column(Text)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ProvisionTemplate(Base):

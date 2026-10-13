@@ -13,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from olterra.admin import create_api_key, create_tenant
 from olterra.db.models import (
+    Alarm,
     ApiKey,
     AuditLog,
     Credential,
     Olt,
     OltBackup,
+    OnuSample,
+    OnuStatus,
     ProvisionJob,
     ProvisionTemplate,
     Tenant,
@@ -229,6 +232,80 @@ async def test_olt_backups_are_isolated(world: World) -> None:
         assert old is not None
         old.status, old.created_at = "failed", datetime.now(UTC) - timedelta(days=2)
     assert (world.b, olt_b_id) in await due()
+
+
+async def test_monitoring_tables_are_isolated(world: World) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    async with tenant_session(world.app, world.b) as session:
+        olt_b = (await session.execute(select(Olt).where(Olt.name == "OLT-B"))).scalar_one()
+        credential = Credential(tenant_id=world.b, kind="olt", label="OLT-B", ciphertext=b"x")
+        session.add(credential)
+        await session.flush()
+        olt_b.credential_id, olt_b.last_seen_at = credential.id, datetime.now(UTC)
+        olt_b_id = olt_b.id
+        session.add(OnuStatus(tenant_id=world.b, olt_id=olt_b_id, pon=1, onu=1, online=True))
+        session.add(OnuSample(tenant_id=world.b, olt_id=olt_b_id, pon=1, onu=1, online=True))
+        session.add(
+            Alarm(
+                tenant_id=world.b,
+                olt_id=olt_b_id,
+                kind="pon_down",
+                severity="critical",
+                message="PON 1",
+                pon=1,
+            )
+        )
+    async with tenant_session(world.app, world.a) as session:
+        for model in (OnuStatus, OnuSample, Alarm):
+            assert (await session.execute(select(model))).all() == []
+    for row in (
+        OnuStatus(tenant_id=world.b, olt_id=olt_b_id, pon=1, onu=2, online=True),
+        Alarm(tenant_id=world.b, olt_id=olt_b_id, kind="rx_low", severity="warning", message="x"),
+    ):
+        with pytest.raises(DBAPIError, match="row-level security"):
+            async with tenant_session(world.app, world.a) as session:
+                session.add(row)
+    # Una alarma de A no puede colgar de la OLT de B (FK compuesta).
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                Alarm(
+                    tenant_id=world.a,
+                    olt_id=olt_b_id,
+                    kind="rx_low",
+                    severity="warning",
+                    message="x",
+                )
+            )
+    # Una sola alarma abierta por cosa y tipo.
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.b) as session:
+            session.add(
+                Alarm(
+                    tenant_id=world.b,
+                    olt_id=olt_b_id,
+                    kind="pon_down",
+                    severity="critical",
+                    message="otra",
+                    pon=1,
+                )
+            )
+
+    # El reloj ve, sin tenant, solo identificadores.
+    async def due() -> list[tuple[UUID, UUID]]:
+        async with world.app() as session:
+            rows = await session.execute(
+                text("SELECT tenant_id, olt_id FROM olterra_due_monitoring(interval '5 minutes')")
+            )
+            return [tuple(row) for row in rows.all()]
+
+    assert (world.b, olt_b_id) in await due()
+    async with tenant_session(world.app, world.b) as session:
+        olt = await session.get(Olt, olt_b_id)
+        assert olt is not None
+        olt.monitor_requested_at = datetime.now(UTC) - timedelta(minutes=1)
+    assert (world.b, olt_b_id) not in await due()
 
 
 async def test_foreign_keys_cannot_point_to_another_tenant(world: World) -> None:

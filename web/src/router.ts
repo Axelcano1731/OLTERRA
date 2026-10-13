@@ -64,6 +64,12 @@ export const router = createRouter({
           meta: { title: 'Respaldos' },
         },
         {
+          path: 'monitoreo',
+          name: 'monitoring',
+          component: () => import('@/views/MonitoringView.vue'),
+          meta: { title: 'Monitoreo' },
+        },
+        {
           path: 'bitacora',
           name: 'audit',
           component: () => import('@/views/AuditView.vue'),

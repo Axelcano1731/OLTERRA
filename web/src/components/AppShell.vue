@@ -49,6 +49,7 @@ const NAV: NavItem[] = [
     icon: LayoutTemplate,
     routes: ['templates', 'template-new', 'template-edit'],
   },
+  { to: { name: 'monitoring' }, label: 'Monitoreo', icon: Activity, routes: ['monitoring'] },
   { to: { name: 'tunnel' }, label: 'Túnel', icon: Waypoints, routes: ['tunnel'] },
   {
     to: { name: 'recons' },
@@ -66,10 +67,7 @@ const NAV: NavItem[] = [
 ]
 
 // Lo que viene según el plan (docs/ARQUITECTURA.md): se ve, pero no se puede abrir.
-const SOON = [
-  { label: 'Monitoreo', icon: Activity, phase: 1 },
-  { label: 'Mapa FTTH', icon: MapPin, phase: 2 },
-]
+const SOON = [{ label: 'Mapa FTTH', icon: MapPin, phase: 2 }]
 
 const route = useRoute()
 const router = useRouter()

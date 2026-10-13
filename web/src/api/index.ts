@@ -1,5 +1,6 @@
 import { api } from './client'
 import type {
+  Alarm,
   AuditEntry,
   AuditQuery,
   Backup,
@@ -20,6 +21,10 @@ import type {
   AuthorizeIn,
   ConfigureIn,
   LoginOut,
+  MonitoringSummary,
+  OnuFilter,
+  OnuHistory,
+  OnuStatus,
   ProvisionJob,
   WritePlan,
   Plan,
@@ -105,6 +110,23 @@ export const diffBackup = (id: string, against?: string) =>
     `/v1/backups/${encodeURIComponent(id)}/diff` +
       (against ? `?against=${encodeURIComponent(against)}` : ''),
   )
+
+export const getMonitoringSummary = () => api<MonitoringSummary>('/v1/monitoring/summary')
+export const listOnuStatus = (query: { olt_id?: string; filter?: OnuFilter; q?: string } = {}) => {
+  const params = new URLSearchParams()
+  for (const [name, value] of Object.entries(query)) if (value) params.set(name, String(value))
+  const search = params.toString()
+  return api<OnuStatus[]>(`/v1/monitoring/onus${search ? `?${search}` : ''}`)
+}
+export const getOnuHistory = (oltId: string, pon: number, onu: number, hours = 168) =>
+  api<OnuHistory>(`/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}?hours=${hours}`)
+export const listAlarms = (state: 'open' | 'all' = 'open', oltId?: string) =>
+  api<Alarm[]>(`/v1/alarms?state=${state}` + (oltId ? `&olt_id=${encodeURIComponent(oltId)}` : ''))
+/** Sondea ya la OLT (estado y potencia de sus ONU). */
+export const pollOlt = (oltId: string) =>
+  api<{ queued: boolean }>(`/v1/olts/${encodeURIComponent(oltId)}/monitoring/poll`, {
+    method: 'POST',
+  })
 
 export const listAudit = (query: AuditQuery = {}) => {
   const params = new URLSearchParams()
