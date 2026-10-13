@@ -469,3 +469,21 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Pendiente: avisos (Telegram, correo o WhatsApp por Converza), tráfico por PON y CPU y
   temperatura de la OLT.
 
+### A.19 Mapa FTTH
+
+- **MapLibre con teselas de OpenFreeMap.** Son gratis, sin llave y de datos de OpenStreetMap, con
+  su atribución en el mapa; el plan pedía un proveedor con licencia en vez de las teselas de
+  Google, y esto lo cumple sin costo para los pilotos. El estilo es configurable
+  (`OLTERRA_MAP_STYLE_URL`) para pasar a MapTiler o Esri (satelital) cuando haga falta; la CSP
+  abre solo ese dominio. El worker de MapLibre se sirve desde el mismo origen, así que la CSP no
+  abre `blob:` para scripts. MapLibre pesa ~285 KB comprimido y solo se baja al abrir el mapa.
+- **El vínculo ONU ↔ puerto NAP es la unión con la red viva.** Cada puerto apunta a una ONU
+  (OLT, PON, posición) y el mapa lee su estado y su señal del monitoreo: una caja con clientes
+  caídos se pinta así. Es la base para la correlación de fallas por caja o tramo (A.18) y para
+  el presupuesto óptico.
+- **Factibilidad por distancia real** (`geography` de PostGIS): cajas con puertos libres a menos
+  de un radio. Es la consulta que hará Converza cuando un prospecto mande su ubicación por
+  WhatsApp.
+- Pendiente: importar y exportar KMZ, hilos y fusiones por caja, presupuesto óptico calculado vs.
+  medido, y ubicar con el GPS del teléfono (app de campo).
+

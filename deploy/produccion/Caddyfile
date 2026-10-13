@@ -1,5 +1,6 @@
 # Olterra: la interfaz y la API bajo un mismo dominio, con HTTPS automático (Let's Encrypt).
-# OLTERRA_DOMINIO llega del .env (ver compose.yml). OLTERRA_API y OLTERRA_WEB_RAIZ solo
+# OLTERRA_DOMINIO (y OLTERRA_MAPA_ORIGEN, si se cambia el proveedor del mapa) llegan del .env
+# (ver compose.yml). OLTERRA_API y OLTERRA_WEB_RAIZ solo
 # cambian para probar este archivo fuera de Docker. Sin correo de ACME: Let's Encrypt ya no
 # manda avisos de vencimiento y Caddy renueva solo.
 
@@ -27,7 +28,9 @@
 	handle {
 		root * {$OLTERRA_WEB_RAIZ:/srv}
 		header {
-			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+			# El mapa FTTH baja teselas, letras e íconos del proveedor del estilo (OpenFreeMap por
+			# defecto, OLTERRA_MAPA_ORIGEN si se cambia) y arma imágenes con blob:. Nada más se abre.
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: {$OLTERRA_MAPA_ORIGEN:https://tiles.openfreemap.org}; font-src 'self'; connect-src 'self' {$OLTERRA_MAPA_ORIGEN:https://tiles.openfreemap.org}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 			Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		}
 		# Los archivos de /assets llevan hash en el nombre: se guardan un año. El resto no,

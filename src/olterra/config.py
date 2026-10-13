@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     monitor_every_minutes: float = 5.0
     # Días que se guarda el historial de potencia de las ONU.
     monitor_retention_days: int = 30
+    # Estilo de MapLibre del mapa FTTH. OpenFreeMap: gratis, sin llave, de OpenStreetMap. Si se
+    # cambia de proveedor, su dominio va también en la CSP de Caddy (OLTERRA_MAPA_ORIGEN).
+    map_style_url: str = "https://tiles.openfreemap.org/styles/liberty"
     # Credenciales de FÁBRICA de una OLT VSOL nueva (nunca se ha entrado por SSH): se aplican solo
     # cuando el cliente deja la clave vacía al agregarla. Es un secreto de la plataforma: va en
     # .env (OLTERRA_VSOL_DEFAULT_PASSWORD), nunca en el repo, y la API no lo devuelve jamás.

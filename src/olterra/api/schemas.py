@@ -565,3 +565,141 @@ class MonitoringSummary(BaseModel):
     critical: int = Field(description="Alarmas críticas abiertas")
     warning: int = Field(description="Avisos abiertos")
     olts: list[OltHealth]
+
+
+# --- Mapa FTTH ------------------------------------------------------------------------------
+
+BoxKind = Literal["nap", "ceo", "odf"]
+Splitter = Literal["1:2", "1:4", "1:8", "1:16", "1:32", "1:64"]
+
+
+class LatLng(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class MapBoxIn(LatLng):
+    kind: BoxKind = "nap"
+    name: str = Field(min_length=1, max_length=60)
+    ports: int = Field(8, ge=0, le=144, description="Puertos para clientes (NAP)")
+    splitter: Splitter | None = None
+    olt_id: UUID | None = Field(None, description="OLT de la que sale")
+    pon: int | None = Field(None, ge=1, le=16)
+    notes: str | None = Field(None, max_length=500)
+
+
+class MapBoxPatch(BaseModel):
+    """Cambia solo lo que viene."""
+
+    kind: BoxKind | None = None
+    name: str | None = Field(None, min_length=1, max_length=60)
+    lat: float | None = Field(None, ge=-90, le=90)
+    lng: float | None = Field(None, ge=-180, le=180)
+    ports: int | None = Field(None, ge=0, le=144)
+    splitter: Splitter | None = None
+    olt_id: UUID | None = None
+    pon: int | None = Field(None, ge=1, le=16)
+    notes: str | None = Field(None, max_length=500)
+
+
+class MapBoxOut(LatLng):
+    id: UUID
+    kind: BoxKind
+    name: str
+    ports: int
+    used: int = Field(description="Puertos con cliente")
+    splitter: str | None
+    olt_id: UUID | None
+    pon: int | None
+    notes: str | None
+    down: int = Field(description="Clientes de la caja que están caídos (monitoreo)")
+    low_signal: int = Field(description="Clientes con señal baja (monitoreo)")
+
+
+class MapPortOut(BaseModel):
+    port: int
+    olt_id: UUID
+    pon: int
+    onu: int
+    description: str | None
+    online: bool | None = Field(description="None si el monitoreo todavía no la vio")
+    phase_label: str | None
+    rx_dbm: float | None
+
+
+class MapBoxDetail(MapBoxOut):
+    port_list: list[MapPortOut]
+
+
+class PortAssignIn(BaseModel):
+    olt_id: UUID
+    pon: int = Field(ge=1, le=16)
+    onu: int = Field(ge=1, le=128)
+
+
+class MapPoleIn(LatLng):
+    name: str | None = Field(None, max_length=60)
+    owner: str | None = Field(None, max_length=60, description="Dueño del poste (la eléctrica…)")
+    notes: str | None = Field(None, max_length=500)
+
+
+class MapPoleOut(MapPoleIn):
+    id: UUID
+
+
+class MapCableIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    fibers: int = Field(12, ge=1, le=288)
+    coords: list[tuple[float, float]] = Field(
+        min_length=2, max_length=2000, description="Puntos [lng, lat] en orden"
+    )
+    notes: str | None = Field(None, max_length=500)
+
+    @field_validator("coords")
+    @classmethod
+    def _in_range(cls, value: list[tuple[float, float]]) -> list[tuple[float, float]]:
+        for lng, lat in value:
+            if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+                raise ValueError("Coordenadas fuera de rango")
+        return value
+
+
+class MapCablePatch(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=60)
+    fibers: int | None = Field(None, ge=1, le=288)
+    notes: str | None = Field(None, max_length=500)
+
+
+class MapCableOut(MapCableIn):
+    id: UUID
+    length_m: float = Field(description="Longitud geográfica (sobre el elipsoide)")
+
+
+class MapOlt(BaseModel):
+    id: UUID
+    name: str
+    status: str
+    lat: float | None
+    lng: float | None
+
+
+class MapData(BaseModel):
+    olts: list[MapOlt]
+    boxes: list[MapBoxOut]
+    poles: list[MapPoleOut]
+    cables: list[MapCableOut]
+
+
+class MapConfig(BaseModel):
+    style_url: str = Field(description="Estilo de MapLibre (teselas)")
+
+
+class FeasibilityOption(BaseModel):
+    box: MapBoxOut
+    distance_m: float
+    free_ports: int
+
+
+class Feasibility(BaseModel):
+    radius_m: int
+    options: list[FeasibilityOption]

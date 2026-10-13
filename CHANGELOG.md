@@ -4,6 +4,15 @@
 
 ### Agregado
 
+- Mapa FTTH (pantalla **Mapa FTTH**, ya activa en el menú), con MapLibre y teselas de
+  OpenFreeMap: ubicar la OLT, agregar cajas NAP, empalmes (CEO) y ODF con puertos, splitter, OLT
+  y PON, dibujar cables (con su longitud) y postes, y poner cada cliente (ONU) en su puerto NAP.
+  Cada caja se pinta según sus clientes en el monitoreo (caídos, llena, con puertos libres) y
+  muestra la señal de cada uno. **Factibilidad**: cajas con puertos libres a menos de un radio de
+  un punto. `/v1/map` (cajas, puertos, postes, cables, OLT y factibilidad). El técnico también
+  edita el mapa (`map:write`). Migración `0010`. La CSP abre solo el dominio de las teselas
+  (`OLTERRA_MAPA_ORIGEN`).
+
 - Monitoreo (pantalla **Monitoreo**, ya activa en el menú): cada `OLTERRA_MONITOR_EVERY_MINUTES`
   (5) se consulta cada OLT con prioridad baja (`show interface brief`, `show onu state` y
   `show pon onu all rx-power` por PON) y se guarda el estado de cada ONU, su señal (una muestra

@@ -20,6 +20,17 @@ const ACTIONS: Record<string, string> = {
   'tunnel.router.create': 'Agregó un MikroTik al túnel',
   'tunnel.router.rotate_keys': 'Rotó las llaves de un MikroTik',
   'reconciliation.run': 'Corrió una conciliación',
+  'map.box.create': 'Agregó una caja al mapa',
+  'map.box.update': 'Editó una caja del mapa',
+  'map.box.delete': 'Eliminó una caja del mapa',
+  'map.port.assign': 'Puso un cliente en un puerto',
+  'map.port.release': 'Liberó un puerto',
+  'map.cable.create': 'Dibujó un cable',
+  'map.cable.update': 'Editó un cable',
+  'map.cable.delete': 'Eliminó un cable',
+  'map.pole.create': 'Agregó un poste',
+  'map.pole.delete': 'Eliminó un poste',
+  'map.olt.place': 'Ubicó una OLT en el mapa',
 }
 
 export function auditAction(action: string): string {
@@ -35,6 +46,7 @@ export const AUDIT_KINDS: { value: string; label: string }[] = [
   { value: 'tunnel.', label: 'Túnel' },
   { value: 'auth.', label: 'Entradas' },
   { value: 'reconciliation.', label: 'Conciliación' },
+  { value: 'map.', label: 'Mapa' },
 ]
 
 const FIELDS: Record<string, string> = {
@@ -62,6 +74,10 @@ const FIELDS: Record<string, string> = {
   wifi_ssid: 'WiFi',
   routeros_version: 'RouterOS',
   transport: 'Transporte',
+  kind: 'Tipo',
+  port: 'Puerto',
+  fibers: 'Hilos',
+  length_m: 'Metros',
   claves_onu: 'Claves de la ONU',
 }
 

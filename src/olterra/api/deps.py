@@ -35,7 +35,8 @@ UNAUTHORIZED = HTTPException(
 # Qué puede hacer cada rol de usuario (las llaves de API traen sus propios permisos).
 ROLE_SCOPES: dict[str, tuple[str, ...]] = {
     "admin": ("*",),
-    "tecnico": ("olt:read", "onu:write"),
+    # El técnico documenta en campo: aprovisiona y edita el mapa.
+    "tecnico": ("olt:read", "onu:write", "map:write"),
     "lectura": ("olt:read",),
 }
 # Lo único permitido mientras no se cambie la contraseña inicial.

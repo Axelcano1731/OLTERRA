@@ -131,6 +131,7 @@ services:
       - "443:443/udp"
     environment:
       OLTERRA_DOMINIO: ${OLTERRA_DOMINIO}
+      OLTERRA_MAPA_ORIGEN: ${OLTERRA_MAPA_ORIGEN:-https://tiles.openfreemap.org}
     volumes:
       - caddy_data:/data
       - caddy_config:/config

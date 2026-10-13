@@ -54,6 +54,10 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `onu_status` | Monitoreo: lo último de cada ONU (fase, en línea, señal, cliente, desde cuándo). Una fila por ONU; la reescribe cada sondeo | leer, crear, cambiar, borrar |
 | `onu_samples` | Historial de señal: una muestra por ONU como máximo cada hora (antes si cambió 1 dB o la ONU cayó o volvió); se borra a los `OLTERRA_MONITOR_RETENTION_DAYS` (30) | leer, crear, borrar |
 | `alarms` | Alarmas del monitoreo, abiertas y cerradas. `pon`/`onu` = 0 para toda la OLT o el PON; un índice único parcial deja una sola abierta por cosa y tipo | leer, crear, cambiar |
+| `map_boxes` | Mapa FTTH: cajas NAP, CEO y ODF (punto PostGIS SRID 4326), puertos, splitter, OLT y PON de los que salen | leer, crear, cambiar, borrar |
+| `map_box_ports` | Qué ONU (cliente) va en cada puerto de una caja; una ONU en un solo puerto (índice único) | leer, crear, borrar |
+| `map_poles` | Postes, con su dueño (para conciliar el arriendo) | leer, crear, borrar |
+| `map_cables` | Cables como líneas (PostGIS); la longitud se calcula sobre el elipsoide al leer | leer, crear, cambiar, borrar |
 | `olt_backups` | Respaldos de `show running-config` de cada OLT, con las claves tapadas por el ejecutor, comprimidos y cifrados con la DEK del tenant (AAD `olt_backup:<id>`). `sha256` dice si cambió; un respaldo sin cambios no guarda otra copia (se lee la del último con la misma huella) | leer, crear, cambiar, borrar |
 | `reconciliation_runs` | Corridas de conciliación con sus hallazgos, su origen (`api`, `upload` o `demo`) y, si vienen de archivos, nombre, tipo y registros de cada uno (el contenido no se guarda) | leer, crear, cambiar, borrar |
 
@@ -93,6 +97,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0007` | `provision_jobs.kind` admite `olt_password`: el cambio de clave de la OLT usa el mismo motor de trabajos |
 | `0008` | `olt_backups` (RLS + FORCE, FK compuesta a `olts`) y la función `olterra_due_backups` |
 | `0009` | Monitoreo: `onu_status`, `onu_samples` y `alarms` (RLS + FORCE, FK compuestas), `olts.monitor_requested_at`, `monitor_plan_id` y `monitored_at`, y la función `olterra_due_monitoring` |
+| `0010` | Mapa FTTH: `map_boxes`, `map_box_ports`, `map_poles` y `map_cables` (RLS + FORCE, FK compuestas, índices GiST) |
 
 ## Correr las migraciones
 

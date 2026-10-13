@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -17,6 +17,10 @@ from olterra.db.models import (
     ApiKey,
     AuditLog,
     Credential,
+    MapBox,
+    MapBoxPort,
+    MapCable,
+    MapPole,
     Olt,
     OltBackup,
     OnuSample,
@@ -306,6 +310,38 @@ async def test_monitoring_tables_are_isolated(world: World) -> None:
         assert olt is not None
         olt.monitor_requested_at = datetime.now(UTC) - timedelta(minutes=1)
     assert (world.b, olt_b_id) not in await due()
+
+
+async def test_map_tables_are_isolated(world: World) -> None:
+    point = func.ST_SetSRID(func.ST_MakePoint(-74.52, 4.43), 4326)
+    line = func.ST_GeomFromText("LINESTRING(-74.52 4.43, -74.52 4.44)", 4326)
+    async with tenant_session(world.app, world.b) as session:
+        olt_b = (await session.execute(select(Olt.id).where(Olt.name == "OLT-B"))).scalar_one()
+        nap = MapBox(tenant_id=world.b, kind="nap", name="NAP-B", location=point, ports=8)
+        session.add(nap)
+        session.add(MapPole(tenant_id=world.b, location=point))
+        session.add(MapCable(tenant_id=world.b, name="Troncal B", path=line))
+        await session.flush()
+        nap_b = nap.id
+        session.add(MapBoxPort(tenant_id=world.b, box_id=nap_b, port=1, olt_id=olt_b, pon=1, onu=1))
+    async with tenant_session(world.app, world.a) as session:
+        for model in (MapBox, MapBoxPort, MapPole, MapCable):
+            assert (await session.execute(select(model))).all() == []
+        olt_a = (await session.execute(select(Olt.id).where(Olt.name == "OLT-A"))).scalar_one()
+    with pytest.raises(DBAPIError, match="row-level security"):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(MapBox(tenant_id=world.b, kind="nap", name="x", location=point))
+    # El puerto de A no puede ir en la caja de B ni la caja de A colgar de la OLT de B.
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                MapBoxPort(tenant_id=world.a, box_id=nap_b, port=2, olt_id=olt_a, pon=1, onu=1)
+            )
+    with pytest.raises(IntegrityError):
+        async with tenant_session(world.app, world.a) as session:
+            session.add(
+                MapBox(tenant_id=world.a, kind="nap", name="x", location=point, olt_id=olt_b)
+            )
 
 
 async def test_foreign_keys_cannot_point_to_another_tenant(world: World) -> None:
