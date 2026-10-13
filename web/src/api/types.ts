@@ -536,3 +536,101 @@ export interface OnuHistory {
 }
 
 export type OnuFilter = 'all' | 'online' | 'offline' | 'low'
+
+// --- Mapa FTTH ---
+
+export type BoxKind = 'nap' | 'ceo' | 'odf'
+export type Splitter = '1:2' | '1:4' | '1:8' | '1:16' | '1:32' | '1:64'
+
+export interface MapBox {
+  id: string
+  kind: BoxKind
+  name: string
+  lat: number
+  lng: number
+  ports: number
+  /** Puertos con cliente. */
+  used: number
+  splitter: string | null
+  olt_id: string | null
+  pon: number | null
+  notes: string | null
+  /** Clientes de la caja que están caídos (monitoreo). */
+  down: number
+  low_signal: number
+}
+
+export interface MapPort {
+  port: number
+  olt_id: string
+  pon: number
+  onu: number
+  description: string | null
+  /** null si el monitoreo todavía no la vio. */
+  online: boolean | null
+  phase_label: string | null
+  rx_dbm: number | null
+}
+
+export interface MapBoxDetail extends MapBox {
+  port_list: MapPort[]
+}
+
+export interface MapBoxIn {
+  kind: BoxKind
+  name: string
+  lat: number
+  lng: number
+  ports: number
+  splitter?: Splitter | null
+  olt_id?: string | null
+  pon?: number | null
+  notes?: string | null
+}
+
+export type MapBoxPatch = Partial<MapBoxIn>
+
+export interface MapPole {
+  id: string
+  name: string | null
+  lat: number
+  lng: number
+  owner: string | null
+  notes: string | null
+}
+
+export interface MapCable {
+  id: string
+  name: string
+  fibers: number
+  /** Puntos [lng, lat] en orden. */
+  coords: [number, number][]
+  length_m: number
+  notes: string | null
+}
+
+export interface MapOlt {
+  id: string
+  name: string
+  status: string
+  lat: number | null
+  lng: number | null
+}
+
+export interface MapData {
+  olts: MapOlt[]
+  boxes: MapBox[]
+  poles: MapPole[]
+  cables: MapCable[]
+}
+
+export interface FeasibilityOption {
+  box: MapBox
+  distance_m: number
+  free_ports: number
+}
+
+export interface Feasibility {
+  radius_m: number
+  options: FeasibilityOption[]
+}

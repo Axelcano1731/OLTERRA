@@ -330,6 +330,68 @@ class Alarm(Base):
     cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class MapBox(Base):
+    """Caja del mapa FTTH: NAP (con puertos para clientes), CEO (empalme) u ODF (cabecera)."""
+
+    __tablename__ = "map_boxes"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    kind: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text)
+    location: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326))
+    ports: Mapped[int] = mapped_column(SmallInteger, server_default="8")
+    splitter: Mapped[str | None] = mapped_column(Text)
+    olt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="SET NULL")
+    )
+    pon: Mapped[int | None] = mapped_column(SmallInteger)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MapBoxPort(Base):
+    """Qué ONU (cliente) está en cada puerto de una caja NAP."""
+
+    __tablename__ = "map_box_ports"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    box_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("map_boxes.id", ondelete="CASCADE"), primary_key=True
+    )
+    port: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE")
+    )
+    pon: Mapped[int] = mapped_column(SmallInteger)
+    onu: Mapped[int] = mapped_column(SmallInteger)
+    created_at: Mapped[datetime] = _created()
+
+
+class MapPole(Base):
+    __tablename__ = "map_poles"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    name: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326))
+    owner: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+
+
+class MapCable(Base):
+    __tablename__ = "map_cables"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = _tenant_fk()
+    name: Mapped[str] = mapped_column(Text)
+    fibers: Mapped[int] = mapped_column(SmallInteger, server_default="12")
+    path: Mapped[Any] = mapped_column(Geometry("LINESTRING", srid=4326))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ProvisionTemplate(Base):
     __tablename__ = "provision_templates"
     id: Mapped[uuid.UUID] = _uuid_pk()

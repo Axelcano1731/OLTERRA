@@ -70,6 +70,12 @@ export const router = createRouter({
           meta: { title: 'Monitoreo' },
         },
         {
+          path: 'mapa',
+          name: 'map',
+          component: () => import('@/views/MapView.vue'),
+          meta: { title: 'Mapa FTTH' },
+        },
+        {
           path: 'bitacora',
           name: 'audit',
           component: () => import('@/views/AuditView.vue'),

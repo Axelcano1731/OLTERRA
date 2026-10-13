@@ -21,6 +21,7 @@ from olterra.api.deps import State
 from olterra.api.routes import (
     audit_log,
     auth,
+    ftth_map,
     me,
     olts,
     plans,
@@ -163,6 +164,7 @@ def create_app(
         provisioning,
         backup_routes,
         monitoring_routes,
+        ftth_map,
         audit_log,
         tunnel,
         reconciliation,

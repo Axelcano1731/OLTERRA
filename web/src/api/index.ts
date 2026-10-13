@@ -7,6 +7,15 @@ import type {
   BackupDetail,
   BackupDiff,
   Command,
+  Feasibility,
+  MapBox,
+  MapBoxDetail,
+  MapBoxIn,
+  MapBoxPatch,
+  MapCable,
+  MapData,
+  MapOlt,
+  MapPole,
   Health,
   Me,
   Olt,
@@ -127,6 +136,47 @@ export const pollOlt = (oltId: string) =>
   api<{ queued: boolean }>(`/v1/olts/${encodeURIComponent(oltId)}/monitoring/poll`, {
     method: 'POST',
   })
+
+export const getMapConfig = () => api<{ style_url: string }>('/v1/map/config')
+export const getMap = () => api<MapData>('/v1/map')
+export const createBox = (body: MapBoxIn) => api<MapBox>('/v1/map/boxes', { json: body })
+export const getBox = (id: string) => api<MapBoxDetail>(`/v1/map/boxes/${encodeURIComponent(id)}`)
+export const updateBox = (id: string, body: MapBoxPatch) =>
+  api<MapBoxDetail>(`/v1/map/boxes/${encodeURIComponent(id)}`, { method: 'PATCH', json: body })
+export const deleteBox = (id: string) =>
+  api<void>(`/v1/map/boxes/${encodeURIComponent(id)}`, { method: 'DELETE' })
+/** Pone un cliente (ONU) en un puerto; si estaba en otro, lo mueve. */
+export const assignPort = (
+  boxId: string,
+  port: number,
+  onu: { olt_id: string; pon: number; onu: number },
+) =>
+  api<MapBoxDetail>(`/v1/map/boxes/${encodeURIComponent(boxId)}/ports/${port}`, {
+    method: 'PUT',
+    json: onu,
+  })
+export const releasePort = (boxId: string, port: number) =>
+  api<MapBoxDetail>(`/v1/map/boxes/${encodeURIComponent(boxId)}/ports/${port}`, {
+    method: 'DELETE',
+  })
+export const createPole = (body: Omit<MapPole, 'id'>) =>
+  api<MapPole>('/v1/map/poles', { json: body })
+export const deletePole = (id: string) =>
+  api<void>(`/v1/map/poles/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const createCable = (body: Omit<MapCable, 'id' | 'length_m'>) =>
+  api<MapCable>('/v1/map/cables', { json: body })
+export const updateCable = (id: string, body: Partial<Pick<MapCable, 'name' | 'fibers'>>) =>
+  api<MapCable>(`/v1/map/cables/${encodeURIComponent(id)}`, { method: 'PATCH', json: body })
+export const deleteCable = (id: string) =>
+  api<void>(`/v1/map/cables/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const placeOlt = (id: string, lat: number, lng: number) =>
+  api<MapOlt>(`/v1/map/olts/${encodeURIComponent(id)}/location`, {
+    method: 'PUT',
+    json: { lat, lng },
+  })
+/** Cajas con puertos libres cerca de un punto (lo que pregunta un prospecto). */
+export const feasibility = (lat: number, lng: number, radiusM = 300) =>
+  api<Feasibility>(`/v1/map/feasibility?lat=${lat}&lng=${lng}&radius_m=${radiusM}`)
 
 export const listAudit = (query: AuditQuery = {}) => {
   const params = new URLSearchParams()

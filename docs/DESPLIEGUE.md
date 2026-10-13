@@ -366,7 +366,11 @@ y `./olterra.sh actualizar`. Cada plan que corre así lo dice en la pantalla y e
 
 - Solo 80 y 443 abiertos. La base y NATS no publican puertos.
 - `.env` con permisos 600; las claves nunca en la línea de comandos ni en los registros.
-- La interfaz va con CSP estricta (solo recursos propios), HSTS y `nosniff`.
+- La interfaz va con CSP estricta (solo recursos propios), HSTS y `nosniff`. La única excepción
+  es el dominio de las teselas del mapa FTTH (`OLTERRA_MAPA_ORIGEN`, por defecto
+  `https://tiles.openfreemap.org`) en `img-src` y `connect-src`. Para cambiar de proveedor
+  (MapTiler, Esri…), poner su dominio en `OLTERRA_MAPA_ORIGEN` y su estilo en
+  `OLTERRA_MAP_STYLE_URL` del `.env`.
 - Subidas a la API de 30 MB como máximo (lo corta Caddy).
 - Las personas entran con usuario y contraseña (scrypt, bloqueo por intentos, sesión que
   vence); la contraseña inicial se cambia al entrar. Las llaves de API son para integraciones:
