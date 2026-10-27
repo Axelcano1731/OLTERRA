@@ -57,6 +57,11 @@ $env:OLTERRA_CAPTURE_PASSWORD = "<clave del usuario olterra>"
 - Deja todo en `lab-captures/vsol-gpon/<modelo>/<firmware>/<fecha>/` (ignorado por git) con
   un `manifest.json` y un resumen en pantalla de qué comandos **no existen** en ese firmware.
 - Si la OLT solo habla algoritmos SSH viejos: `--ssh-legacy`.
+- Si el SSH no responde desde la red del ISP pero Telnet sí: `--telnet` (puerto 23; viaja en
+  claro, así que solo dentro de la red del ISP). Olterra sigue entrando por SSH por el túnel.
+- Antes de copiar a `tests/fixtures`: `--anonimizar` no toca nombres. En la OLT de Tocaima
+  los nombres de clientes salían en `desc`, en `Description:`, en la columna de
+  `show interface brief` (a veces pegados al estado) y los usuarios PPPoE en `pri wan_conn`.
 - Para probar la herramienta sin OLT: `python -m olterra.devtools.vsol_sim --puerto 2222` en
   otra terminal y `--host 127.0.0.1 --puerto 2222 --usuario admin` (clave `olterra-sim`).
 

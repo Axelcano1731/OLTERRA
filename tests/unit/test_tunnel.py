@@ -325,3 +325,22 @@ def test_hub_bootstrap_with_sstp() -> None:
             nat_pool=IPv4Network("198.19.0.0/16"),
             sstp_port=4443,
         )
+
+
+def test_isp_script_opens_the_cli_port_of_each_olt() -> None:
+    olts = [
+        OltMapping("OLT-SSH", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0")),
+        OltMapping("OLT-TEL", IPv4Address("172.17.0.2"), IPv4Address("198.19.0.1"), cli_port=23),
+    ]
+    script = render_isp_script(tunnel(olts=olts))
+    assert "dst-address=192.168.8.200 protocol=tcp dst-port=22 action=accept" in script
+    assert "dst-address=172.17.0.2 protocol=tcp dst-port=23 action=accept" in script
+    assert "dst-address=172.17.0.2 protocol=tcp dst-port=22 " not in script
+    with pytest.raises(ScriptError):
+        render_isp_script(
+            tunnel(
+                olts=[
+                    OltMapping("X", IPv4Address("10.0.0.2"), IPv4Address("198.19.0.2"), cli_port=0)
+                ]
+            )
+        )

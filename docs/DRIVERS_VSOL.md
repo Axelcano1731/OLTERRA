@@ -1,6 +1,6 @@
 # Driver VSOL GPON
 
-> Última actualización: 2026-10-03 · Código: `src/olterra/drivers/vsol_gpon/`
+> Última actualización: 2026-10-27 · Código: `src/olterra/drivers/vsol_gpon/`
 
 Cubre la serie V1600G (V1600G0-B, V1600G1, V1600G1B, V1600G2, V1600GS…). La sintaxis sale
 del manual público y de fuentes abiertas, y cada comando lleva `verified=False` hasta que una
@@ -9,9 +9,33 @@ captura real: V1600G0-B con firmware V1.4.8R** (`tests/fixtures/vsol-gpon/V1600G
 verifica 26 comandos con la sintaxis del catálogo y 3 con la sintaxis propia de ese modelo
 (abajo). El resto, y todos los demás modelos, siguen sin verificar.
 
+## OLT de 8 PON de Tocaima, V1.1.9R (2026-10-27)
+
+Captura de una OLT en producción por Telnet desde la red del ISP
+(`tests/fixtures/vsol-gpon/desconocido-8pon/V1.1.9R/`, con nombres, usuarios PPPoE y seriales
+reemplazados). `show version` no dice el modelo ("eight gpon olt platform"): hay que leerlo en
+la etiqueta del equipo. Los 34 comandos de lectura responden; lo distinto:
+
+- `show onu state` numera las ONU `1/1/<pon>:<onu>` y no `GPON0/<pon>:<onu>`.
+- `show pon onu all rx-power` pone `0.00` a las ONU desconectadas: se toma como "sin lectura"
+  (sin esto, el monitoreo levantaba una alarma falsa de señal alta).
+- `show running-config onu N` no trae la línea `onu add` (el serial solo está en la
+  configuración completa) y el servicio sale con `cos N/A`.
+- `show pon {pon} statistics` se acepta y no devuelve nada.
+- **SSH no sirve con los usuarios de la CLI**: es un OpenSSH 7.3 que autentica contra los
+  usuarios internos del sistema; el de la web/Telnet (y los de fábrica) los rechaza. Olterra
+  entra a esta OLT por Telnet (`cli_protocol = telnet`, ver DESPLIEGUE 6.1.1). Además traía
+  `Deny ssh 0.0.0.0 0.0.0.0` en `show login-access-list`, que no sale en la configuración.
+- La WAN de las ONU se guarda como `pri wan_conn index … pppoe … user … pwd … mode auto`, no
+  como `pri wan_adv` de la V1600G0-B: el alta con WAN en esta OLT necesita su propia sintaxis
+  (sin validar; las escrituras siguen bloqueadas).
+- La sintaxis que el manual da para `onu.optical`, `onu.description`, `pon.statistics` y
+  `profile.list` la rechazan esta OLT y la V1600G0-B; la que aceptan las dos pasó a ser la del
+  catálogo para todos los modelos.
+
 ## V1600G0-B V1.4.8R: lo que se aprendió en laboratorio (2026-10-03)
 
-**Sintaxis propia del modelo** (overrides en `commands.py`; el manual v2.1 usa otras palabras):
+**Sintaxis distinta del manual** (hoy es la del catálogo para todos, ver la sección de Tocaima):
 
 | Llave | Manual | V1600G0-B V1.4.8R |
 |---|---|---|
@@ -23,8 +47,10 @@ verifica 26 comandos con la sintaxis del catálogo y 3 con la sintaxis propia de
 en modo PON y como `show profile dba`, `show profile onu`, `show profile srv`… (con `id`,
 `name` o `running-config`). Queda para la fase 1 (plantillas de autorización).
 
-**La CLI posiciona las columnas con el cursor**: cada celda se imprime como `` + `ESC[<n>C`
-(vuelve al inicio y avanza `n` columnas). Quien borre las secuencias ANSI y trate cada ``
+**La CLI posiciona las columnas con el cursor**: cada celda se imprime como `
+` + `ESC[<n>C`
+(vuelve al inicio y avanza `n` columnas). Quien borre las secuencias ANSI y trate cada `
+`
 como "sobrescribir desde el inicio" pierde todo menos la última celda. Olterra lo emula
 (`executor/cli.py`, `_render_line`). Los parsers de `show onu info`, `show onu state` y
 `show pon onu all rx-power` dependen de esto.
@@ -165,21 +191,21 @@ inyectar otro comando en la OLT.
 | `interfaces.brief` | `show interface brief` | config | lectura | Guías públicas |
 | `snmp.communities` | `show snmp-server community` | config | lectura | Manual v2.1 §24.4.1 |
 | `snmp.trap_hosts` | `show snmp-server targetaddress` | config | lectura | Manual v2.1 §24.4.2 |
-| `profile.list` | `show profile {kind} all` | config | lectura | Manual v2.1 §20.9 |
+| `profile.list` | `show profile {kind}` | config | lectura | V1600G0-B y OLT de Tocaima (el manual agrega `all`, que rechazan) |
 | `mac.by_pon` | `show mac address-table interface gpon 0/{pon}` | config | lectura | Manual v2.1 §9.3.1. Sintaxis de la interfaz sin confirmar |
 | `pon.info` | `show pon info` | PON | lectura | Manual v2.1 §18.3.1 |
 | `pon.optical` | `show pon optical transceiver` | PON | lectura | Manual v2.1 §18.2.2 |
-| `pon.statistics` | `show pon statistics` | PON | lectura | Manual v2.1 §18.2.1 |
+| `pon.statistics` | `show pon {pon} statistics` | PON | lectura | V1600G0-B y OLT de Tocaima (en V1.1.9R responde vacío) |
 | `onu.autolearn` | `show onu auto-learn` | PON | lectura | Manual v2.1 §17.1 |
 | `onu.autofind` | `show onu auto-find` | PON | lectura | Manual v2.1 §19.2.1 |
 | `onu.autofind_detail` | `show onu auto-find detail-info` | PON | lectura | Manual v2.1 §19.2.1 |
 | `onu.list` | `show onu info` | PON | lectura | Manual v2.1 §19.2.3. El manual escribe `Show onuinfo` |
 | `onu.rx_power_all` | `show pon onu all rx-power` | PON | lectura | Manual v2.1 §18.2.3 |
 | `onu.detail` | `show onu detail-info {onu}` | PON | lectura | Manual v2.1 §19.2.4 |
-| `onu.optical` | `show onu {onu} optical-info` | PON | lectura | Manual v2.1 §19.3.1 |
+| `onu.optical` | `show onu {onu} optical_info` | PON | lectura | V1600G0-B y OLT de Tocaima (el manual dice `optical-info`) |
 | `onu.capability` | `show onu {onu} capability` | PON | lectura | Manual v2.1 §19.3.12 |
 | `onu.service_config` | `show running-config onu {onu}` | PON | lectura | Manual v2.1 §19.3.11 |
-| `onu.description` | `show onu {onu} description` | PON | lectura | Manual v2.1 §19.2.7 |
+| `onu.description` | `show onu {onu} desc` | PON | lectura | V1600G0-B y OLT de Tocaima (el manual dice `description`) |
 | `onu.state` | `show onu state` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
 | `onu.distance` | `show onu {onu} distance` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
 | `onu.authorize` | `onu add {onu} profile {profile} sn {serial}` | PON | escritura | Manual v2.1 §19.2.6 y ejemplo §19.4.7 |
@@ -225,9 +251,6 @@ Sintaxis distinta por modelo (`CommandOverride`):
 
 | Llave | Modelo | Comando | Fuente |
 |---|---|---|---|
-| `onu.optical` | `V1600G0*` | `show onu {onu} optical_info` | Laboratorio V1600G0-B (verificado) |
-| `onu.description` | `V1600G0*` | `show onu {onu} desc` | Laboratorio V1600G0-B (verificado) |
-| `pon.statistics` | `V1600G0*` | `show pon {pon} statistics` | Laboratorio V1600G0-B (verificado) |
 | `onu.set_description` | `V1600G0*` | `onu {onu} desc {description}` | Configuración guardada de la V1600G0-B |
 | `onu.tcont` | `V1600G0*` | `onu {onu} tcont {tcont} name {tcont_name} dba {profile}` | Ídem |
 | `onu.gemport` | `V1600G0*` | `onu {onu} gemport {gemport} tcont {tcont} gemport_name {gemport_name}` | Ídem |

@@ -1,0 +1,4 @@
+UserName --------------- User_role ----------
+admin                    ADMIN_USER
+OPERADOR                   ADMIN_USER
+Total 2 users in system.

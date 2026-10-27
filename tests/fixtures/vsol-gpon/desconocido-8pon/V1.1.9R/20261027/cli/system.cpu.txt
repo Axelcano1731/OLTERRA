@@ -1,0 +1,11 @@
+Current CPU Usage:     19%
+
+Linux 4.14.48 (iProc) (1 CPU)
+
+08:01:35     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest   %idle
+08:01:38     all    5.98    0.00    2.66    0.00    0.00    0.00    0.00    0.00   91.36
+08:01:38       0    5.98    0.00    2.66    0.00    0.00    0.00    0.00    0.00   91.36
+
+Average:     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest   %idle
+Average:     all    5.98    0.00    2.66    0.00    0.00    0.00    0.00    0.00   91.36
+Average:       0    5.98    0.00    2.66    0.00    0.00    0.00    0.00    0.00   91.36

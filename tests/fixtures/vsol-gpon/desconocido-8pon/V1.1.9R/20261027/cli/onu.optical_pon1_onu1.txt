@@ -1,0 +1,20 @@
+ONU ID: 1
+Interface:                    pon_0/1
+GEM_blocklen:                 48
+SF threshold:                 5
+SD threshold:                 9
+Alarm:                        disable
+Alarm disable interval:       0
+Total T-CONT number:          31
+Piggyback DBA rpt mode:       mode 0 only
+Whole ONU DBA rpt mode:       N/A
+Rx optical level:             -17.47
+Lower rx optical threshold:   ont internal policy
+Upper rx optical threshold:   ont internal policy
+Tx optical level:             2.55
+Lower tx optical threshold:   ont internal policy
+Upper tx optical threshold:   ont internal policy
+ONU response time:            22320
+Power feed voltage:           3.26(V)
+Laser bias current:           10.762(mA)
+Temperature:                  41.727(C)

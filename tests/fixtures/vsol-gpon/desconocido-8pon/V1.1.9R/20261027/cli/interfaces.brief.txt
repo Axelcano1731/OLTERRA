@@ -1,0 +1,105 @@
+Port      Description         Status    Duplex  Speed     Type
+---       -----------         -----     ------  -----     ---
+GE0/1                         up        Full    1000M     1000Base-X
+GE0/2                         down      auto    auto      1000Base-X
+GE0/3                         down      auto    auto      10GE SFP+
+GE0/4                         down      auto    auto      10GE SFP+
+GPON0/1   PON9                up                          GPON
+GPON0/2   PON10               up                          GPON
+GPON0/3   PON11               up                          GPON
+GPON0/4   PON12               up                          GPON
+GPON0/5   PON13               up                          GPON
+GPON0/6   PON14               up                          GPON
+GPON0/7   PON15               up                          GPON
+GPON0/8   PON16               up                          GPON
+GPON0/1:1 CLIENTE_027       up                          GPON-ONUID
+GPON0/1:2 CLIENTE_008        up                          GPON-ONUID
+GPON0/1:3 CLIENTE_026       up                          GPON-ONUID
+GPON0/1:4 CLIENTE_023       up                          GPON-ONUID
+GPON0/1:5 CLIENTE_087      up                          GPON-ONUID
+GPON0/1:6 CLIENTE_089      up                          GPON-ONUID
+GPON0/1:7 CLIENTE_070      up                          GPON-ONUID
+GPON0/1:8 CLIENTE_059        down                        GPON-ONUID
+GPON0/1:9 CLIENTE_007      up                          GPON-ONUID
+GPON0/1:10CLIENTE_048       up                          GPON-ONUID
+GPON0/1:11CLIENTE_028   up                          GPON-ONUID
+GPON0/1:12CLIENTE_025     up                          GPON-ONUID
+GPON0/1:13CLIENTE_053         up                          GPON-ONUID
+GPON0/1:14CLIENTE_062     up                          GPON-ONUID
+GPON0/1:15CLIENTE_067      down                        GPON-ONUID
+GPON0/1:16CLIENTE_029   up                          GPON-ONUID
+GPON0/1:17CLIENTE_055         up                          GPON-ONUID
+GPON0/1:18CLIENTE_077       down                        GPON-ONUID
+GPON0/1:19CLIENTE_038        up                          GPON-ONUID
+GPON0/1:20CLIENTE_084       up                          GPON-ONUID
+GPON0/1:21CLIENTE_085      down                        GPON-ONUID
+GPON0/1:22CLIENTE_083         up                          GPON-ONUID
+GPON0/1:23CLIENTE_069     up                          GPON-ONUID
+GPON0/1:24CLIENTE_002      up                          GPON-ONUID
+GPON0/1:25CLIENTE_068    up                          GPON-ONUID
+GPON0/1:26CLIENTE_072       up                          GPON-ONUID
+GPON0/1:27CLIENTE_076up                          GPON-ONUID
+GPON0/1:28CLIENTE_071        down                        GPON-ONUID
+GPON0/1:29CLIENTE_061       up                          GPON-ONUID
+GPON0/1:30CLIENTE_031        up                          GPON-ONUID
+GPON0/1:31CLIENTE_079   up                          GPON-ONUID
+GPON0/2:1 CLIENTE_081         up                          GPON-ONUID
+GPON0/2:2 CLIENTE_051     up                          GPON-ONUID
+GPON0/2:3 CLIENTE_050       up                          GPON-ONUID
+GPON0/2:4 CLIENTE_018         down                        GPON-ONUID
+GPON0/2:5 CLIENTE_040     up                          GPON-ONUID
+GPON0/2:6 CLIENTE_036    up                          GPON-ONUID
+GPON0/2:7 CLIENTE_043      down                        GPON-ONUID
+GPON0/2:8 CLIENTE_035       up                          GPON-ONUID
+GPON0/2:9 CLIENTE_064       up                          GPON-ONUID
+GPON0/2:10CLIENTE_009  down                        GPON-ONUID
+GPON0/2:11CLIENTE_018         down                        GPON-ONUID
+GPON0/2:12CLIENTE_019         up                          GPON-ONUID
+GPON0/3:1 CLIENTE_045        up                          GPON-ONUID
+GPON0/3:2 CLIENTE_046      up                          GPON-ONUID
+GPON0/3:3 CLIENTE_012     up                          GPON-ONUID
+GPON0/3:4 CLIENTE_056     up                          GPON-ONUID
+GPON0/3:5 CLIENTE_016        up                          GPON-ONUID
+GPON0/3:6 CLIENTE_006     up                          GPON-ONUID
+GPON0/3:7 CLIENTE_010     up                          GPON-ONUID
+GPON0/4:1 CLIENTE_011     up                          GPON-ONUID
+GPON0/4:2 CLIENTE_020     up                          GPON-ONUID
+GPON0/4:3 CLIENTE_047         up                          GPON-ONUID
+GPON0/4:4 CLIENTE_021     down                        GPON-ONUID
+GPON0/4:5 CLIENTE_024       up                          GPON-ONUID
+GPON0/4:6 CLIENTE_005          up                          GPON-ONUID
+GPON0/4:7 CLIENTE_057           up                          GPON-ONUID
+GPON0/4:8 CLIENTE_003       up                          GPON-ONUID
+GPON0/4:9 CLIENTE_052     up                          GPON-ONUID
+GPON0/4:10CLIENTE_021     up                          GPON-ONUID
+GPON0/5:1 CLIENTE_034         up                          GPON-ONUID
+GPON0/5:2 CLIENTE_075        up                          GPON-ONUID
+GPON0/5:3 CLIENTE_086       up                          GPON-ONUID
+GPON0/5:4 CLIENTE_033        down                        GPON-ONUID
+GPON0/5:5 CLIENTE_037         up                          GPON-ONUID
+GPON0/6:1 CLIENTE_082        up                          GPON-ONUID
+GPON0/6:2 CLIENTE_004      up                          GPON-ONUID
+GPON0/6:3 CLIENTE_054       down                        GPON-ONUID
+GPON0/6:4 CLIENTE_078    up                          GPON-ONUID
+GPON0/6:5 CLIENTE_074         up                          GPON-ONUID
+GPON0/6:6 CLIENTE_022      up                          GPON-ONUID
+GPON0/6:7 CLIENTE_014         up                          GPON-ONUID
+GPON0/6:8 CLIENTE_060         up                          GPON-ONUID
+GPON0/6:9 CLIENTE_049        up                          GPON-ONUID
+GPON0/6:10CLIENTE_088        down                        GPON-ONUID
+GPON0/6:11CLIENTE_004      down                        GPON-ONUID
+GPON0/6:12CLIENTE_013 up                          GPON-ONUID
+GPON0/6:13CLIENTE_044       up                          GPON-ONUID
+GPON0/6:14CLIENTE_015     up                          GPON-ONUID
+GPON0/6:15CLIENTE_065       up                          GPON-ONUID
+GPON0/6:16CLIENTE_058         up                          GPON-ONUID
+GPON0/6:17CLIENTE_041          up                          GPON-ONUID
+GPON0/6:18CLIENTE_042     up                          GPON-ONUID
+GPON0/6:22CLIENTE_030         up                          GPON-ONUID
+GPON0/7:1 CLIENTE_066       down                        GPON-ONUID
+GPON0/7:2 CLIENTE_017        up                          GPON-ONUID
+GPON0/7:3 CLIENTE_039          up                          GPON-ONUID
+GPON0/7:6 CLIENTE_032      up                          GPON-ONUID
+GPON0/8:1 CLIENTE_080         up                          GPON-ONUID
+GPON0/8:2 CLIENTE_073      down                        GPON-ONUID
+GPON0/8:3 CLIENTE_063  up                          GPON-ONUID

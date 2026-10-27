@@ -795,3 +795,44 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
     assert other.status_code == 404
     bad = env.client.post(url, json=alta | {"wifi_key": "con?pregunta"}, headers=env.headers())
     assert bad.status_code == 422
+
+
+def test_olt_over_telnet(env: Env) -> None:
+    """Una OLT que no acepta a los usuarios de la CLI por SSH (Tocaima, V1.1.9R)."""
+    router = env.client.post(
+        "/v1/tunnel/routers", json={"name": "BNG-TEL"}, headers=env.headers()
+    ).json()
+    olt = create_olt(
+        env, router_id=router["router"]["id"], real_ip="172.17.0.2", cli_protocol="telnet"
+    )
+    assert (olt["cli_protocol"], olt["telnet_port"]) == ("telnet", 23)
+
+    # El script del router abre el puerto Telnet de esa OLT, no el SSH.
+    script = env.client.post(
+        f"/v1/tunnel/routers/{router['router']['id']}/script", headers=env.headers()
+    ).json()["isp_script"]
+    rules = [line for line in script.splitlines() if "dst-address=172.17.0.2 protocol=tcp" in line]
+    assert rules and all("dst-port=23 " in line for line in rules)
+
+    # La consulta sale con el protocolo de la OLT.
+    response = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["system.version"]},
+        headers=env.headers(),
+    )
+    assert response.status_code == 202, response.text
+    [plan] = env.publisher.plans
+    assert (plan.target.cli_protocol, plan.target.telnet_port) == ("telnet", 23)
+
+    # Y se puede volver a SSH desde Editar.
+    edited = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"cli_protocol": "ssh"}, headers=env.headers()
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["cli_protocol"] == "ssh"
+    assert (
+        env.client.patch(
+            f"/v1/olts/{olt['id']}", json={"cli_protocol": "http"}, headers=env.headers()
+        ).status_code
+        == 422
+    )

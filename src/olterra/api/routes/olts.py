@@ -140,6 +140,8 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> OltCreated:
                 firmware=body.firmware,
                 ssh_port=body.ssh_port,
                 snmp_port=body.snmp_port,
+                cli_protocol=body.cli_protocol,
+                telnet_port=body.telnet_port,
                 credential_id=credential_id,
                 real_ip=str(body.real_ip) if body.real_ip else None,
             )
@@ -250,6 +252,8 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
             "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
             "ssh_port": olt.ssh_port,
             "snmp_port": olt.snmp_port,
+            "cli_protocol": olt.cli_protocol,
+            "telnet_port": olt.telnet_port,
         }
         if "model" in changes:
             olt.model = (body.model or "").strip() or None
@@ -265,6 +269,10 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
             olt.ssh_port = body.ssh_port
         if body.snmp_port is not None:
             olt.snmp_port = body.snmp_port
+        if body.cli_protocol is not None:
+            olt.cli_protocol = body.cli_protocol
+        if body.telnet_port is not None:
+            olt.telnet_port = body.telnet_port
         secrets = sorted(changes & {"username", "password", "enable_password", "snmp_community"})
         if secrets:
             if olt.credential_id is None:
@@ -305,6 +313,8 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
                 "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
                 "ssh_port": olt.ssh_port,
                 "snmp_port": olt.snmp_port,
+                "cli_protocol": olt.cli_protocol,
+                "telnet_port": olt.telnet_port,
                 "credenciales": secrets,
             },
             source_ip=ctx.client_ip,
@@ -460,6 +470,8 @@ async def olt_access(
         ssh_port=olt.ssh_port,
         snmp_port=olt.snmp_port,
         ssh_host_key=olt.ssh_host_key,
+        cli_protocol="telnet" if olt.cli_protocol == "telnet" else "ssh",
+        telnet_port=olt.telnet_port,
     )
     return olt, credential, target
 

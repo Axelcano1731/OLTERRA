@@ -46,7 +46,7 @@ def test_mode_transitions_group_by_pon_and_end_in_exec() -> None:
         "configure terminal",
         "interface gpon 0/1",
         "show onu info",
-        "show onu 5 optical-info",
+        "show onu 5 optical_info",
         "exit",
         "interface gpon 0/2",
         "show onu info",

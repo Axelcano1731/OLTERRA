@@ -1,0 +1,21 @@
+###############ONU PROFILE###########
+*************************************
+                      Id: 0
+                    Name: default
+             Description: CLIENTE_001
+               Max tcont: 255
+             Max gemport: 255
+     Max switch per slot: 255
+     Max flow per switch: 255
+                 Max eth: 4
+                Max pots: 1
+              Max iphost: 2
+            Max ipv6host: 0
+                Max veip: 1
+     Service ability N:1: 1
+     Service ability 1:M: 1
+     Service ability 1:P: 1
+  Wifi mgmt via non OMCI: disable
+          Omci send mode: async
+ Default multicast range: none
+                  commit: Yes

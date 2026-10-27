@@ -1,6 +1,6 @@
 # Despliegue en producción
 
-> Última actualización: 2026-10-03
+> Última actualización: 2026-10-27
 
 Olterra corre en **un servidor con Docker** (un droplet de DigitalOcean) detrás de
 **Cloudflare DNS**, como dice el plan. Todo lo de producción está en `deploy/produccion/`
@@ -348,6 +348,31 @@ obligatoria al agregar una OLT. La API nunca devuelve esa clave (`GET /v1/olts/d
 dice si está configurada) y la bitácora solo anota que se usó. La clave de **enable** no tiene
 valor de fábrica: es la que el cliente configuró y se escribe al agregar la OLT. Cambiar las
 claves en la OLT desde Olterra todavía no existe.
+
+### 6.1.1 OLT que solo dejan entrar por Telnet
+
+Algunas VSOL (la de 8 PON de Tocaima, V1.1.9R) tienen un OpenSSH que solo acepta a los
+usuarios internos del sistema, no a los de la CLI: con el usuario de la web o de Telnet el SSH
+responde "rechazó usuario o clave". Para esas OLT, en **Editar** (o al agregarla) se elige
+**Acceso a la CLI: Telnet**. Olterra entra por Telnet y el script del router abre el puerto
+Telnet de esa OLT en vez del SSH: después de cambiarlo hay que **rotar el script del router y
+volver a importarlo**.
+
+Telnet viaja sin cifrar solo entre el MikroTik del ISP y la OLT; hasta el MikroTik va dentro del
+túnel. Para que nadie más lo use, en la OLT se limita Telnet a la IP del MikroTik en la red de
+la OLT (la que aparece en su bitácora como origen de Olterra, p. ej. `172.17.0.1`):
+
+```
+configure terminal
+login-access-list permit telnet 172.17.0.1 255.255.255.255
+no login-access-list permit telnet 0.0.0.0 0.0.0.0
+exit
+write
+```
+
+Ojo: la lista de acceso de la OLT **no aparece en `show running-config`**; se ve con
+`show login-access-list`. Si SSH no responde nada (ni siquiera rechaza la clave), lo más
+probable es una regla `Deny ssh 0.0.0.0 0.0.0.0` ahí.
 
 ### 6.2 Modo laboratorio de escrituras
 

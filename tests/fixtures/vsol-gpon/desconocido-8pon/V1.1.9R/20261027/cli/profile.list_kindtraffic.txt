@@ -1,0 +1,12 @@
+###############TRAFFIC PROFILE###########
+*****************************
+Id:   0
+Name: default
+sir:  10000000 Kbps
+pir:  10000000 Kbps
+
+*****************************
+Id:   1
+Name: 10Mbps
+sir:  10240 Kbps
+pir:  10240 Kbps

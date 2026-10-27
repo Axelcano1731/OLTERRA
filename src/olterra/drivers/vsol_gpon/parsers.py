@@ -277,7 +277,10 @@ def parse_rx_power(text: str, default_pon: int | None = None) -> list[RxReading]
         for row in table.rows:
             ref = parse_onu_ref(row.get(index_col, ""), default_pon)
             if ref is not None:
-                result.append(RxReading(ref.pon, ref.onu, parse_dbm(row.get(rx_col))))
+                rx = parse_dbm(row.get(rx_col))
+                # La OLT pone 0.00 cuando la ONU no está conectada: no es una lectura (0 dBm
+                # sería saturación y dispararía una alarma de señal alta falsa).
+                result.append(RxReading(ref.pon, ref.onu, None if rx == 0 else rx))
     if not result and tables:
         raise UnrecognizedOutput("vsol.onu.rx_power", "no hay columnas de índice y de RX", text)
     return result
@@ -391,7 +394,10 @@ class OnuState:
     serial: str | None
 
 
-_STATE_ROW = re.compile(r"^\s*(GPON\d+/\d+:\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$", re.IGNORECASE)
+# "GPON0/1:3" (V1600G0-B V1.4.8R) o "1/1/1:3" (OLT de Tocaima, V1.1.9R).
+_STATE_ROW = re.compile(
+    r"^\s*(GPON\d+/\d+:\d+|\d+/\d+/\d+:\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$", re.IGNORECASE
+)
 
 
 def parse_onu_state(text: str, default_pon: int | None = None) -> list[OnuState]:
@@ -462,7 +468,8 @@ def parse_pon_statistics(text: str) -> dict[str, int]:
         number = parse_number(raw)
         if number is not None and re.fullmatch(r"\d+", raw.strip()):
             values[key] = int(number)
-    if not values:
+    # La OLT de Tocaima (V1.1.9R) acepta el comando y no devuelve nada: sin contadores.
+    if not values and text.strip():
         raise UnrecognizedOutput("vsol.pon.statistics", "no hay contadores 'clave: número'", text)
     return values
 

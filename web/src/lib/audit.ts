@@ -56,6 +56,8 @@ const FIELDS: Record<string, string> = {
   real_ip: 'IP en la red',
   nat_ip: 'IP del túnel',
   ssh_port: 'Puerto SSH',
+  cli_protocol: 'Acceso a la CLI',
+  telnet_port: 'Puerto Telnet',
   snmp_port: 'Puerto SNMP',
   credenciales: 'Credenciales',
   used_default_credentials: 'Clave de fábrica',

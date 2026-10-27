@@ -1,0 +1,21 @@
+---------onu 1 defail-info---------
+Vendor ID:                    VSOL
+Version:                      V4.1
+SN:                           VSOL3A22CC0E
+Admin status:                 unlock
+Battery monitor:              false
+Security mode:                aes
+Product code:                 0
+Total priority queue num:     127
+Total traffic schedule num:   31
+Traffic management option:    priotity&rate controlled
+Operate status:               enable
+Equipment ID:                 VSOLV422
+OMCC Version:                 128
+Security capability:          aes
+Model:                        N/A
+Survival time:                N/A
+TotalGemPortNum:              127
+SysUpTime:                    4941 s
+Region code:                  N/A
+Chip info:                    0
