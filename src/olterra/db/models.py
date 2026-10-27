@@ -132,6 +132,9 @@ class Olt(Base):
     nat_index: Mapped[int | None] = mapped_column(SmallInteger)
     nat_ip: Mapped[str | None] = mapped_column(INET, unique=True)
     ssh_port: Mapped[int] = mapped_column(Integer, server_default="22")
+    # "ssh" o "telnet" (migración 0011): algunas OLT no aceptan a los usuarios de la CLI por SSH.
+    cli_protocol: Mapped[str] = mapped_column(Text, server_default="ssh")
+    telnet_port: Mapped[int] = mapped_column(Integer, server_default="23")
     snmp_port: Mapped[int] = mapped_column(Integer, server_default="161")
     ssh_host_key: Mapped[str | None] = mapped_column(Text)
     credential_id: Mapped[uuid.UUID | None] = mapped_column(

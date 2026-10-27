@@ -1,0 +1,13 @@
+###############DBA PROFILE###########
+*****************************
+              Id: 0
+            name: default
+            type: 1
+           fixed: 10000 Kbps
+
+*****************************
+              Id: 511
+            name: default1
+            type: 3
+         assured: 1024 Kbps
+         maximum: 1024000 Kbps

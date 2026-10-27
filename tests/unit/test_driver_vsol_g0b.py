@@ -88,21 +88,20 @@ def test_optical_info_distance_description_and_statistics() -> None:
     assert stats["inputratebps"] == 108 and stats["outputpackets"] == 1_041_460_181
 
 
-def test_g0b_uses_its_own_syntax_and_others_keep_the_manual() -> None:
-    for model in ("V1600G0-B", "v1600g0b"):
-        assert DRIVER.command("onu.optical", model, "V1.4.8R").template == (
-            "show onu {onu} optical_info"
+def test_real_olts_syntax_is_the_default_for_every_model() -> None:
+    # La V1600G0-B (V1.4.8R) y la OLT de Tocaima (V1.1.9R) rechazan la sintaxis del manual
+    # v2.1 para estos cuatro y aceptan esta: es la de todos los modelos.
+    for model, firmware in (("V1600G0-B", "V1.4.8R"), (None, "V1.1.9R"), ("V1600G1B", "V1.4.4R")):
+        assert (
+            DRIVER.command("onu.optical", model, firmware).template == "show onu {onu} optical_info"
         )
-        assert DRIVER.command("onu.description", model, "V1.4.8R").template == (
-            "show onu {onu} desc"
+        assert DRIVER.command("onu.description", model, firmware).template == "show onu {onu} desc"
+        assert (
+            DRIVER.command("pon.statistics", model, firmware).template
+            == "show pon {pon} statistics"
         )
-        assert DRIVER.command("pon.statistics", model, "V1.4.8R").template == (
-            "show pon {pon} statistics"
-        )
-        assert DRIVER.command("onu.optical", model, "V1.4.8R").verified
-    assert DRIVER.command("onu.optical", "V1600G1B", "V1.4.4R").template == (
-        "show onu {onu} optical-info"
-    )
+        assert DRIVER.command("profile.list", model, firmware).template == "show profile {kind}"
+        assert DRIVER.command("onu.optical", model, firmware).verified
 
 
 def test_autofind_with_sn_prefix_and_tabs() -> None:

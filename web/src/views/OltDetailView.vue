@@ -233,7 +233,11 @@ watch(waiting, (now, before) => {
       <div>
         <dt class="text-muted">Puertos</dt>
         <dd class="mt-0.5">
-          SSH {{ olt.data.value.ssh_port }} · SNMP {{ olt.data.value.snmp_port }}
+          <template v-if="olt.data.value.cli_protocol === 'telnet'">
+            Telnet {{ olt.data.value.telnet_port }}
+          </template>
+          <template v-else>SSH {{ olt.data.value.ssh_port }}</template>
+          · SNMP {{ olt.data.value.snmp_port }}
         </dd>
       </div>
       <div>

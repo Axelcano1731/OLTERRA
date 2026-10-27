@@ -24,6 +24,7 @@ from olterra.executor.plan import (
 )
 from olterra.executor.snmp import SnmpClient, SnmpError
 from olterra.executor.ssh import SshConnectOptions, open_ssh_transport
+from olterra.executor.telnet import open_telnet_transport
 from olterra.security.masking import redact
 
 log = logging.getLogger(__name__)
@@ -52,10 +53,12 @@ class PlanRunner:
         *,
         snmp: SnmpClient | None = None,
         transport_factory: TransportFactory = open_ssh_transport,
+        telnet_factory: TransportFactory = open_telnet_transport,
     ) -> None:
         self.executor_id = executor_id
         self._snmp = snmp
         self._transport_factory = transport_factory
+        self._telnet_factory = telnet_factory
 
     def _result(
         self, plan: Plan, status: PlanStatus, started: datetime, **extra: Any
@@ -104,7 +107,10 @@ class PlanRunner:
                     if session is None:
                         try:
                             session, transport = await self._open_cli(plan, credential)
-                            if plan.target.ssh_host_key is None:
+                            if (
+                                plan.target.cli_protocol == "ssh"
+                                and plan.target.ssh_host_key is None
+                            ):
                                 host_key = getattr(transport, "host_key", None)
                         except CliError as exc:
                             results.append(
@@ -132,16 +138,18 @@ class PlanRunner:
         if plan.session is None or credential is None or not credential.username:
             raise CliError("Plan sin perfil de sesión o sin usuario")
         password = credential.password.get_secret_value() if credential.password else ""
+        telnet = plan.target.cli_protocol == "telnet"
         options = SshConnectOptions(
             host=plan.target.host,
-            port=plan.target.ssh_port,
+            port=plan.target.telnet_port if telnet else plan.target.ssh_port,
             username=credential.username,
             password=password,
             known_host_key=plan.target.ssh_host_key,
             legacy_algorithms=plan.session.legacy_ssh_algorithms,
             terminal_width=plan.session.terminal_width,
         )
-        transport = await self._transport_factory(options)
+        factory = self._telnet_factory if telnet else self._transport_factory
+        transport = await factory(options)
         session = CliSession(transport, plan.session)
         enable = credential.enable_password or credential.password
         try:

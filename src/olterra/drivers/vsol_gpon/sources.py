@@ -17,6 +17,10 @@ HELP_G0B = (
     "Ayuda '?' de la V1600G0-B V1.4.8R (2026-10-08, "
     "tests/fixtures/vsol-gpon/V1600G0-B/V1.4.8R/20261008/ayuda): sintaxis completa, falta ejecutarla"
 )
+LAB_TOCAIMA = (
+    "OLT de producción de Tocaima (8 PON, V1.1.9R, 2026-10-27) y V1600G0-B V1.4.8R: las dos "
+    "rechazan la sintaxis del manual v2.1 y responden a esta"
+)
 INFERRED = "Inferido del patrón 'no onu …' del manual; confirmar en laboratorio"
 
 

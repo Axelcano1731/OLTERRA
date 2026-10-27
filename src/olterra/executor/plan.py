@@ -157,6 +157,10 @@ class Target(BaseModel):
     host: str
     ssh_port: int = 22
     snmp_port: int = 161
+    # Por dónde entrar a la CLI. Telnet viaja en claro: solo para OLT que no aceptan a los
+    # usuarios de la CLI por SSH, y siempre dentro del túnel hasta el MikroTik del ISP.
+    cli_protocol: Literal["ssh", "telnet"] = "ssh"
+    telnet_port: int = 23
     # Llave de host conocida (formato OpenSSH: "ssh-rsa AAAA..."). Si falta, se
     # acepta la que presente la OLT y se reporta su huella (confianza al primer uso).
     ssh_host_key: str | None = None

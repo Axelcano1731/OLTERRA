@@ -2,7 +2,26 @@
 
 ## [Sin publicar]
 
+### Corregido
+
+- OLT de 8 PON de Tocaima (V1.1.9R): `show onu state` con índice `1/1/<pon>:<onu>` ya se lee
+  (el monitoreo veía 0 ONU), `0.00` en `show pon onu all rx-power` es "sin lectura" y no una
+  alarma de señal alta, y "Copiar como plan" acepta la configuración de ONU sin línea
+  `onu add` y servicios con `cos N/A`. `show pon <n> statistics` vacío ya no es un error.
+- `onu.optical`, `onu.description`, `pon.statistics` y `profile.list` usan la sintaxis que
+  aceptan las OLT reales (`optical_info`, `desc`, `show pon <n> statistics`,
+  `show profile <tipo>`), no la del manual; verificados con capturas de dos OLT.
+
 ### Agregado
+
+- Acceso a la CLI de cada OLT por SSH o **Telnet** ("Acceso a la CLI" al agregar o editar la
+  OLT; migración `0011`). Para las VSOL que no aceptan a los usuarios de la CLI por SSH, como
+  la de 8 PON de Tocaima. El ejecutor entra por Telnet (negociación, `Login:`/`Password:` y
+  aviso claro si rechaza la clave) y el script del router abre el puerto de la CLI de cada OLT
+  (antes siempre el 22, aunque la OLT usara otro puerto SSH). El simulador también atiende
+  Telnet. Ver DESPLIEGUE 6.1.1.
+- `olterra-capture --telnet`: captura de laboratorio por Telnet desde la red del ISP cuando el
+  SSH no responde.
 
 - Mapa FTTH (pantalla **Mapa FTTH**, ya activa en el menú), con MapLibre y teselas de
   OpenFreeMap: ubicar la OLT, agregar cajas NAP, empalmes (CEO) y ODF con puertos, splitter, OLT
@@ -139,7 +158,8 @@
 - Alta en la V1600G0-B: no se manda `onu N profile onu` cuando repite el perfil de `onu add`
   (la OLT lo rechaza) y el autofind de ese modelo (`sn:` y tabulaciones) se interpreta.
 - La salida de la OLT perdía columnas: la V1600G0-B coloca cada columna con el cursor
-  (`` + `ESC[nC`) y el normalizador las pisaba, así que `show onu info`, `state` y
+  (`
+` + `ESC[nC`) y el normalizador las pisaba, así que `show onu info`, `state` y
   `rx_power` no se interpretaban. Ahora se emula el cursor.
 - `olterra.sh` ya no puede ejecutar basura al final de `actualizar`: el `git pull` que trae una
   versión nueva del propio script cambiaba el archivo mientras bash lo leía.

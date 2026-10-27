@@ -101,7 +101,15 @@ async def _scripts(
             )
         )
     ).scalars()
-    mappings = [OltMapping(o.name, _ip(o.real_ip), _ip(o.nat_ip)) for o in olts]
+    mappings = [
+        OltMapping(
+            o.name,
+            _ip(o.real_ip),
+            _ip(o.nat_ip),
+            cli_port=o.telnet_port if o.cli_protocol == "telnet" else o.ssh_port,
+        )
+        for o in olts
+    ]
     nat_ips = [m.nat_ip for m in mappings]
     settings = state.settings
     prefix = IPv4Network(settings.tunnel_platform_prefix)

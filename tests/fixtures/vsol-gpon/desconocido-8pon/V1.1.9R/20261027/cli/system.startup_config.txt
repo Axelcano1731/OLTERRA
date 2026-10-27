@@ -1,0 +1,1058 @@
+!
+!  configuration saved from vty
+!   2020/01/07 07:32:01
+!
+!Software Version      :		V1.1.9R
+!Software Created Time :		Thu, 15 Apr 2021 11:52:15
+hostname OLT_2
+log trap emergencies
+!
+line vty
+exit
+!
+security-dos
+dos prevent level off
+exit
+!
+interface aux
+ip address 192.168.8.200 255.255.255.0
+ipv6 address fec0::0240:88fb:b717:75b2/64
+exit
+interface loopback
+ip address 127.0.0.1 255.0.0.0
+ipv6 address ::1/128
+exit
+!
+vlan 1
+exit
+vlan 91
+exit
+vlan 109
+exit
+vlan 111
+exit
+vlan 113
+exit
+vlan 115
+exit
+vlan 200
+exit
+vlan 91
+description vlan91_INGEAGUAS
+exit
+!
+vlan 109
+description vlan109_PON_9-10
+exit
+!
+vlan 111
+description vlan111_PON_11-12
+exit
+!
+vlan 113
+description vlan113_PON_13-14
+exit
+!
+vlan 115
+description vlan115_PON_15-16
+exit
+!
+interface vlan 200
+ip address 172.17.0.2/24
+exit
+!
+interface vlan 200
+ipv6 address fe80::c8:0240:88fb:b717:75b3 link-local
+exit
+interface aux
+exit
+ip dns 8.8.8.8  8.8.4.4
+interface vlan 200
+exit
+!
+!
+!
+!
+!
+interface gigabitethernet 0/1
+switchport mode trunk
+switchport trunk vlan 200
+switchport trunk vlan 109
+switchport trunk vlan 111
+switchport trunk vlan 113
+switchport trunk vlan 115
+switchport trunk vlan 91
+switchport trunk pvid vlan 1
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no switchport isolate
+no ip igmp snooping immediate-leave
+exit
+!
+interface gigabitethernet 0/2
+switchport mode trunk
+switchport trunk vlan 200
+switchport trunk pvid vlan 1
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no switchport isolate
+no ip igmp snooping immediate-leave
+exit
+!
+interface gigabitethernet 0/3
+switchport mode trunk
+switchport trunk vlan 200
+switchport trunk pvid vlan 1
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no switchport isolate
+no ip igmp snooping immediate-leave
+exit
+!
+interface gigabitethernet 0/4
+switchport mode trunk
+switchport trunk vlan 200
+switchport trunk pvid vlan 1
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no switchport isolate
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/1
+description PON9
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/2
+description PON10
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/3
+description PON11
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/4
+description PON12
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/5
+description PON13
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/6
+description PON14
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/7
+description PON15
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+interface gpon 0/8
+description PON16
+no shutdown
+mdi force
+storm-control broadcast fps 512
+no storm-control multicast
+storm-control unknow fps 512
+no p2p
+no ip igmp snooping immediate-leave
+exit
+!
+!
+port link-flapping mode auto-recovery
+!
+!
+profile dba id 511 name default1
+type 3 assured 1024 maximum 1024000
+exit
+!
+profile traffic id 1 name 10Mbps
+sir 10240 pir 10240
+exit
+!
+profile line id 1 name Internet
+commit
+exit
+!
+interface gpon 0/1
+no onu auto-learn
+onu add 1 profile default sn GPON3B3C8323
+onu 1 desc CLIENTE_027
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 109 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 2 profile default sn GPONEE8A1C47
+onu 2 desc CLIENTE_008
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 109 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 3 profile default sn GPONA7306798
+onu 3 desc CLIENTE_026
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 109 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 3 pri equid VSOLV212
+onu 3 pri wan_conn add route
+onu 3 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_026 pwd ****** mode auto
+onu 3 pri wan_conn index 1 vlan enable vid 109 pri 0
+onu 3 pri username admin_control enable admin ****** user_control disable
+onu add 4 profile default sn GPONEDAFAB80
+onu 4 desc CLIENTE_023
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_1 gemport 1 vlan 109 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 4 pri equid MONUV212
+onu 4 pri wan_conn add route
+onu 4 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_023 pwd ****** mode auto
+onu 4 pri wan_conn index 1 vlan enable vid 109 pri 0
+onu add 5 profile default sn GPONE2DA7613
+onu 5 desc CLIENTE_087
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 109 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 5 pri equid VSOLV212
+onu 5 pri firewall level low
+onu 5 pri acl ping control enable lan enable wan enable ipv4_control enable 0.0.0.0 0.0.0.0 ipv6_control disable
+onu 5 pri acl http control enable lan enable wan enable ipv4_control enable 0.0.0.0 0.0.0.0 ipv6_control disable port 80
+onu add 6 profile default sn GPON5CC23B4A
+onu 6 desc CLIENTE_089
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 150
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 109 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 7 profile default sn GPONB8A2885E
+onu 7 desc CLIENTE_070
+onu 7 tcont 1 name INTERNET dba default1
+onu 7 gemport 1 tcont 1 gemport_name INTERNET portid 151
+onu 7 gemport 1 traffic-limit downstream default
+onu 7 service ser_1 gemport 1 vlan 109 cos N/A
+onu 7 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 8 profile default sn GPON7E4F2E8A
+onu 8 desc CLIENTE_059
+onu 8 tcont 1 name INTERNET dba default1
+onu 8 gemport 1 tcont 1 gemport_name INTERNET portid 152
+onu 8 gemport 1 traffic-limit downstream default
+onu 8 service ser_1 gemport 1 vlan 109 cos N/A
+onu 8 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 9 profile default sn GPON4A20F67A
+onu 9 desc CLIENTE_007
+onu 9 tcont 1 name INTERNET dba default1
+onu 9 gemport 1 tcont 1 gemport_name INTERNET portid 153
+onu 9 gemport 1 traffic-limit downstream default
+onu 9 service ser_1 gemport 1 vlan 109 cos N/A
+onu 9 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 10 profile default sn GPONC2D01965
+onu 10 desc CLIENTE_048
+onu 10 tcont 1 name INTERNET dba default1
+onu 10 gemport 1 tcont 1 gemport_name INTERNET portid 154
+onu 10 gemport 1 traffic-limit downstream default
+onu 10 service ser_1 gemport 1 vlan 109 cos N/A
+onu 10 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 10 pri equid VSOLV212
+onu 10 pri wan_conn add route
+onu 10 pri wan_conn index 1 route tr069_internet bind_lan 1 bind_ssid 1 nat enable pppoe proxy disable user CLIENTE_048 pwd ****** mode auto
+onu 10 pri wan_conn index 1 vlan enable vid 109 pri 0
+onu add 11 profile default sn GPONCEDB70CF
+onu 11 desc CLIENTE_028
+onu 11 tcont 1 name INTERNET dba default1
+onu 11 gemport 1 tcont 1 gemport_name INTERNET portid 155
+onu 11 gemport 1 traffic-limit downstream default
+onu 11 service ser_1 gemport 1 vlan 109 cos N/A
+onu 11 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 12 profile default sn GPONB5907334
+onu 12 desc CLIENTE_025
+onu 12 tcont 1 name INTERNET dba default1
+onu 12 gemport 1 tcont 1 gemport_name INTERNET portid 156
+onu 12 gemport 1 traffic-limit downstream default
+onu 12 service ser_1 gemport 1 vlan 109 cos N/A
+onu 12 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 13 profile default sn GPONADE3CD82
+onu 13 desc CLIENTE_053
+onu 13 tcont 1 name INTERNET dba default1
+onu 13 gemport 1 tcont 1 gemport_name INTERNET portid 157
+onu 13 gemport 1 traffic-limit downstream default
+onu 13 service ser_1 gemport 1 vlan 109 cos N/A
+onu 13 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 13 pri equid VSOLV212
+onu add 14 profile default sn VSOLD1124F35
+onu 14 desc CLIENTE_062
+onu 14 tcont 1 name INTERNET dba default1
+onu 14 gemport 1 tcont 1 gemport_name INTERNET portid 158
+onu 14 gemport 1 traffic-limit downstream default
+onu 14 service ser_1 gemport 1 vlan 109 cos N/A
+onu 14 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 14 pri equid VSOLD401
+onu add 15 profile default sn GPONC5F6D3F0
+onu 15 desc CLIENTE_067
+onu 15 tcont 1 name INTERNET dba default1
+onu 15 gemport 1 tcont 1 gemport_name INTERNET portid 159
+onu 15 gemport 1 traffic-limit downstream default
+onu 15 service ser_1 gemport 1 vlan 109 cos N/A
+onu 15 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 15 pri equid VSOLV212
+onu 15 pri wan_conn add route
+onu 15 pri wan_conn index 1 route internet bind_lan 3 bind_ssid 15 nat enable pppoe proxy disable user CLIENTE_067 pwd ****** mode auto
+onu 15 pri wan_conn index 1 vlan enable vid 109 pri 0
+onu 15 pri firewall level low
+onu 15 pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 15 pri acl telnet control enable lan enable wan enable ipv4_control disable ipv6_control disable port 23
+onu 15 pri acl ftp control enable lan enable wan enable ipv4_control enable 0.0.0.0 0.0.0.0 ipv6_control disable port 21
+onu 15 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable port 80
+onu 15 pri acl tftp control enable lan enable wan enable ipv4_control disable ipv6_control disable port 69
+onu add 16 profile default sn GPON12503E00
+onu 16 desc CLIENTE_029
+onu 16 tcont 1 name INTERNET dba default1
+onu 16 gemport 1 tcont 1 gemport_name INTERNET portid 160
+onu 16 gemport 1 traffic-limit downstream default
+onu 16 service ser_1 gemport 1 vlan 109 cos N/A
+onu 16 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 17 profile default sn GPON3E6665A7
+onu 17 desc CLIENTE_055
+onu 17 tcont 1 name INTERNET dba default1
+onu 17 gemport 1 tcont 1 gemport_name INTERNET portid 161
+onu 17 gemport 1 traffic-limit downstream default
+onu 17 service ser_1 gemport 1 vlan 109 cos N/A
+onu 17 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 17 pri equid MONUV212
+onu 17 pri firewall level low
+onu 17 pri acl ping control enable lan enable wan enable ipv4_control disable ipv6_control disable
+onu 17 pri acl http control enable lan enable wan enable ipv4_control disable ipv6_control disable port 80
+onu add 18 profile default sn GPON2E353753
+onu 18 desc CLIENTE_077
+onu 18 tcont 1 name INTERNET dba default1
+onu 18 gemport 1 tcont 1 gemport_name INTERNET portid 162
+onu 18 gemport 1 traffic-limit downstream default
+onu 18 service ser_1 gemport 1 vlan 109 cos N/A
+onu 18 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 19 profile default sn GPON1B4EDCAB
+onu 19 desc CLIENTE_038
+onu 19 tcont 1 name INTERNET dba default1
+onu 19 gemport 1 tcont 1 gemport_name INTERNET portid 163
+onu 19 gemport 1 traffic-limit downstream default
+onu 19 service ser_1 gemport 1 vlan 109 cos N/A
+onu 19 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 20 profile default sn GPONB92536A8
+onu 20 desc CLIENTE_084
+onu 20 tcont 1 name INTERNET dba default1
+onu 20 gemport 1 tcont 1 gemport_name INTERNET portid 164
+onu 20 gemport 1 traffic-limit downstream default
+onu 20 service ser_1 gemport 1 vlan 109 cos N/A
+onu 20 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 20 pri equid VSOLV212
+onu add 21 profile default sn GPON71237297
+onu 21 desc CLIENTE_085
+onu 21 tcont 1 name INTERNET dba default1
+onu 21 gemport 1 tcont 1 gemport_name INTERNET portid 165
+onu 21 gemport 1 traffic-limit downstream default
+onu 21 service ser_1 gemport 1 vlan 109 cos N/A
+onu 21 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 22 profile default sn GPONC37E8CEF
+onu 22 desc CLIENTE_083
+onu 22 tcont 1 name INTERNET dba default1
+onu 22 gemport 1 tcont 1 gemport_name INTERNET portid 166
+onu 22 gemport 1 traffic-limit downstream default
+onu 22 service ser_1 gemport 1 vlan 109 cos N/A
+onu 22 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 23 profile default sn GPON1CA42D1D
+onu 23 desc CLIENTE_069
+onu 23 tcont 1 name INTERNET dba default1
+onu 23 gemport 1 tcont 1 gemport_name INTERNET portid 167
+onu 23 gemport 1 traffic-limit downstream default
+onu 23 service ser_1 gemport 1 vlan 109 cos N/A
+onu 23 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 24 profile default sn GPON7D1E0FA7
+onu 24 desc CLIENTE_002
+onu 24 tcont 1 name INTERNET dba default1
+onu 24 gemport 1 tcont 1 gemport_name INTERNET portid 168
+onu 24 gemport 1 traffic-limit downstream default
+onu 24 service ser_1 gemport 1 vlan 109 cos N/A
+onu 24 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 25 profile default sn GPON30160A54
+onu 25 desc CLIENTE_068
+onu 25 tcont 1 name INTERNET dba default1
+onu 25 gemport 1 tcont 1 gemport_name INTERNET portid 169
+onu 25 gemport 1 traffic-limit downstream default
+onu 25 service ser_1 gemport 1 vlan 109 cos N/A
+onu 25 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 26 profile default sn GPON4CCF3C58
+onu 26 desc CLIENTE_072
+onu 26 tcont 1 name INTERNET dba default1
+onu 26 gemport 1 tcont 1 gemport_name INTERNET portid 170
+onu 26 gemport 1 traffic-limit downstream default
+onu 26 service ser_1 gemport 1 vlan 109 cos N/A
+onu 26 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 27 profile default sn GPONB0F88F89
+onu 27 desc CLIENTE_076
+onu 27 tcont 1 name INTERNET dba default1
+onu 27 gemport 1 tcont 1 gemport_name INTERNET portid 171
+onu 27 gemport 1 traffic-limit downstream default
+onu 27 service ser_1 gemport 1 vlan 109 cos N/A
+onu 27 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 28 profile default sn GPON91205B6D
+onu 28 desc CLIENTE_071
+onu 28 tcont 1 name INTERNET dba default1
+onu 28 gemport 1 tcont 1 gemport_name INTERNET portid 172
+onu 28 gemport 1 traffic-limit downstream default
+onu 28 service ser_1 gemport 1 vlan 109 cos N/A
+onu 28 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 29 profile default sn GPONAE22D7F6
+onu 29 desc CLIENTE_061
+onu 29 tcont 1 name INTERNET dba default1
+onu 29 gemport 1 tcont 1 gemport_name INTERNET portid 173
+onu 29 gemport 1 traffic-limit downstream default
+onu 29 service ser_1 gemport 1 vlan 109 cos N/A
+onu 29 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 30 profile default sn GPON8133A420
+onu 30 desc CLIENTE_031
+onu 30 tcont 1 name INTERNET dba default1
+onu 30 gemport 1 tcont 1 gemport_name INTERNET portid 174
+onu 30 gemport 1 traffic-limit downstream default
+onu 30 service ser_1 gemport 1 vlan 109 cos N/A
+onu 30 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 31 profile default sn GPONC5DAB02F
+onu 31 desc CLIENTE_079
+onu 31 tcont 1 name INTERNET dba default1
+onu 31 gemport 1 tcont 1 gemport_name INTERNET portid 175
+onu 31 gemport 1 traffic-limit downstream default
+onu 31 service ser_1 gemport 1 vlan 109 cos N/A
+onu 31 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+exit
+!
+interface gpon 0/2
+no onu auto-learn
+onu add 1 profile default sn GPON2B0E4E2D
+onu 1 desc CLIENTE_081
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 109 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 2 profile default sn GPONADCA4764
+onu 2 desc CLIENTE_051
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 109 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 3 profile default sn GPOND4D04F4E
+onu 3 desc CLIENTE_050
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 109 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 4 profile default sn GPON6CBDE50F
+onu 4 desc CLIENTE_018
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_1 gemport 1 vlan 109 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 5 profile default sn GPON5E90CEB1
+onu 5 desc CLIENTE_040
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 109 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 6 profile default sn GPON7D47A1B6
+onu 6 desc CLIENTE_036
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 150
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 109 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 7 profile default sn GPON5CE7E62E
+onu 7 desc CLIENTE_043
+onu 7 tcont 1 name INTERNET dba default1
+onu 7 gemport 1 tcont 1 gemport_name INTERNET portid 151
+onu 7 gemport 1 traffic-limit downstream default
+onu 7 service ser_1 gemport 1 vlan 109 cos N/A
+onu 7 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 8 profile default sn GPON5FE2E3D3
+onu 8 desc CLIENTE_035
+onu 8 tcont 1 name INTERNET dba default1
+onu 8 gemport 1 tcont 1 gemport_name INTERNET portid 152
+onu 8 gemport 1 traffic-limit downstream default
+onu 8 service ser_1 gemport 1 vlan 109 cos N/A
+onu 8 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 8 pri equid VSOLV212
+onu add 9 profile default sn GPONAF679845
+onu 9 desc CLIENTE_064
+onu 9 tcont 1 name INTERNET dba default1
+onu 9 gemport 1 tcont 1 gemport_name INTERNET portid 153
+onu 9 gemport 1 traffic-limit downstream default
+onu 9 service ser_1 gemport 1 vlan 109 cos N/A
+onu 9 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 10 profile default sn GPOND19176CB
+onu 10 desc CLIENTE_009
+onu 10 tcont 1 name INTERNET dba default1
+onu 10 gemport 1 tcont 1 gemport_name INTERNET portid 154
+onu 10 gemport 1 traffic-limit downstream default
+onu 10 service ser_1 gemport 1 vlan 109 cos N/A
+onu 10 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 11 profile default sn GPON0427DCCD
+onu 11 desc CLIENTE_018
+onu 11 tcont 1 name INTERNET dba default1
+onu 11 gemport 1 tcont 1 gemport_name INTERNET portid 155
+onu 11 gemport 1 traffic-limit downstream default
+onu 11 service ser_1 gemport 1 vlan 109 cos N/A
+onu 11 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu add 12 profile default sn GPONB6FBC5D6
+onu 12 desc CLIENTE_019
+onu 12 tcont 1 name INTERNET dba default1
+onu 12 gemport 1 tcont 1 gemport_name INTERNET portid 156
+onu 12 gemport 1 traffic-limit downstream default
+onu 12 service ser_1 gemport 1 vlan 109 cos N/A
+onu 12 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+exit
+!
+interface gpon 0/3
+no onu auto-learn
+onu add 1 profile default sn GPOND4DA698B
+onu 1 desc CLIENTE_045
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 111 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 2 profile default sn GPONC927C9D7
+onu 2 desc CLIENTE_046
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 111 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 3 profile default sn GPON05250FA4
+onu 3 desc CLIENTE_012
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 111 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 4 profile default sn GPOND85FAAF6
+onu 4 desc CLIENTE_056
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_1 gemport 1 vlan 111 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 5 profile default sn GPON0BE7E682
+onu 5 desc CLIENTE_016
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 111 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 6 profile default sn VSOLEC192371
+onu 6 desc CLIENTE_006
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 150
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 111 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 7 profile default sn GPON7602F63C
+onu 7 desc CLIENTE_010
+onu 7 tcont 1 name INTERNET dba default1
+onu 7 gemport 1 tcont 1 gemport_name INTERNET portid 151
+onu 7 gemport 1 traffic-limit downstream default
+onu 7 service ser_1 gemport 1 vlan 111 cos N/A
+onu 7 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+exit
+!
+interface gpon 0/4
+no onu auto-learn
+onu add 1 profile default sn GPON57AE421A
+onu 1 desc CLIENTE_011
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 111 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 2 profile default sn GPON71A08E65
+onu 2 desc CLIENTE_020
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 111 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 3 profile default sn GPON352ABBAE
+onu 3 desc CLIENTE_047
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 111 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 4 profile default sn GPON42330378
+onu 4 desc CLIENTE_021
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_2 gemport 1 vlan 111 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu 4 pri equid VSOLV212
+onu 4 pri firewall level low
+onu 4 pri acl ping control enable lan enable wan enable ipv4_control enable 0.0.0.0 0.0.0.0 ipv6_control disable
+onu 4 pri acl http control enable lan enable wan enable ipv4_control enable 0.0.0.0 0.0.0.0 ipv6_control disable port 80
+onu add 5 profile default sn GPONC2FE4E18
+onu 5 desc CLIENTE_024
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 111 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu 5 pri equid VSOLV212
+onu 5 pri wan_conn add route
+onu 5 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_024 pwd ****** mode auto
+onu 5 pri wan_conn index 1 vlan enable vid 111 pri 0
+onu add 6 profile default sn GPON71E76785
+onu 6 desc CLIENTE_005
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 150
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 111 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 7 profile default sn GPONCAD761B4
+onu 7 desc CLIENTE_057
+onu 7 tcont 1 name INTERNET dba default1
+onu 7 gemport 1 tcont 1 gemport_name INTERNET portid 151
+onu 7 gemport 1 traffic-limit downstream default
+onu 7 service ser_1 gemport 1 vlan 111 cos N/A
+onu 7 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu 7 pri equid VSOLV212
+onu add 8 profile default sn GPONA7DDCAF2
+onu 8 desc CLIENTE_003
+onu 8 tcont 1 name INTERNET dba default1
+onu 8 gemport 1 tcont 1 gemport_name INTERNET portid 152
+onu 8 gemport 1 traffic-limit downstream default
+onu 8 service ser_1 gemport 1 vlan 111 cos N/A
+onu 8 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 9 profile default sn GPONAE3AD90F
+onu 9 desc CLIENTE_052
+onu 9 tcont 1 name INTERNET dba default1
+onu 9 gemport 1 tcont 1 gemport_name INTERNET portid 153
+onu 9 gemport 1 traffic-limit downstream default
+onu 9 service ser_1 gemport 1 vlan 111 cos N/A
+onu 9 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+onu add 10 profile default sn GPON003F0D99
+onu 10 desc CLIENTE_021
+onu 10 tcont 1 name internet dba default1
+onu 10 gemport 1 tcont 1 gemport_name internet portid 154
+onu 10 gemport 1 traffic-limit downstream default
+onu 10 service ser_1 gemport 1 vlan 111 cos N/A
+onu 10 service-port 1 gemport 1 uservlan 111 vlan 111 new_cos 0
+exit
+!
+interface gpon 0/5
+no onu auto-learn
+onu add 1 profile default sn GPON4B66E1F0
+onu 1 desc CLIENTE_034
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 113 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 2 profile default sn VSOL459A6AE9
+onu 2 desc CLIENTE_075
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 113 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 3 profile default sn GPON7E0FDBC7
+onu 3 desc CLIENTE_086
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 113 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 4 profile default sn GPONE9334344
+onu 4 desc CLIENTE_033
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_1 gemport 1 vlan 113 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 5 profile default sn GPON36375B4F
+onu 5 desc CLIENTE_037
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 113 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+exit
+!
+interface gpon 0/6
+no onu auto-learn
+onu add 1 profile default sn GPON553E78DD
+onu 1 desc CLIENTE_082
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 113 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 2 profile default sn GPON598A23B6
+onu 2 desc CLIENTE_004
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 113 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 3 profile default sn GPON5E8B3503
+onu 3 desc CLIENTE_054
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 113 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 3 pri equid VSOLV212
+onu add 4 profile default sn GPON084D2ADA
+onu 4 desc CLIENTE_078
+onu 4 tcont 1 name INTERNET dba default1
+onu 4 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 4 gemport 1 traffic-limit downstream default
+onu 4 service ser_1 gemport 1 vlan 113 cos N/A
+onu 4 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 4 pri equid VSOLV212
+onu add 5 profile default sn GPON1275E6B5
+onu 5 desc CLIENTE_074
+onu 5 tcont 1 name INTERNET dba default1
+onu 5 gemport 1 tcont 1 gemport_name INTERNET portid 149
+onu 5 gemport 1 traffic-limit downstream default
+onu 5 service ser_1 gemport 1 vlan 113 cos N/A
+onu 5 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 5 pri equid VSOLV212
+onu 5 pri wan_conn add route
+onu 5 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_074 pwd ****** mode auto
+onu 5 pri wan_conn index 1 vlan enable vid 113 pri 0
+onu add 6 profile default sn GPON626E2A69
+onu 6 desc CLIENTE_022
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 150
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 113 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 7 profile default sn GPON35852A3C
+onu 7 desc CLIENTE_014
+onu 7 tcont 1 name INTERNET dba default1
+onu 7 gemport 1 tcont 1 gemport_name INTERNET portid 151
+onu 7 gemport 1 traffic-limit downstream default
+onu 7 service ser_1 gemport 1 vlan 91,113 cos N/A
+onu 7 service-port 1 gemport 1 uservlan 91 vlan 91 new_cos 0
+onu 7 service-port 2 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 8 profile default sn GPON1B6E911C
+onu 8 desc CLIENTE_060
+onu 8 tcont 1 name INTERNET dba default1
+onu 8 gemport 1 tcont 1 gemport_name INTERNET portid 152
+onu 8 gemport 1 traffic-limit downstream default
+onu 8 service ser_1 gemport 1 vlan 113 cos N/A
+onu 8 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 9 profile default sn GPON671A9FDC
+onu 9 desc CLIENTE_049
+onu 9 tcont 1 name INTERNET dba default1
+onu 9 gemport 1 tcont 1 gemport_name INTERNET portid 153
+onu 9 gemport 1 traffic-limit downstream default
+onu 9 service ser_1 gemport 1 vlan 113 cos N/A
+onu 9 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 10 profile default sn GPON8294B628
+onu 10 desc CLIENTE_088
+onu 10 tcont 1 name INTERNET dba default1
+onu 10 gemport 1 tcont 1 gemport_name INTERNET portid 154
+onu 10 gemport 1 traffic-limit downstream default
+onu 10 service ser_1 gemport 1 vlan 113 cos N/A
+onu 10 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 10 pri equid VSOLV212
+onu 10 pri wan_conn add route
+onu 10 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_088 pwd ****** mode auto
+onu 10 pri wan_conn index 1 vlan enable vid 113 pri 0
+onu add 11 profile default sn VSOLD7CE6380
+onu 11 desc CLIENTE_004
+onu 11 tcont 1 name INTERNET dba default1
+onu 11 gemport 1 tcont 1 gemport_name INTERNET portid 155
+onu 11 gemport 1 traffic-limit downstream default
+onu 11 service ser_1 gemport 1 vlan 113 cos N/A
+onu 11 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 12 profile default sn GPON69087A92
+onu 12 desc CLIENTE_013
+onu 12 tcont 1 name INTERNET dba default1
+onu 12 gemport 1 tcont 1 gemport_name INTERNET portid 156
+onu 12 gemport 1 traffic-limit downstream default
+onu 12 service ser_1 gemport 1 vlan 113 cos N/A
+onu 12 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 12 pri equid MONUV112
+onu 12 pri wan_adv add route
+onu 12 pri wan_adv index 1 route mode internet mtu 1500
+onu 12 pri wan_adv index 1 route ipv4 static ip 172.27.113.71 mask 255.255.255.0 gw 172.27.113.1 dns master 8.8.8.8 slave 8.8.4.4 nat enable
+onu 12 pri wan_adv index 1 vlan tag wan_vlan 113 0
+onu 12 pri wan_adv index 1 bind lan1 lan2 ssid1 ssid2
+onu add 13 profile default sn GPON39188944
+onu 13 desc CLIENTE_044
+onu 13 tcont 1 name INTERNET dba default1
+onu 13 gemport 1 tcont 1 gemport_name INTERNET portid 157
+onu 13 gemport 1 traffic-limit downstream default
+onu 13 service ser_1 gemport 1 vlan 113 cos N/A
+onu 13 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 13 pri equid VSOLV212
+onu add 14 profile default sn GPONB70CEC02
+onu 14 desc CLIENTE_015
+onu 14 tcont 1 name INTERNET dba default1
+onu 14 gemport 1 tcont 1 gemport_name INTERNET portid 158
+onu 14 gemport 1 traffic-limit downstream default
+onu 14 service ser_1 gemport 1 vlan 113 cos N/A
+onu 14 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 14 pri equid MONUV212
+onu add 15 profile default sn GPON9B17C463
+onu 15 desc CLIENTE_065
+onu 15 tcont 1 name INTERNET dba default1
+onu 15 gemport 1 tcont 1 gemport_name INTERNET portid 159
+onu 15 gemport 1 traffic-limit downstream default
+onu 15 service ser_1 gemport 1 vlan 113 cos N/A
+onu 15 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 16 profile default sn VSOL628A544D
+onu 16 desc CLIENTE_058
+onu 16 tcont 1 name INTERNET dba default1
+onu 16 gemport 1 tcont 1 gemport_name INTERNET portid 160
+onu 16 gemport 1 traffic-limit downstream default
+onu 16 service ser_1 gemport 1 vlan 113 cos N/A
+onu 16 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 17 profile default sn GPON29824DE5
+onu 17 desc CLIENTE_041
+onu 17 tcont 1 name INTERNET dba default1
+onu 17 gemport 1 tcont 1 gemport_name INTERNET portid 161
+onu 17 gemport 1 traffic-limit downstream default
+onu 17 service ser_1 gemport 1 vlan 113 cos N/A
+onu 17 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 18 profile default sn GPOND215A8AD
+onu 18 desc CLIENTE_042
+onu 18 tcont 1 name INTERNET dba default1
+onu 18 gemport 1 tcont 1 gemport_name INTERNET portid 162
+onu 18 gemport 1 traffic-limit downstream default
+onu 18 service ser_1 gemport 1 vlan 113 cos N/A
+onu 18 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu add 22 profile default sn GPONBFF45339
+onu 22 desc CLIENTE_030
+onu 22 tcont 1 name INTERNET dba default1
+onu 22 gemport 1 tcont 1 gemport_name INTERNET portid 163
+onu 22 gemport 1 traffic-limit downstream default
+onu 22 service ser_1 gemport 1 vlan 113 cos N/A
+onu 22 service-port 1 gemport 1 uservlan 113 vlan 113 new_cos 0
+onu 22 pri equid VSOLV212
+exit
+!
+interface gpon 0/7
+no onu auto-learn
+onu add 1 profile default sn GPON7AF9AE80
+onu 1 desc CLIENTE_066
+onu 1 tcont 1 name internet dba default1
+onu 1 gemport 1 tcont 1 gemport_name internet portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 115 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu add 2 profile default sn GPONE6C54122
+onu 2 desc CLIENTE_017
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 115 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu add 3 profile default sn GPON392086DB
+onu 3 desc CLIENTE_039
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 115 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu add 6 profile default sn GPON2093AA8A
+onu 6 desc CLIENTE_032
+onu 6 tcont 1 name INTERNET dba default1
+onu 6 gemport 1 tcont 1 gemport_name INTERNET portid 148
+onu 6 gemport 1 traffic-limit downstream default
+onu 6 service ser_1 gemport 1 vlan 115 cos N/A
+onu 6 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu 6 pri equid VSOLV212
+onu 6 pri wan_conn add route
+onu 6 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_032 pwd ****** mode auto
+onu 6 pri wan_conn index 1 vlan enable vid 115 pri 0
+exit
+!
+interface gpon 0/8
+no onu auto-learn
+onu add 1 profile default sn GPON6BCBA761
+onu 1 desc CLIENTE_080
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 115 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu add 2 profile default sn GPONE0D35137
+onu 2 desc CLIENTE_073
+onu 2 tcont 1 name INTERNET dba default1
+onu 2 gemport 1 tcont 1 gemport_name INTERNET portid 146
+onu 2 gemport 1 traffic-limit downstream default
+onu 2 service ser_1 gemport 1 vlan 115 cos N/A
+onu 2 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+onu add 3 profile default sn GPON23256997
+onu 3 desc CLIENTE_063
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 115 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 115 vlan 115 new_cos 0
+exit
+!
+!
+!
+debug mode
+exit
+!
+ip route 0.0.0.0/24 172.17.0.1
+!
+
+!
+!
+login-access-list permit telnet 0.0.0.0 0.0.0.0
+login-access-list permit web 0.0.0.0 0.0.0.0
+login-access-list permit snmp 0.0.0.0 0.0.0.0
+login-access-list deny ssh 0.0.0.0 0.0.0.0
+login-access-list enable
+!
+queue-scheduler strict-priority
+!<RSTP Cconfig Information>
+!
+!<dhcp server config information>
+!<dhcp relay config information>
+!<tacplus config information>
+!
+!<radius config information>
+!
+!<dhcp6 server config information>
+duid duid-llt
+!<dhcp6 relay config information>
+!
+!
+!
+!
+crypto key generate rsa usage-keys modulus 2048
+snmp-server start
+snmp-server community ****** ro
+snmp-server community ****** rw
+snmp-server notify notify inform inform  inform
+snmp-server notify notify trap trap  trap
+!
+!
+
+!!!
+
+!!!
+alarm oamlog critical-event enable
+alarm oamlog dying-gasp enable
+alarm oamlog link-fault enable
+alarm oamlog link-event disable
+alarm oamlog organization-specific enable
+web login timeout 30
+web verification-code disable
+!
+!
+!um
+user add admin login-password ******
+user role admin ADMIN enable-password ******
+user add OPERADOR login-password ******
+user role OPERADOR ADMIN enable-password ******
+!<MSTP Config Information>
+spanning-tree mst configuration
+exit
+!
+!
+interface gigabitethernet 0/1
+exit
+!
+interface gigabitethernet 0/2
+exit
+!
+interface gigabitethernet 0/3
+exit
+!
+interface gigabitethernet 0/4
+exit
+!
+!
+!
+interface vlan 200
+!
+debug mode
+exit
+!
+interface vlan 200
+!

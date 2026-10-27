@@ -442,11 +442,53 @@ class _Cli:
         return "% Unknown command."
 
 
+class _TelnetProcess:
+    """Hace pasar una conexión Telnet por el mismo manejador que la sesión SSH."""
+
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self._reader = reader
+        self._writer = writer
+        self.stdin = self
+        self.stdout = self
+
+    async def read(self, size: int = 1) -> str:
+        while True:
+            data = await self._reader.read(1)
+            if not data:
+                return ""
+            if data[0] != 255:  # IAC: el cliente responde a la negociación; se descarta
+                return data.decode("latin-1")
+            command = await self._reader.read(1)
+            if command and command[0] in (251, 252, 253, 254):
+                await self._reader.read(1)
+
+    async def readline(self, *, echo: bool) -> str:
+        buffer = ""
+        while True:
+            ch = await self.read(1)
+            if ch in ("", "\r", "\n"):
+                if ch == "\r":
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(self._reader.read(1), 0.05)  # el \n que sigue
+                self._writer.write(b"\r\n")
+                return buffer
+            buffer += ch
+            if echo:
+                self._writer.write(ch.encode("latin-1"))
+
+    def write(self, text: str) -> None:
+        self._writer.write(text.encode("utf-8"))
+
+    def exit(self, code: int) -> None:
+        self._writer.close()
+
+
 class VsolSimulator:
     def __init__(self, config: SimConfig | None = None) -> None:
         self.config = config or default_config()
         self.commands_seen: list[str] = []
         self._server: asyncssh.SSHAcceptor | None = None
+        self._telnet: asyncio.Server | None = None
         self.host_key = asyncssh.generate_private_key("ssh-ed25519")
 
     @property
@@ -466,10 +508,40 @@ class VsolSimulator:
         sockets = self._server.sockets
         return int(sockets[0].getsockname()[1])
 
+    async def start_telnet(self, host: str = "127.0.0.1", port: int = 0) -> int:
+        """Telnet como la OLT de Tocaima (V1.1.9R): negociación IAC, ``Login:`` y ``Password:``."""
+        self._telnet = await asyncio.start_server(self._handle_telnet, host, port)
+        return int(self._telnet.sockets[0].getsockname()[1])
+
     async def stop(self) -> None:
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
+        if self._telnet is not None:
+            self._telnet.close()
+            await self._telnet.wait_closed()
+
+    async def _handle_telnet(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        process = _TelnetProcess(reader, writer)
+        # Lo mismo que manda la OLT real antes de pedir el usuario.
+        writer.write(b"\r\nHello, this is gpon olt platform (version 1.00).\r\n\r\n")
+        writer.write(b"User Access Verification\r\n\r\n")
+        writer.write(bytes([255, 251, 1, 255, 251, 3, 255, 254, 34, 255, 253, 31]))
+        for _ in range(3):  # como una CLI estilo Cisco: con la clave mala vuelve a pedir usuario
+            writer.write(b"Login: ")
+            user = await process.readline(echo=True)
+            writer.write(b"Password: ")
+            password = await process.readline(echo=False)
+            if user == self.config.username and password == self.config.password:
+                break
+            writer.write(b"\r\n% Bad passwords\r\n\r\n")
+        else:
+            process.exit(1)
+            return
+        process.stdout.write("\r\n")
+        await self._handle(process)
 
     async def _handle(self, process: Any) -> None:
         cli = _Cli(self.config, self.commands_seen)
@@ -543,6 +615,9 @@ async def _serve(args: argparse.Namespace) -> None:
     simulator = VsolSimulator(config)
     port = await simulator.start(args.host, args.puerto)
     print(f"Simulador VSOL escuchando en {args.host}:{port} (usuario {config.username})")
+    if args.puerto_telnet is not None:
+        telnet = await simulator.start_telnet(args.host, args.puerto_telnet)
+        print(f"Telnet en {args.host}:{telnet}")
     print(f"Llave de host: {simulator.public_host_key}")
     await asyncio.Event().wait()
 
@@ -552,6 +627,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--puerto", type=int, default=2222)
     parser.add_argument("--clave", default="olterra-sim")
+    parser.add_argument("--puerto-telnet", type=int, help="Además, Telnet en este puerto")
     parser.add_argument(
         "--capturas", help="Directorio de olterra-capture para responder con salidas reales"
     )

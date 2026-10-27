@@ -3,7 +3,7 @@ import { LoaderCircle, LockKeyhole, Save } from '@lucide/vue'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { createOlt, getOltDefaults, listRouters, type OltCreate } from '@/api'
+import { createOlt, getOltDefaults, listRouters, type CliProtocol, type OltCreate } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { errorText, useAsync } from '@/lib/useAsync'
@@ -20,13 +20,18 @@ const routers = useAsync(listRouters)
 const defaults = useAsync(getOltDefaults)
 const factory = computed(() => defaults.data.value?.password_configured === true)
 
+// Función con tipo de retorno: así el formulario admite 'ssh' y 'telnet', no solo 'ssh'.
+const defaultProtocol = (): CliProtocol => 'ssh'
+
 const form = reactive({
   name: '',
   model: '',
   firmware: '',
   routerId: '',
   realIp: '',
+  cliProtocol: defaultProtocol(),
   sshPort: 22,
+  telnetPort: 23,
   snmpPort: 161,
   username: '',
   password: '',
@@ -60,6 +65,7 @@ const problems = computed(() => {
     found.realIp = 'Esa es una IP del túnel. Va la IP con la que abres la web de la OLT en tu red.'
   }
   if (!port(form.sshPort)) found.sshPort = 'De 1 a 65535.'
+  if (!port(form.telnetPort)) found.telnetPort = 'De 1 a 65535.'
   if (!port(form.snmpPort)) found.snmpPort = 'De 1 a 65535.'
   // Con clave de fábrica en el servidor se puede dejar vacío (OLT nueva); sin ella, es obligatoria.
   if (!form.password && !factory.value) found.password = 'Falta la clave.'
@@ -88,6 +94,8 @@ function body(): OltCreate {
     router_id: form.routerId || undefined,
     real_ip: form.realIp.trim(),
     ssh_port: form.sshPort,
+    cli_protocol: form.cliProtocol,
+    telnet_port: form.telnetPort,
     snmp_port: form.snmpPort,
     username: optional(form.username),
     password: form.password || undefined,
@@ -197,6 +205,17 @@ async function submit(): Promise<void> {
           </p>
         </div>
         <div>
+          <label for="cli-protocol" class="label">Acceso a la CLI</label>
+          <select id="cli-protocol" v-model="form.cliProtocol" class="input">
+            <option value="ssh">SSH</option>
+            <option value="telnet">Telnet</option>
+          </select>
+          <p class="hint">
+            Telnet solo si la OLT no deja entrar por SSH con su usuario (pasa en algunas VSOL).
+            Viaja sin cifrar entre tu MikroTik y la OLT.
+          </p>
+        </div>
+        <div v-if="form.cliProtocol === 'ssh'">
           <label for="ssh-port" class="label">Puerto SSH</label>
           <input
             id="ssh-port"
@@ -207,6 +226,18 @@ async function submit(): Promise<void> {
             class="input"
           />
           <p v-if="show('sshPort')" class="hint text-danger">{{ show('sshPort') }}</p>
+        </div>
+        <div v-else>
+          <label for="telnet-port" class="label">Puerto Telnet</label>
+          <input
+            id="telnet-port"
+            v-model.number="form.telnetPort"
+            type="number"
+            min="1"
+            max="65535"
+            class="input"
+          />
+          <p v-if="show('telnetPort')" class="hint text-danger">{{ show('telnetPort') }}</p>
         </div>
         <div>
           <label for="snmp-port" class="label">Puerto SNMP</label>

@@ -1,0 +1,3 @@
+community               ******
+ public                    ro
+ private                   rw

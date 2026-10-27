@@ -41,11 +41,16 @@ export interface Olt {
   nat_ip: string | null
   ssh_port: number
   snmp_port: number
+  /** Por dónde entra Olterra a la CLI. Telnet solo si la OLT no acepta su usuario por SSH. */
+  cli_protocol: CliProtocol
+  telnet_port: number
   /** pending (nunca consultada), online o unreachable: lo actualiza cada consulta. */
   status: string
   last_seen_at: string | null
   created_at: string
 }
+
+export type CliProtocol = 'ssh' | 'telnet'
 
 export interface OltCreate {
   name: string
@@ -55,6 +60,8 @@ export interface OltCreate {
   real_ip?: string
   ssh_port: number
   snmp_port: number
+  cli_protocol?: CliProtocol
+  telnet_port?: number
   /** Vacío: el usuario de fábrica de VSOL (lo informa /v1/olts/defaults). */
   username?: string
   /** Vacío en una OLT nueva: el servidor usa su clave de fábrica. */
@@ -81,6 +88,8 @@ export interface OltUpdate {
   real_ip?: string
   ssh_port?: number
   snmp_port?: number
+  cli_protocol?: CliProtocol
+  telnet_port?: number
   username?: string
   password?: string
   enable_password?: string

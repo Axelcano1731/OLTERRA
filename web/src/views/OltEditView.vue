@@ -3,7 +3,7 @@ import { LoaderCircle, LockKeyhole, Save } from '@lucide/vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getOlt, updateOlt, type OltUpdate } from '@/api'
+import { getOlt, updateOlt, type CliProtocol, type OltUpdate } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -15,11 +15,16 @@ const olt = useAsync(() => getOlt(props.id))
 
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
 
+// Función con tipo de retorno: así el formulario admite 'ssh' y 'telnet', no solo 'ssh'.
+const defaultProtocol = (): CliProtocol => 'ssh'
+
 const form = reactive({
   model: '',
   firmware: '',
   realIp: '',
+  cliProtocol: defaultProtocol(),
   sshPort: 22,
+  telnetPort: 23,
   snmpPort: 161,
   // Las claves no vuelven de la API: vacío = no se cambia.
   username: '',
@@ -34,6 +39,8 @@ watch(olt.data, (value) => {
   form.firmware = value.firmware ?? ''
   form.realIp = value.real_ip ?? ''
   form.sshPort = value.ssh_port
+  form.cliProtocol = value.cli_protocol
+  form.telnetPort = value.telnet_port
   form.snmpPort = value.snmp_port
 })
 
@@ -48,7 +55,7 @@ const problems = computed(() => {
   else if (/^198\.1[89]\./.test(ip)) {
     found.realIp = 'Esa es una IP del túnel. Va la IP con la que abres la web de la OLT en tu red.'
   }
-  for (const key of ['sshPort', 'snmpPort'] as const) {
+  for (const key of ['sshPort', 'telnetPort', 'snmpPort'] as const) {
     const port = form[key]
     if (!Number.isInteger(port) || port < 1 || port > 65535) found[key] = 'De 1 a 65535.'
   }
@@ -70,6 +77,8 @@ function body(): OltUpdate {
     changes.real_ip = form.realIp.trim()
   }
   if (form.sshPort !== current.ssh_port) changes.ssh_port = form.sshPort
+  if (form.cliProtocol !== current.cli_protocol) changes.cli_protocol = form.cliProtocol
+  if (form.telnetPort !== current.telnet_port) changes.telnet_port = form.telnetPort
   if (form.snmpPort !== current.snmp_port) changes.snmp_port = form.snmpPort
   if (form.username.trim()) changes.username = form.username.trim()
   if (form.password) changes.password = form.password
@@ -140,6 +149,18 @@ async function submit(): Promise<void> {
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
+              <label for="cli-protocol" class="label">Acceso a la CLI</label>
+              <select id="cli-protocol" v-model="form.cliProtocol" class="input">
+                <option value="ssh">SSH</option>
+                <option value="telnet">Telnet</option>
+              </select>
+              <p class="hint">
+                Telnet solo si la OLT no deja entrar por SSH con su usuario (pasa en algunas VSOL).
+                Viaja sin cifrar entre tu MikroTik y la OLT. Si la OLT está detrás de un router del
+                túnel, después de cambiarlo rota su script y vuelve a importarlo.
+              </p>
+            </div>
+            <div v-if="form.cliProtocol === 'ssh'">
               <label for="ssh-port" class="label">Puerto SSH</label>
               <input
                 id="ssh-port"
@@ -150,6 +171,18 @@ async function submit(): Promise<void> {
                 class="input"
               />
               <p v-if="show('sshPort')" class="hint text-danger">{{ show('sshPort') }}</p>
+            </div>
+            <div v-else>
+              <label for="telnet-port" class="label">Puerto Telnet</label>
+              <input
+                id="telnet-port"
+                v-model.number="form.telnetPort"
+                type="number"
+                min="1"
+                max="65535"
+                class="input"
+              />
+              <p v-if="show('telnetPort')" class="hint text-danger">{{ show('telnetPort') }}</p>
             </div>
             <div>
               <label for="snmp-port" class="label">Puerto SNMP</label>

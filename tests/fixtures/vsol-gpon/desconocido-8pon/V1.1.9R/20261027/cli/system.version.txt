@@ -1,0 +1,5 @@
+  Olt Serial Number:           R2105120009
+  Hardware Version:            eight gpon olt platform
+  Software Version:            V1.1.9R
+  Software Created Time:       Thu, 15 Apr 2021 11:52:15
+  Copyright 2020-2025

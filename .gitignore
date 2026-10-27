@@ -28,3 +28,6 @@ lab-captures/
 
 # Reportes generados por olterra-conciliar
 reportes/
+
+# Tareas personales (no se versionan)
+TAREAS.md

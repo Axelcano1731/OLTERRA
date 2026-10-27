@@ -18,6 +18,9 @@ def _ip_text(value: Any) -> str | None:
     return None if value is None else str(value).split("/")[0]
 
 
+CliProtocol = Literal["ssh", "telnet"]
+
+
 class OltCreate(BaseModel):
     name: str = Field(pattern=r"^[A-Za-z0-9_.\-]{1,32}$")
     model: str | None = None
@@ -26,6 +29,12 @@ class OltCreate(BaseModel):
     real_ip: IPv4Address | None = Field(None, description="IP de la OLT en la red del ISP")
     ssh_port: int = Field(22, ge=1, le=65535)
     snmp_port: int = Field(161, ge=1, le=65535)
+    cli_protocol: CliProtocol = Field(
+        "ssh",
+        description="telnet solo para OLT que no aceptan a los usuarios de la CLI por SSH; viaja "
+        "en claro entre el MikroTik y la OLT",
+    )
+    telnet_port: int = Field(23, ge=1, le=65535)
     username: str | None = Field(
         None, min_length=1, max_length=64, description="Vacío: el usuario de fábrica de VSOL"
     )
@@ -57,6 +66,8 @@ class OltUpdate(BaseModel):
     real_ip: IPv4Address | None = Field(None, description="IP de la OLT en la red del ISP")
     ssh_port: int | None = Field(None, ge=1, le=65535)
     snmp_port: int | None = Field(None, ge=1, le=65535)
+    cli_protocol: CliProtocol | None = None
+    telnet_port: int | None = Field(None, ge=1, le=65535)
     username: str | None = Field(None, min_length=1, max_length=64)
     password: SecretStr | None = Field(None, min_length=1)
     enable_password: SecretStr | None = None
@@ -76,6 +87,8 @@ class OltOut(BaseModel):
     nat_ip: str | None
     ssh_port: int
     snmp_port: int
+    cli_protocol: CliProtocol = "ssh"
+    telnet_port: int = 23
     status: str = Field(description="pending (nunca consultada), online o unreachable")
     last_seen_at: datetime | None = Field(None, description="Última vez que respondió")
     created_at: datetime

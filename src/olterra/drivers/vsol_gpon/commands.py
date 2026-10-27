@@ -17,6 +17,7 @@ from olterra.drivers.vsol_gpon.sources import (
     HELP_G0B,
     INFERRED,
     LAB_G0B,
+    LAB_TOCAIMA,
     LIBRENMS_19368,
     PUBLIC_GUIDES,
     RUNNING_G0B,
@@ -64,11 +65,12 @@ _COMMANDS = [
     _c("snmp.trap_hosts", "show snmp-server targetaddress", CONFIG, R, manual("24.4.2")),
     _c(
         "profile.list",
-        "show profile {kind} all",
+        "show profile {kind}",
         CONFIG,
         R,
-        manual("20.9"),
+        LAB_TOCAIMA,
         param_types={"kind": "profile_kind"},
+        notes="El manual v2.1 (§20.9) agrega 'all'; las OLT reales lo rechazan",
     ),
     _c(
         "mac.by_pon",
@@ -81,7 +83,7 @@ _COMMANDS = [
     # --- Puerto PON ----------------------------------------------------------------
     _c("pon.info", "show pon info", PON, R, manual("18.3.1")),
     _c("pon.optical", "show pon optical transceiver", PON, R, manual("18.2.2")),
-    _c("pon.statistics", "show pon statistics", PON, R, manual("18.2.1")),
+    _c("pon.statistics", "show pon {pon} statistics", PON, R, LAB_TOCAIMA),
     _c("onu.autolearn", "show onu auto-learn", PON, R, manual("17.1")),
     _c("onu.autofind", "show onu auto-find", PON, R, manual("19.2.1")),
     _c("onu.autofind_detail", "show onu auto-find detail-info", PON, R, manual("19.2.1")),
@@ -96,10 +98,10 @@ _COMMANDS = [
     _c("onu.rx_power_all", "show pon onu all rx-power", PON, R, manual("18.2.3")),
     # --- Una ONU -------------------------------------------------------------------
     _c("onu.detail", "show onu detail-info {onu}", PON, R, manual("19.2.4")),
-    _c("onu.optical", "show onu {onu} optical-info", PON, R, manual("19.3.1")),
+    _c("onu.optical", "show onu {onu} optical_info", PON, R, LAB_TOCAIMA),
     _c("onu.capability", "show onu {onu} capability", PON, R, manual("19.3.12")),
     _c("onu.service_config", "show running-config onu {onu}", PON, R, manual("19.3.11")),
-    _c("onu.description", "show onu {onu} description", PON, R, manual("19.2.7")),
+    _c("onu.description", "show onu {onu} desc", PON, R, LAB_TOCAIMA),
     # Los dos de abajo no están en el manual v2.1: salieron de la ayuda de la V1600G0-B.
     _c("onu.state", "show onu state", PON, R, LAB_G0B, notes="Estado de todas las ONU del PON"),
     _c("onu.distance", "show onu {onu} distance", PON, R, LAB_G0B),
@@ -391,9 +393,9 @@ _COMMANDS = [
     ),
 ]
 
-# Comandos que respondieron en la captura de la V1600G0-B V1.4.8R (tests/fixtures). Con la
-# sintaxis del catálogo: los que ahí fallaron (profile.list, pon.statistics, onu.optical,
-# onu.description) no están aquí; su sintaxis de ese modelo va como override, abajo.
+# Comandos que respondieron en las capturas (tests/fixtures): V1600G0-B V1.4.8R y la OLT de
+# 8 PON de Tocaima V1.1.9R. profile.list, pon.statistics, onu.optical y onu.description van con
+# la sintaxis que aceptan las dos, no con la del manual v2.1.
 _LAB_VERIFIED = {
     "system.version", "system.running_time", "system.cpu", "system.memory", "system.fan",
     "system.running_config", "system.startup_config", "system.alarm_config",
@@ -401,6 +403,7 @@ _LAB_VERIFIED = {
     "snmp.trap_hosts", "mac.by_pon", "pon.info", "pon.optical", "onu.autolearn",
     "onu.autofind", "onu.autofind_detail", "onu.list", "onu.rx_power_all", "onu.detail",
     "onu.capability", "onu.service_config", "onu.state", "onu.distance",
+    "profile.list", "pon.statistics", "onu.optical", "onu.description",
 }  # fmt: skip
 
 COMMANDS: dict[str, CommandTemplate] = {
@@ -411,17 +414,6 @@ COMMANDS: dict[str, CommandTemplate] = {
 }
 
 OVERRIDES = [
-    # V1600G0-B V1.4.8R: el manual v2.1 escribe otras palabras (la ayuda '?' de la OLT dice
-    # optical_info, desc y 'show pon <n> statistics').
-    CommandOverride(
-        "V1600G0*", "*", "onu.optical", "show onu {onu} optical_info", LAB_G0B, verified=True
-    ),
-    CommandOverride(
-        "V1600G0*", "*", "onu.description", "show onu {onu} desc", LAB_G0B, verified=True
-    ),
-    CommandOverride(
-        "V1600G0*", "*", "pon.statistics", "show pon {pon} statistics", LAB_G0B, verified=True
-    ),
     # Aprovisionamiento: la V1600G0-B guarda sus ONU con estas palabras (RUNNING_G0B).
     CommandOverride(
         "V1600G0*", "*", "onu.set_description", "onu {onu} desc {description}", RUNNING_G0B

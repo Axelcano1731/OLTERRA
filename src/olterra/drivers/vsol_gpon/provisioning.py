@@ -434,7 +434,12 @@ _LINES: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     ("limit_down", re.compile(_P + r"gemport (?P<id>\d+) traffic-limit downstream (?P<p>\S+)")),
-    ("service", re.compile(_P + r"service (?P<name>\S+) gemport (?P<gem>\d+) vlan (?P<vlan>\d+)")),
+    (
+        "service",
+        re.compile(
+            _P + r"service (?P<name>\S+) gemport (?P<gem>\d+) vlan (?P<vlan>\d+)(?: cos \S+)?"
+        ),
+    ),
     (
         "service_port",
         re.compile(
@@ -498,14 +503,21 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
                 break
         else:
             ignored.append(re.sub(r"(shared_key|pwd) \S+", r"\1 ******", line))
-    if "add" not in found:
-        raise UnrecognizedOutput("vsol.onu.running_config", "no hay línea 'onu add'", text)
-    add = found["add"][0]
+    # La V1600G0-B trae la línea "onu add" en la configuración de la ONU; la OLT de Tocaima
+    # (V1.1.9R) solo en la configuración completa. Sin ella: perfil de "profile onu", sin serial.
+    add = found["add"][0] if "add" in found else None
+    if add is None and "onu_profile" not in found:
+        raise UnrecognizedOutput(
+            "vsol.onu.running_config", "no hay línea 'onu add' ni 'onu N profile onu'", text
+        )
+    auth_profile = add["profile"] if add else found["onu_profile"][0]["profile"]
+    onu_number = int(add["onu"] if add else found["onu_profile"][0]["onu"])
+    serial = add["serial"] if add else None
     limits = {int(m["id"]): m["p"] for m in found.get("limit_down", [])}
     template: dict[str, Any] = {
-        "auth_profile": add["profile"],
+        "auth_profile": auth_profile,
         "onu_profile": next(
-            (m["profile"] for m in found.get("onu_profile", []) if m["profile"] != add["profile"]),
+            (m["profile"] for m in found.get("onu_profile", []) if m["profile"] != auth_profile),
             None,
         ),
         "tconts": [
@@ -539,7 +551,7 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
         "wifi": None,
         "management": None,
     }
-    client: dict[str, Any] = {"serial": add["serial"]}
+    client: dict[str, Any] = {"serial": serial}
     if "desc" in found:
         client["description"] = found["desc"][0]["desc"].strip() or None
     pppoe = found.get("wan_pppoe", [])
@@ -583,8 +595,8 @@ def parse_onu_running_config(text: str) -> OnuRunningConfig:
             ignored.append(re.sub(r"(shared_key|pwd) \S+", r"\1 ******", extra.group(0)))
     TemplateBody.model_validate(template)  # que lo copiado sea una plantilla válida
     return OnuRunningConfig(
-        onu=int(add["onu"]),
-        serial=normalize_gpon_serial(add["serial"]),
+        onu=onu_number,
+        serial=normalize_gpon_serial(serial),
         template=template,
         client=client,
         ignored=ignored,

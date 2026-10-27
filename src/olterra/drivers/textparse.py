@@ -14,6 +14,8 @@ _SEPARATOR = re.compile(r"^[\s\-=+|]*[-=]{5,}[\s\-=+|]*$")
 _ONU_REF = re.compile(
     r"^(?:(?:x?gpon|epon|pon)[\s_-]*)?(?:(\d+)\s*/\s*)?(\d+)\s*[:/]\s*(\d+)$", re.IGNORECASE
 )
+# "1/1/2:5": bastidor/tarjeta/PON:ONU (show onu state en V1.1.9R).
+_ONU_REF_3 = re.compile(r"^(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s*:\s*(\d+)$")
 _FLOAT = re.compile(r"[-+]?\d+(?:\.\d+)?")
 _DBM_IN_PARENS = re.compile(r"\(\s*([-+]?\d+(?:\.\d+)?)\s*dBm\s*\)", re.IGNORECASE)
 _DBM = re.compile(r"([-+]?\d+(?:\.\d+)?)\s*dBm", re.IGNORECASE)
@@ -130,8 +132,13 @@ class OnuRef:
 
 
 def parse_onu_ref(text: str, default_pon: int | None = None) -> OnuRef | None:
-    """``GPON0/1:5`` → (0, 1, 5); ``1:5`` → (None, 1, 5); ``5`` → (None, default_pon, 5)."""
+    """``GPON0/1:5`` → (0, 1, 5); ``1/1/1:5`` → (1, 1, 5); ``1:5`` → (None, 1, 5);
+    ``5`` → (None, default_pon, 5)."""
     value = text.strip()
+    three = _ONU_REF_3.match(value)
+    if three:
+        _, slot, pon, onu = three.groups()
+        return OnuRef(int(slot), int(pon), int(onu))
     match = _ONU_REF.match(value)
     if match:
         slot, pon, onu = match.groups()

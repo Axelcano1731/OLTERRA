@@ -65,6 +65,8 @@ class OltMapping:
     name: str
     real_ip: IPv4Address
     nat_ip: IPv4Address
+    # Puerto TCP de la CLI: el SSH de la OLT (22) o su Telnet (23) si entra por Telnet.
+    cli_port: int = 22
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,8 @@ def _validate_olts(
             raise ScriptError(f"OLT repetida: {olt.name}")
         if olt.nat_ip == olt.real_ip:
             raise ScriptError(f"{olt.name}: la IP NAT no puede ser la misma IP real")
+        if not 1 <= olt.cli_port <= 65535:
+            raise ScriptError(f"{olt.name}: puerto de la CLI fuera de rango")
         names.add(olt.name)
         real_ips.add(olt.real_ip)
         nat_ips.add(olt.nat_ip)
@@ -223,7 +227,7 @@ def _olt_rules(
             f"chain=srcnat src-address={prefix} dst-address={olt.real_ip} action=masquerade"
             f' comment="{olt_tag}"',
         )
-        for protocol, port in (("tcp", 22), ("udp", 161)):
+        for protocol, port in (("tcp", olt.cli_port), ("udp", 161)):
             s.add_first(
                 "/ip firewall filter",
                 "ffil",

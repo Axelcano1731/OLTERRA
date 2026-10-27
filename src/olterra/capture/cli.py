@@ -144,7 +144,13 @@ async def run_capture(args: argparse.Namespace, password: str, enable_password: 
         enable_password=SecretStr(enable_password) if enable_password else None,
         snmp_community=SecretStr(args.snmp_comunidad) if args.snmp_comunidad else None,
     )
-    target = Target(host=args.host, ssh_port=args.puerto, snmp_port=args.puerto_snmp)
+    target = Target(
+        host=args.host,
+        ssh_port=args.puerto,
+        telnet_port=args.puerto,
+        snmp_port=args.puerto_snmp,
+        cli_protocol="telnet" if args.telnet else "ssh",
+    )
     session = driver.session.model_copy(update={"legacy_ssh_algorithms": args.ssh_legacy})
     tenant_id, olt_id = uuid4(), uuid4()
     cli_plan = Plan(
@@ -284,7 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="olterra-capture", description=__doc__.split("\n\n")[0])
     parser.add_argument("--host", required=True)
     parser.add_argument("--usuario", required=True)
-    parser.add_argument("--puerto", type=int, default=22)
+    parser.add_argument("--puerto", type=int, help="Por defecto 22 (SSH) o 23 (--telnet)")
     parser.add_argument("--puerto-snmp", type=int, default=161)
     parser.add_argument("--driver", default="vsol-gpon")
     parser.add_argument(
@@ -306,6 +312,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--anonimizar", action="store_true", help="Reemplaza seriales y MAC por valores falsos"
     )
     parser.add_argument("--ssh-legacy", action="store_true", help="Permite algoritmos SSH viejos")
+    parser.add_argument(
+        "--telnet",
+        action="store_true",
+        help="Entra por Telnet (en claro): solo desde la red del ISP, si SSH no responde",
+    )
     parser.add_argument("--timeout", type=float, default=60.0, help="Segundos por comando")
     parser.add_argument("--salida", default="lab-captures")
     return parser
@@ -313,6 +324,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.puerto is None:
+        args.puerto = 23 if args.telnet else 22
     for item in args.onu:
         if not re.fullmatch(r"\d+:\d+", item):
             raise SystemExit(f"--onu espera PON:ONU (p. ej. 1:5), no '{item}'")

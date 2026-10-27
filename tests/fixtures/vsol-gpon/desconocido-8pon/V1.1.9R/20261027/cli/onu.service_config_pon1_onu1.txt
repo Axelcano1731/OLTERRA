@@ -1,0 +1,8 @@
+----------onu 1 running-config----------
+onu 1 desc CLIENTE_027
+onu 1 profile onu default
+onu 1 tcont 1 name INTERNET dba default1
+onu 1 gemport 1 tcont 1 gemport_name INTERNET portid 145
+onu 1 gemport 1 traffic-limit downstream default
+onu 1 service ser_1 gemport 1 vlan 109 cos N/A
+onu 1 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
