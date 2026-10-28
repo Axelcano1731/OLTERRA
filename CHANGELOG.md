@@ -2,6 +2,19 @@
 
 ## [Sin publicar]
 
+### Cambiado
+
+- **El MikroTik del ISP es la puerta hacia sus OLT**: el script del router (se importa una sola
+  vez) crea el usuario `olterra`, que solo entra por SSH desde la plataforma y no puede cambiar
+  nada, y habilita el reenvío SSH. Olterra entra por él a la IP real de cada OLT, así que
+  agregar, editar o borrar una OLT ya no pide rotar el router ni tocar el concentrador
+  (migración `0012`). Los routers con el script viejo aparecen en Túnel como "Rótalo una vez".
+- Olterra da de alta sola los MikroTik en el concentrador por la API de RouterOS
+  (`OLTERRA_TUNNEL_HUB_API_PASSWORD`; el usuario lo crea `olterra-admin concentrador`). Sin esa
+  variable queda el bloque para pegarlo a mano.
+- Túnel pide el puerto SSH del MikroTik; la lista de OLT dice por qué MikroTik llega cada una.
+- Se quitaron las reglas NAT por OLT de los scripts y `OLTERRA_TUNNEL_TRAP_RECEIVER`.
+
 ### Corregido
 
 - Si la OLT no responde al abrir SSH o Telnet, el error dice "no respondió en 15 s" y sugiere

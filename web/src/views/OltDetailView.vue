@@ -182,7 +182,7 @@ watch(waiting, (now, before) => {
               (gone) =>
                 router.push({
                   name: 'olts',
-                  query: { borrada: gone.name, router: gone.router_id ? '1' : '0' },
+                  query: { borrada: gone.name },
                 })
             "
             @failed="deleteError = $event"
@@ -195,10 +195,10 @@ watch(waiting, (now, before) => {
 
     <AlertBox v-if="justEdited" tone="success" title="OLT actualizada" class="mb-6">
       Los cambios quedaron guardados.
-      <template v-if="olt.data.value.router_id">
-        Si cambiaste su IP, rota las llaves de su MikroTik en
+      <template v-if="olt.data.value.router_gateway === false">
+        Su MikroTik {{ olt.data.value.router_name }} tiene el script viejo: rótalo una vez en
         <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>
-        para publicarla.
+        para que Olterra llegue a esta OLT.
       </template>
     </AlertBox>
 
@@ -216,10 +216,14 @@ watch(waiting, (now, before) => {
 
     <AlertBox v-if="justCreated" tone="success" title="OLT agregada" class="mb-6">
       Sus credenciales quedaron cifradas con la llave de tu ISP.
-      <template v-if="olt.data.value.nat_ip">
-        Para que tu MikroTik la publique en el túnel, ve a
-        <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>, rota
-        las llaves de su router y pega el script nuevo: ya incluye esta OLT.
+      <template v-if="olt.data.value.router_gateway === false">
+        Su MikroTik {{ olt.data.value.router_name }} todavía tiene el script viejo de Olterra: en
+        <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>,
+        rótalo e importa el script nuevo una última vez. Desde ahí, toda OLT nueva funciona sola.
+      </template>
+      <template v-else-if="olt.data.value.router_name">
+        Olterra entra a ella por tu MikroTik {{ olt.data.value.router_name }}, sin tocarlo. Prueba
+        una consulta de solo lectura para confirmar que llega.
       </template>
       <template v-else>
         Prueba una consulta de solo lectura para confirmar que Olterra llega.
@@ -232,8 +236,10 @@ watch(waiting, (now, before) => {
         <dd class="mt-0.5 font-mono">{{ olt.data.value.real_ip ?? '—' }}</dd>
       </div>
       <div>
-        <dt class="text-muted">IP en el túnel</dt>
-        <dd class="mt-0.5 font-mono">{{ olt.data.value.nat_ip ?? 'Directa' }}</dd>
+        <dt class="text-muted">Llega por</dt>
+        <dd class="mt-0.5">
+          {{ olt.data.value.router_name ? `MikroTik ${olt.data.value.router_name}` : 'Directa' }}
+        </dd>
       </div>
       <div>
         <dt class="text-muted">Puertos</dt>

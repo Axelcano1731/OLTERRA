@@ -153,7 +153,22 @@ class SnmpWalk(BaseModel):
 Step = Annotated[CliCommand | SnmpWalk, Field(discriminator="kind")]
 
 
+class Gateway(BaseModel):
+    """El MikroTik del ISP como puerta: el ejecutor entra por SSH con el usuario ``olterra`` y
+    desde ahí abre la conexión a la OLT (reenvío SSH). La clave va sellada en la credencial
+    (``gateway_password``)."""
+
+    host: str
+    port: int = 22
+    username: str = "olterra"
+    # Para mostrar en los errores ("No se pudo entrar al MikroTik BNG-TOCAIMA").
+    name: str = ""
+    # RouterOS 6 viejos solo hablan algoritmos SSH viejos.
+    legacy_ssh_algorithms: bool = False
+
+
 class Target(BaseModel):
+    # Con ``via``, la IP real de la OLT en la red del ISP; sin ella, la que alcanza el ejecutor.
     host: str
     ssh_port: int = 22
     snmp_port: int = 161
@@ -164,6 +179,8 @@ class Target(BaseModel):
     # Llave de host conocida (formato OpenSSH: "ssh-rsa AAAA..."). Si falta, se
     # acepta la que presente la OLT y se reporta su huella (confianza al primer uso).
     ssh_host_key: str | None = None
+    # Campo nuevo (opcional): la OLT está detrás del MikroTik del ISP y se llega por él.
+    via: Gateway | None = None
 
 
 class Credential(BaseModel):
@@ -185,6 +202,8 @@ class Credential(BaseModel):
     # Cuentas de la ONU (administración y la normal del cliente), del plan de servicio.
     onu_admin_password: SecretStr | None = None
     onu_user_password: SecretStr | None = None
+    # Clave del usuario "olterra" del MikroTik cuando el plan entra por él (``Target.via``).
+    gateway_password: SecretStr | None = None
 
     def resolve_secrets(self, command: str) -> str:
         """Reemplaza los ``{{secret:campo}}`` de un comando. Falla si falta algún valor."""
@@ -227,6 +246,7 @@ class Credential(BaseModel):
             self.wifi_key,
             self.onu_admin_password,
             self.onu_user_password,
+            self.gateway_password,
         ]
         return [v.get_secret_value() for v in values if v is not None]
 

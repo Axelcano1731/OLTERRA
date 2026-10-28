@@ -6,6 +6,8 @@ de captura del laboratorio (con la credencial escrita a mano).
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -23,7 +25,7 @@ from olterra.executor.plan import (
     StepResult,
 )
 from olterra.executor.snmp import SnmpClient, SnmpError
-from olterra.executor.ssh import SshConnectOptions, open_ssh_transport
+from olterra.executor.ssh import SshConnectOptions, open_gateway, open_ssh_transport
 from olterra.executor.telnet import open_telnet_transport
 from olterra.security.masking import redact
 
@@ -32,6 +34,8 @@ log = logging.getLogger(__name__)
 # Recibe opciones y devuelve un transporte CLI; si además expone ``host_key``,
 # el resultado reporta la llave para fijarla (confianza al primer uso).
 TransportFactory = Callable[[SshConnectOptions], Awaitable[Any]]
+# Abre la conexión SSH al MikroTik del ISP (la puerta) por la que salen las de las OLT.
+GatewayFactory = Callable[[SshConnectOptions], Awaitable[Any]]
 
 
 def _now() -> datetime:
@@ -54,11 +58,13 @@ class PlanRunner:
         snmp: SnmpClient | None = None,
         transport_factory: TransportFactory = open_ssh_transport,
         telnet_factory: TransportFactory = open_telnet_transport,
+        gateway_factory: GatewayFactory = open_gateway,
     ) -> None:
         self.executor_id = executor_id
         self._snmp = snmp
         self._transport_factory = transport_factory
         self._telnet_factory = telnet_factory
+        self._gateway_factory = gateway_factory
 
     def _result(
         self, plan: Plan, status: PlanStatus, started: datetime, **extra: Any
@@ -139,6 +145,7 @@ class PlanRunner:
             raise CliError("Plan sin perfil de sesión o sin usuario")
         password = credential.password.get_secret_value() if credential.password else ""
         telnet = plan.target.cli_protocol == "telnet"
+        gateway = await self._open_gateway(plan, credential)
         options = SshConnectOptions(
             host=plan.target.host,
             port=plan.target.telnet_port if telnet else plan.target.ssh_port,
@@ -147,9 +154,18 @@ class PlanRunner:
             known_host_key=plan.target.ssh_host_key,
             legacy_algorithms=plan.session.legacy_ssh_algorithms,
             terminal_width=plan.session.terminal_width,
+            tunnel=gateway,
+            tunnel_name=plan.target.via.name if plan.target.via else "",
         )
         factory = self._telnet_factory if telnet else self._transport_factory
-        transport = await factory(options)
+        try:
+            transport = await factory(options)
+        except BaseException:
+            if gateway is not None:
+                await _close_gateway(gateway)
+            raise
+        if gateway is not None:
+            transport = _ThroughGateway(transport, gateway)
         session = CliSession(transport, plan.session)
         enable = credential.enable_password or credential.password
         try:
@@ -158,6 +174,24 @@ class PlanRunner:
             await session.close()
             raise CliError(f"No se pudo entrar a la CLI: {exc}") from exc
         return session, transport
+
+    async def _open_gateway(self, plan: Plan, credential: Credential) -> Any:
+        """La conexión al MikroTik del ISP si la OLT está detrás de él; si no, None."""
+        via = plan.target.via
+        if via is None:
+            return None
+        if credential.gateway_password is None:
+            raise CliError("El plan entra por el MikroTik del ISP y no trae la clave de Olterra")
+        return await self._gateway_factory(
+            SshConnectOptions(
+                host=via.host,
+                port=via.port,
+                username=via.username,
+                password=credential.gateway_password.get_secret_value(),
+                legacy_algorithms=via.legacy_ssh_algorithms,
+                tunnel_name=via.name,
+            )
+        )
 
     @staticmethod
     async def _run_cli(
@@ -217,3 +251,34 @@ class PlanRunner:
         except SnmpError as exc:
             return StepResult(index=index, ok=False, error=redact(str(exc), secrets))
         return StepResult(index=index, ok=True, varbinds=varbinds)
+
+
+class _ThroughGateway:
+    """Transporte de una OLT abierto desde el MikroTik: al cerrarlo se cierra también la puerta."""
+
+    def __init__(self, inner: Any, gateway: Any) -> None:
+        self._inner = inner
+        self._gateway = gateway
+
+    @property
+    def host_key(self) -> str | None:
+        return getattr(self._inner, "host_key", None)
+
+    async def write(self, data: str) -> None:
+        await self._inner.write(data)
+
+    async def read(self, timeout: float) -> str:
+        result: str = await self._inner.read(timeout)
+        return result
+
+    async def close(self) -> None:
+        try:
+            await self._inner.close()
+        finally:
+            await _close_gateway(self._gateway)
+
+
+async def _close_gateway(gateway: Any) -> None:
+    gateway.close()
+    with contextlib.suppress(Exception):
+        await asyncio.wait_for(gateway.wait_closed(), 5)
