@@ -13,7 +13,7 @@ import contextlib
 import re
 
 from olterra.executor.cli import CliError
-from olterra.executor.ssh import SshConnectOptions
+from olterra.executor.ssh import SshConnectOptions, connect_error
 
 IAC, DONT, DO, WONT, WILL, SB, SE = 255, 254, 253, 252, 251, 250, 240
 _LOGIN = re.compile(r"(?i)(login|username|user name)\s*:\s*$")
@@ -110,9 +110,7 @@ async def open_telnet_transport(options: SshConnectOptions) -> TelnetTransport:
             asyncio.open_connection(options.host, options.port), options.connect_timeout
         )
     except (OSError, TimeoutError) as exc:
-        raise CliError(
-            f"No se pudo abrir Telnet contra {options.host}:{options.port}: {exc}"
-        ) from exc
+        raise connect_error("Telnet", options, exc) from exc
     transport = TelnetTransport(reader, writer)
     try:
         await transport._read_until(_LOGIN, options.connect_timeout)

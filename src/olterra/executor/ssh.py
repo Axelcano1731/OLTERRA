@@ -87,6 +87,17 @@ def _connect_kwargs(options: SshConnectOptions) -> dict[str, Any]:
     return kwargs
 
 
+def connect_error(protocol: str, options: SshConnectOptions, exc: BaseException) -> CliError:
+    """Por qué no se abrió la conexión. Un TimeoutError viene sin texto: se dice qué pasó."""
+    reason = str(exc).strip()
+    if isinstance(exc, TimeoutError) or not reason:
+        reason = (
+            f"no respondió en {options.connect_timeout:g} s; revisa que Olterra llegue a esa IP "
+            "(si la OLT está en la red del ISP, va detrás de su router del túnel)"
+        )
+    return CliError(f"No se pudo abrir {protocol} contra {options.host}:{options.port}: {reason}")
+
+
 async def open_ssh_transport(options: SshConnectOptions) -> AsyncsshTransport:
     try:
         conn = await asyncssh.connect(**_connect_kwargs(options))
@@ -95,7 +106,7 @@ async def open_ssh_transport(options: SshConnectOptions) -> AsyncsshTransport:
     except asyncssh.PermissionDenied as exc:
         raise CliError("La OLT rechazó usuario o clave SSH") from exc
     except (OSError, asyncssh.Error, TimeoutError) as exc:
-        raise CliError(f"No se pudo abrir SSH contra {options.host}:{options.port}: {exc}") from exc
+        raise connect_error("SSH", options, exc) from exc
     try:
         process = await conn.create_process(
             term_type="vt100",

@@ -4,6 +4,9 @@
 
 ### Corregido
 
+- Si la OLT no responde al abrir SSH o Telnet, el error dice "no respondió en 15 s" y sugiere
+  el router del túnel (antes terminaba en "…:23:" sin explicación). Al agregar una OLT con IP
+  privada y "Conexión directa", la interfaz avisa que sin túnel Olterra no llega a ella.
 - OLT de 8 PON de Tocaima (V1.1.9R): `show onu state` con índice `1/1/<pon>:<onu>` ya se lee
   (el monitoreo veía 0 ONU), `0.00` en `show pon onu all rx-power` es "sin lectura" y no una
   alarma de señal alta, y "Copiar como plan" acepta la configuración de ONU sin línea

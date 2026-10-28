@@ -95,6 +95,12 @@ const problems = computed(() => {
 
 const invalid = computed(() => Object.keys(problems.value).length > 0)
 
+// Una IP privada sin túnel casi siempre es un olvido: el servidor de Olterra no está en esa red.
+const PRIVATE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/
+const privateDirect = computed(
+  () => !form.routerId && IPV4.test(form.realIp.trim()) && PRIVATE.test(form.realIp.trim()),
+)
+
 function show(field: keyof typeof form): string | undefined {
   return submitted.value ? problems.value[field] : undefined
 }
@@ -211,7 +217,11 @@ async function submit(): Promise<void> {
               MikroTik {{ item.name }} (túnel {{ item.overlay_ip }})
             </option>
           </select>
-          <p class="hint">
+          <p v-if="privateDirect" class="hint text-warning">
+            {{ form.realIp.trim() }} es una IP privada: sin túnel Olterra no llega a ella. Elige el
+            MikroTik de la red donde está la OLT.
+          </p>
+          <p v-else class="hint">
             Con túnel, la OLT recibe una IP única y el script del MikroTik la publica (NAT 1:1).
           </p>
         </div>
