@@ -277,3 +277,15 @@ async def test_nats_consumers_survive_empty_fetches() -> None:
     results = NatsBus(timeouts_then(result.model_dump_json().encode())).results("api")
     received, _ = await anext(results)
     assert received.plan_id == plan.plan_id
+
+
+def test_connect_timeout_says_what_happened() -> None:
+    """Un TimeoutError no trae texto: antes salía "No se pudo abrir Telnet contra …:23:" y nada más."""
+    from olterra.executor.ssh import SshConnectOptions, connect_error
+
+    options = SshConnectOptions(host="172.17.1.2", port=23, username="u", password="p")
+    message = str(connect_error("Telnet", options, TimeoutError()))
+    assert message.startswith("No se pudo abrir Telnet contra 172.17.1.2:23: no respondió en 15 s")
+    assert "router del túnel" in message
+    refused = str(connect_error("SSH", options, ConnectionRefusedError(111, "Connection refused")))
+    assert refused.endswith("Connection refused")
