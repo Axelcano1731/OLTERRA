@@ -994,3 +994,33 @@ def test_olt_says_which_mikrotik_it_goes_through(env: Env) -> None:
     assert (direct["router_name"], direct["router_gateway"]) == (None, None)
     listed = {o["id"]: o for o in env.client.get("/v1/olts", headers=env.headers()).json()}
     assert listed[behind["id"]]["router_gateway"] is True
+
+
+def test_router_ssh_port_changes_without_rotating(env: Env) -> None:
+    """Viotá tiene el SSH en el 2222: se corrige en Olterra sin volver a importar el script."""
+    created = env.client.post(
+        "/v1/tunnel/routers", json={"name": "CORE_PUERTO"}, headers=env.headers()
+    ).json()
+    router = created["router"]
+    olt = create_olt(env, router_id=router["id"], real_ip="10.72.111.2")
+    response = env.client.patch(
+        f"/v1/tunnel/routers/{router['id']}", json={"ssh_port": 2222}, headers=env.headers()
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ssh_port"] == 2222
+    assert response.json()["wg_public_key"] == router["wg_public_key"]  # no rotó
+    env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["system.version"]},
+        headers=env.headers(),
+    )
+    [plan] = env.publisher.plans
+    assert plan.target.via is not None and plan.target.via.port == 2222
+    bad = env.client.patch(
+        f"/v1/tunnel/routers/{router['id']}", json={"ssh_port": 0}, headers=env.headers()
+    )
+    assert bad.status_code == 422
+    other = env.client.patch(
+        f"/v1/tunnel/routers/{router['id']}", json={"ssh_port": 22}, headers=env.headers(env.key_b)
+    )
+    assert other.status_code == 404

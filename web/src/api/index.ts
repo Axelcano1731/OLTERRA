@@ -192,6 +192,12 @@ export const createRouter = (name: string, routerosVersion?: string, sshPort = 2
   api<RouterScripts>('/v1/tunnel/routers', {
     json: { name, routeros_version: routerosVersion || null, ssh_port: sshPort },
   })
+/** Corrige el puerto SSH del MikroTik sin rotar: el script ya importado sigue sirviendo. */
+export const updateRouterPort = (id: string, sshPort: number) =>
+  api<TunnelRouter>(`/v1/tunnel/routers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    json: { ssh_port: sshPort },
+  })
 /** Rota las credenciales; con otra versión de RouterOS cambia el transporte (6 → SSTP). */
 export const rotateRouter = (id: string, routerosVersion?: string, sshPort?: number) => {
   const json: Record<string, unknown> = {}

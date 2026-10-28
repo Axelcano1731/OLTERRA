@@ -6,6 +6,7 @@ import {
   createRouter,
   listRouters,
   rotateRouter,
+  updateRouterPort,
   type RouterScripts,
   type TunnelRouter,
 } from '@/api'
@@ -43,6 +44,9 @@ const rotateVersion = ref<Major>('7')
 const rotatePort = ref(22)
 const rotating = ref<string | null>(null)
 const rowError = ref<string | null>(null)
+const editingPort = ref<string | null>(null)
+const portValue = ref(22)
+const savingPort = ref(false)
 
 // Los scripts traen la credencial del router: viven solo en memoria hasta que se cierran.
 const scripts = shallowRef<RouterScripts | null>(null)
@@ -115,6 +119,29 @@ async function rotate(router: TunnelRouter): Promise<void> {
     rowError.value = errorText(caught)
   } finally {
     rotating.value = null
+  }
+}
+
+function editPort(router: TunnelRouter): void {
+  editingPort.value = router.id
+  portValue.value = router.ssh_port
+}
+
+async function savePort(router: TunnelRouter): Promise<void> {
+  rowError.value = null
+  if (!validPort(portValue.value)) {
+    rowError.value = 'El puerto SSH va de 1 a 65535.'
+    return
+  }
+  savingPort.value = true
+  try {
+    await updateRouterPort(router.id, portValue.value)
+    editingPort.value = null
+    await routers.reload()
+  } catch (caught) {
+    rowError.value = errorText(caught)
+  } finally {
+    savingPort.value = false
   }
 }
 
@@ -299,6 +326,7 @@ function closeScripts(): void {
           <th class="px-4 py-2.5">IP en el túnel</th>
           <th class="px-4 py-2.5">Transporte</th>
           <th class="px-4 py-2.5">OLT nuevas</th>
+          <th class="px-4 py-2.5">SSH</th>
           <th class="px-4 py-2.5">Identidad</th>
           <th class="px-4 py-2.5">Alta</th>
           <th class="px-4 py-2.5"><span class="sr-only">Acciones</span></th>
@@ -331,6 +359,42 @@ function closeScripts(): void {
             >
               Rótalo una vez
             </StatusPill>
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap">
+            <span v-if="editingPort === item.id" class="inline-flex items-center gap-1">
+              <input
+                v-model.number="portValue"
+                type="number"
+                min="1"
+                max="65535"
+                class="input w-20 py-1 text-xs"
+                aria-label="Puerto SSH del MikroTik"
+                @keyup.enter="savePort(item)"
+              />
+              <button
+                type="button"
+                class="btn-primary px-2 py-1 text-xs"
+                :disabled="savingPort"
+                @click="savePort(item)"
+              >
+                Guardar
+              </button>
+              <button type="button" class="btn-ghost px-2 py-1 text-xs" @click="editingPort = null">
+                Cancelar
+              </button>
+            </span>
+            <template v-else>
+              <span class="font-mono text-xs">{{ item.ssh_port }}</span>
+              <button
+                v-if="canWrite"
+                type="button"
+                class="btn-ghost ml-1 px-1.5 py-0.5 text-xs"
+                title="Si el script avisó que el SSH del router usa otro puerto: se corrige aquí, sin rotar"
+                @click="editPort(item)"
+              >
+                Cambiar
+              </button>
+            </template>
           </td>
           <td
             class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs text-muted"
