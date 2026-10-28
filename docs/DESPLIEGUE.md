@@ -262,11 +262,20 @@ PGPASSWORD="$OLTERRA_OWNER_PASSWORD" docker run --rm -e PGPASSWORD -v "$PWD/resp
 
 ## 6. Túnel hacia las OLT
 
-El ejecutor llega a las OLT por el concentrador (el CHR) usando la IP única de cada OLT
-(`198.19.x.x`). Los MikroTik de los ISP entran por **WireGuard** (RouterOS 7) o por **SSTP**
-(RouterOS 6, que no tiene WireGuard; TLS sobre TCP 4443). El servidor de Olterra es un peer más del concentrador, con la IP
-`198.18.0.2` de la plataforma (la misma que recibe las traps). **Probado el 2026-10-02** contra
-el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la misma región.
+El ejecutor llega a las OLT por el concentrador (el CHR) y **el MikroTik del ISP como puerta**:
+entra por SSH al MikroTik con el usuario `olterra` (que solo entra desde la plataforma y no
+puede cambiar nada) y desde ahí abre la conexión a la IP real de cada OLT (reenvío SSH). Así
+agregar, editar o borrar una OLT no toca el MikroTik ni el concentrador: el cliente importa el
+script una sola vez por router. Los MikroTik de los ISP entran por **WireGuard** (RouterOS 7)
+o por **SSTP** (RouterOS 6, que no tiene WireGuard; TLS sobre TCP 4443). El servidor de Olterra
+es un peer más del concentrador, con la IP `198.18.0.2` de la plataforma. **Probado el
+2026-10-02** contra el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en
+la misma región.
+
+> Antes del 2026-10-28 cada OLT tenía su NAT 1:1 (`198.19.x.x`) en el MikroTik y su IP en el
+> concentrador, y había que rotar el router por cada OLT nueva. Un router con ese script viejo
+> aparece en **Túnel** como "Rótalo una vez": al rotarlo e importar el script nuevo pasa a ser
+> puerta y se borran sus reglas viejas.
 
 1. En el CHR, la configuración inicial del concentrador, una sola vez. Si el CHR ya tiene otro
    WireGuard en el 13231 (el de ISPWatch), poner otro puerto en `.env`, por ejemplo
@@ -283,6 +292,15 @@ el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la 
    La llave pública del concentrador (`/interface wireguard print`) va a
    `OLTERRA_TUNNEL_HUB_PUBLIC_KEY` y su IP pública a `OLTERRA_TUNNEL_HUB_HOST` en `.env`; luego
    `./olterra.sh actualizar`.
+
+   El script también crea el usuario `olterra-api` de la API de RouterOS (grupo `api,read,write`,
+   solo desde `198.18.0.2/32`, el servidor por el túnel) y deja el servicio `api` abierto a esa
+   IP. Con él Olterra da de alta sola cada MikroTik que agregue un ISP: nadie pega bloques en el
+   CHR. El comando escribe en la consola (fuera del script) la línea para `.env`:
+   `OLTERRA_TUNNEL_HUB_API_PASSWORD=...`; cada vez que se corre genera otra clave. Sin esa
+   variable, Túnel muestra el bloque "Alta en el concentrador" para pegarlo a mano, como antes.
+   Riesgo aceptado: quien tome el servidor de Olterra puede cambiar el CHR (compartido con
+   ISPWatch). `--servidor` cambia la IP del servidor en el túnel.
 
    Con `OLTERRA_TUNNEL_HUB_HOST` en `.env`, el script también deja el **servidor SSTP** para
    RouterOS 6: su CA y su certificado (con la IP pública), el perfil PPP y la regla del
@@ -328,10 +346,17 @@ el CHR real, compartido con ISPWatch: 1,3 ms del servidor al concentrador en la 
 
    Prueba: desde el servidor, `ping 198.18.0.1` y `wg show olterra` (handshake reciente).
 
-4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik** con su versión de RouterOS. El
-   script se descarga, se sube al router (Files) y se corre con `/import`. El bloque "Alta en
-   el concentrador" se aplica en el CHR. Si un router se dio de alta con la versión
-   equivocada, **Rotar o cambiar versión** lo pasa al otro transporte.
+4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik** con su versión de RouterOS y el
+   puerto de su SSH. El script se descarga, se sube al router (Files) y se corre con
+   `/import`, una sola vez. Olterra lo da de alta en el concentrador (o muestra el bloque si su
+   API no está configurada). Si un router se dio de alta con la versión o el puerto
+   equivocados, **Rotar o cambiar** lo corrige.
+
+   El script deja en el MikroTik: el usuario `olterra` (grupo `ssh,read`, solo desde
+   `198.18.0.0/24`), el reenvío SSH (`/ip ssh forwarding-enabled`, solo si estaba apagado) y una
+   regla que acepta el SSH desde la plataforma por el túnel. Si el SSH del router estaba
+   apagado, lo enciende solo para la plataforma; si estaba limitado a ciertas IP, le agrega la
+   plataforma; si usa otro puerto que el escrito en Olterra, lo avisa al importar.
 
 ### 6.1 Clave de fábrica de las OLT VSOL
 
@@ -354,9 +379,8 @@ claves en la OLT desde Olterra todavía no existe.
 Algunas VSOL (la de 8 PON de Tocaima, V1.1.9R) tienen un OpenSSH que solo acepta a los
 usuarios internos del sistema, no a los de la CLI: con el usuario de la web o de Telnet el SSH
 responde "rechazó usuario o clave". Para esas OLT, en **Editar** (o al agregarla) se elige
-**Acceso a la CLI: Telnet**. Olterra entra por Telnet y el script del router abre el puerto
-Telnet de esa OLT en vez del SSH: después de cambiarlo hay que **rotar el script del router y
-volver a importarlo**.
+**Acceso a la CLI: Telnet**. Olterra abre el Telnet de la OLT desde el MikroTik (la puerta):
+cambiarlo no toca el router.
 
 Telnet viaja sin cifrar solo entre el MikroTik del ISP y la OLT; hasta el MikroTik va dentro del
 túnel. Para que nadie más lo use, en la OLT se limita Telnet a la IP del MikroTik en la red de

@@ -18,24 +18,22 @@ import { can } from '@/session'
 const route = useRoute()
 const { data: olts, error, loading, reload } = useAsync(listOlts)
 
-// Qué se borró (aquí o desde el detalle) y si hay que rotar su MikroTik.
-const deleted = ref<{ name: string; viaRouter: boolean } | null>(
-  typeof route.query.borrada === 'string'
-    ? { name: route.query.borrada, viaRouter: route.query.router === '1' }
-    : null,
+// Qué se borró (aquí o desde el detalle).
+const deleted = ref<{ name: string } | null>(
+  typeof route.query.borrada === 'string' ? { name: route.query.borrada } : null,
 )
 const deleteError = ref<string | null>(null)
 const canWrite = computed(() => can('olt:write'))
 
 async function onDeleted(olt: Olt): Promise<void> {
   deleteError.value = null
-  deleted.value = { name: olt.name, viaRouter: olt.router_id !== null }
+  deleted.value = { name: olt.name }
   await reload()
 }
 </script>
 
 <template>
-  <PageHeader title="OLT" description="Las OLT VSOL de tu red y cómo llega Olterra a cada una.">
+  <PageHeader title="OLT" description="Las OLT de tu red y cómo llega Olterra a cada una.">
     <template #actions>
       <RouterLink v-if="can('olt:write')" :to="{ name: 'olt-new' }" class="btn-primary">
         <Plus class="size-4" />
@@ -46,11 +44,6 @@ async function onDeleted(olt: Olt): Promise<void> {
 
   <AlertBox v-if="deleted" tone="success" :title="`${deleted.name} eliminada`" class="mb-4">
     Se borraron su credencial y su historial de consultas.
-    <template v-if="deleted.viaRouter">
-      Estaba detrás de un MikroTik: rota sus llaves en
-      <RouterLink :to="{ name: 'tunnel' }" class="font-medium underline">Túnel</RouterLink>
-      para que su script deje de publicarla.
-    </template>
   </AlertBox>
   <AlertBox v-if="deleteError" tone="danger" class="mb-4">{{ deleteError }}</AlertBox>
   <AlertBox v-if="error" tone="danger">{{ error }}</AlertBox>
@@ -75,7 +68,7 @@ async function onDeleted(olt: Olt): Promise<void> {
           <th class="px-4 py-2.5">Nombre</th>
           <th class="px-4 py-2.5">Modelo</th>
           <th class="px-4 py-2.5">IP en tu red</th>
-          <th class="px-4 py-2.5">IP en el túnel</th>
+          <th class="px-4 py-2.5">Llega por</th>
           <th class="px-4 py-2.5">Estado</th>
           <th class="px-4 py-2.5">Alta</th>
           <th class="px-4 py-2.5"><span class="sr-only">Acciones</span></th>
@@ -93,7 +86,15 @@ async function onDeleted(olt: Olt): Promise<void> {
             <span v-if="olt.firmware" class="text-xs">· {{ olt.firmware }}</span>
           </td>
           <td class="px-4 py-3 font-mono text-xs">{{ olt.real_ip ?? '—' }}</td>
-          <td class="px-4 py-3 font-mono text-xs">{{ olt.nat_ip ?? 'Directa' }}</td>
+          <td class="px-4 py-3 text-xs">
+            <template v-if="olt.router_name">
+              MikroTik {{ olt.router_name }}
+              <span v-if="olt.router_gateway === false" class="block text-warning">
+                Rótalo una vez en Túnel
+              </span>
+            </template>
+            <template v-else>Directa</template>
+          </td>
           <td class="px-4 py-3">
             <StatusPill
               :tone="oltStatus(olt.status).tone"

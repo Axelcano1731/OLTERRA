@@ -43,6 +43,7 @@ from olterra.executor.bus import NatsBus
 from olterra.orchestrator import PlanBuildError
 from olterra.security.vault import Vault
 from olterra.tunnel.addressing import AddressPlan, AddressPlanError
+from olterra.tunnel.hub_api import HubApiConfig, register_router
 from olterra.tunnel.routeros import ScriptError
 
 log = logging.getLogger("olterra.api")
@@ -88,6 +89,14 @@ def create_app(
             ),
             bus=bus,
         )
+        if settings.tunnel_hub_api_password is not None:
+            hub_api = HubApiConfig(
+                host=settings.tunnel_hub_api_host,
+                port=settings.tunnel_hub_api_port,
+                username=settings.tunnel_hub_api_user,
+                password=settings.tunnel_hub_api_password.get_secret_value(),
+            )
+            state.hub_registrar = lambda peer: register_router(hub_api, peer)
         state.result_hooks.append(lambda result: jobs.on_result(state, result))
         state.result_hooks.append(lambda result: backups.on_result(state, result))
         state.result_hooks.append(lambda result: monitoring.on_result(state, result))

@@ -18,7 +18,16 @@ Reglas aprendidas en ISPWatch que este generador respeta:
   concentrador (``endpoint-port``), porque el router es quien disca.
 - Correrlo dos veces no duplica nada: borra y recrea solo lo marcado ``olterra``.
 - Si algo falla, falla a la vista (``/import`` muestra la línea); no hay
-  ``on-error`` que se trague errores.
+  ``on-error`` que se trague errores. Las dos excepciones dejan un aviso con qué hacer: el
+  valor de ``forwarding-enabled`` (cambia entre versiones) y agregar la plataforma a un SSH
+  limitado a ciertas IP.
+
+**El MikroTik como puerta** (desde 2026-10-28): el script crea el usuario ``olterra`` (grupo
+con solo ``ssh`` y ``read``: no puede cambiar nada), que solo entra desde la plataforma, y
+habilita el reenvío SSH. El ejecutor entra con él y abre desde el router la conexión a la IP
+real de cada OLT, así que no hay reglas por OLT: agregar una OLT no toca el router ni el
+concentrador. Antes cada OLT tenía su NAT 1:1 (una IP 198.19.x.x) y había que rotar el router
+por cada OLT nueva; el script nuevo borra esas reglas viejas.
 
 Todo valor que entra al script pasa por validación estricta: el script se pega en
 el router del cliente, una inyección ahí sería grave.
@@ -27,7 +36,6 @@ el router del cliente, una inyección ahí sería grave.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from ipaddress import IPv4Address, IPv4Network, ip_address
@@ -61,12 +69,23 @@ def _host(value: str) -> str:
 
 
 @dataclass(frozen=True)
-class OltMapping:
-    name: str
-    real_ip: IPv4Address
-    nat_ip: IPv4Address
-    # Puerto TCP de la CLI: el SSH de la OLT (22) o su Telnet (23) si entra por Telnet.
-    cli_port: int = 22
+class RouterGateway:
+    """El usuario de Olterra en el MikroTik: solo SSH desde la plataforma y sin escritura."""
+
+    password: str
+    ssh_port: int = 22
+    user: str = "olterra"
+
+    def validate(self) -> None:
+        _label(self.user, "El usuario de Olterra en el router")
+        if not 1 <= self.ssh_port <= 65535:
+            raise ScriptError("Puerto SSH del router fuera de rango")
+        try:
+            validate_password(self.password)
+        except InvalidSstp as exc:
+            raise ScriptError(
+                "La clave del usuario de Olterra debe ser de 24 a 64 letras o números"
+            ) from exc
 
 
 @dataclass(frozen=True)
@@ -79,8 +98,7 @@ class IspTunnel:
     hub_port: int
     hub_public_key: str
     platform_prefix: IPv4Network
-    olts: Sequence[OltMapping] = ()
-    trap_receiver: IPv4Address | None = None
+    gateway: RouterGateway
     interface: str = "olterra"
     first_listen_port: int = 13241
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -96,26 +114,7 @@ class IspTunnel:
             raise ScriptError("Puerto fuera de rango")
         if self.address in self.platform_prefix:
             raise ScriptError("La IP del router no puede estar dentro del prefijo de la plataforma")
-        _validate_olts(self.olts, self.trap_receiver, self.platform_prefix)
-
-
-def _validate_olts(
-    olts: Sequence[OltMapping], trap_receiver: IPv4Address | None, platform_prefix: IPv4Network
-) -> None:
-    if trap_receiver is not None and trap_receiver not in platform_prefix:
-        raise ScriptError("El receptor de traps debe estar dentro del prefijo de la plataforma")
-    names, real_ips, nat_ips = set(), set(), set()
-    for olt in olts:
-        _label(olt.name, "El nombre de la OLT")
-        if olt.name in names or olt.real_ip in real_ips or olt.nat_ip in nat_ips:
-            raise ScriptError(f"OLT repetida: {olt.name}")
-        if olt.nat_ip == olt.real_ip:
-            raise ScriptError(f"{olt.name}: la IP NAT no puede ser la misma IP real")
-        if not 1 <= olt.cli_port <= 65535:
-            raise ScriptError(f"{olt.name}: puerto de la CLI fuera de rango")
-        names.add(olt.name)
-        real_ips.add(olt.real_ip)
-        nat_ips.add(olt.nat_ip)
+        self.gateway.validate()
 
 
 class _Script:
@@ -149,9 +148,7 @@ def render_isp_script(tunnel: IspTunnel) -> str:
     s.add("#")
     s.add("# 1. Verifica RouterOS v7 (WireGuard no existe en v6).")
     s.add("# 2. Crea la interfaz WireGuard y la conecta al concentrador de Olterra.")
-    s.add("# 3. Publica cada OLT con una IP unica de la plataforma (NAT 1:1).")
-    s.add("# 4. Permite solo SSH (22) y SNMP (161) desde la plataforma hacia cada OLT,")
-    s.add("#    y los traps SNMP (162) de la OLT hacia la plataforma.")
+    _describe_access(s, tunnel.gateway, first=3)
     s.add("# Se puede correr varias veces: borra y recrea solo lo marcado 'olterra'.")
     s.add("# Contiene una llave privada: no lo comparta ni lo guarde en un chat.")
     s.add("# " + "=" * 74)
@@ -185,7 +182,7 @@ def render_isp_script(tunnel: IspTunnel) -> str:
     s.add(f'/ip address add address={tunnel.address}/32 interface=$ifn comment="{tag}"')
     s.add('/ip route remove [find where comment~"^olterra"]')
     s.add(f'/ip route add dst-address={prefix} gateway=$ifn comment="{tag}"')
-    _olt_rules(s, tag, prefix, tunnel.olts, tunnel.trap_receiver)
+    _gateway_rules(s, tag, prefix, tunnel.gateway, routeros6=False)
     s.add(
         ':put "Olterra: tunel configurado. En /interface wireguard peers, last-handshake debe ser reciente."'
     )
@@ -193,61 +190,93 @@ def render_isp_script(tunnel: IspTunnel) -> str:
     return s.text()
 
 
-def _olt_rules(
-    s: _Script,
-    tag: str,
-    prefix: str,
-    olts: Sequence[OltMapping],
-    trap_receiver: IPv4Address | None,
-) -> None:
-    """NAT 1:1 y filtros de cada OLT detrás de la interfaz del túnel (``$ifn``).
+def _describe_access(s: _Script, gateway: RouterGateway, first: int) -> None:
+    s.add(
+        f"# {first}. Crea el usuario '{gateway.user}': solo entra por SSH desde la plataforma y no"
+    )
+    s.add("#    puede cambiar nada del router (grupo con permisos ssh y read).")
+    s.add(
+        f"# {first + 1}. Habilita el reenvio SSH: Olterra llega a cada OLT de su red desde este router."
+    )
+    s.add("#    Las OLT nuevas funcionan solas: no hay que volver a correr este script.")
 
-    Igual para WireGuard y para SSTP: solo cambia qué interfaz es ``$ifn``.
+
+def _allow_service(s: _Script, service: str, allowed: str, var: str) -> None:
+    """Deja el servicio ``service`` del router (``ssh``, ``api``) abierto para ``allowed``.
+
+    Si estaba apagado se enciende solo para ``allowed``; si estaba limitado a ciertas IP, se le
+    agrega ``allowed``; si estaba abierto a todos, no se toca. La lista se arma elemento por
+    elemento ("a,b,"): según la versión, get devuelve un arreglo o un texto, y los dos se
+    recorren igual con :foreach. Deja el id del servicio en ``$<var>``.
     """
+    s.add(f':local {var} [/ip service find where name="{service}"]')
+    s.add(f":if ([/ip service get ${var} disabled]) do={{")
+    s.add(f"  /ip service set ${var} disabled=no address={allowed}")
+    s.add(
+        f'  :put "Olterra: el servicio {service} estaba apagado; quedo encendido solo para'
+        f' {allowed}."'
+    )
+    s.add("} else={")
+    s.add(f"  :local allowed [/ip service get ${var} address]")
+    s.add("  :if ([:len $allowed] > 0) do={")
+    s.add('    :local csv ""')
+    s.add('    :foreach a in=$allowed do={ :set csv ($csv . $a . ",") }')
+    s.add(f'    :if ([:typeof [:find $csv "{allowed}"]] = "nil") do={{')
+    s.add(f'      :do {{ /ip service set ${var} address=($csv . "{allowed}") }} on-error={{')
+    s.add(
+        f'        :put "Olterra: el servicio {service} solo acepta algunas IP. Agregue {allowed} en'
+        f' IP > Services > {service} (Available From)."'
+    )
+    s.add("      }")
+    s.add("    }")
+    s.add("  }")
+    s.add("}")
+
+
+def _gateway_rules(
+    s: _Script, tag: str, prefix: str, gateway: RouterGateway, *, routeros6: bool
+) -> None:
+    """La puerta: usuario de Olterra, SSH abierto a la plataforma y reenvío SSH.
+
+    Borra las reglas NAT y de filtro por OLT de un script viejo: ya no hacen falta.
+    """
+    gtag = f"{tag}:puerta"
+    user = gateway.user
     s.add('/ip firewall nat remove [find where comment~"^olterra"]')
     s.add('/ip firewall filter remove [find where comment~"^olterra"]')
-    s.add(":local fnat [/ip firewall nat find where dynamic=no]")
+    s.add(f'/user remove [find where name="{user}"]')
+    s.add(f'/user group remove [find where name="{user}"]')
+    s.add(f'/user group add name={user} policy=ssh,read comment="{gtag}"')
+    s.add(
+        f'/user add name={user} group={user} password="{gateway.password}" address={prefix}'
+        f' comment="{gtag}"'
+    )
+    _allow_service(s, "ssh", prefix, "svc")
+    s.add(":local sshport [/ip service get $svc port]")
+    s.add(
+        f':if ($sshport != {gateway.ssh_port}) do={{ :put ("Olterra: el SSH de este router usa el'
+        f' puerto " . $sshport . " y Olterra espera el {gateway.ssh_port}: corrijalo en Olterra'
+        ' (Tunel > el router).") }'
+    )
+    # forwarding-enabled: "local" en RouterOS 7, "yes" en los 6 viejos. Solo se cambia si estaba
+    # apagado, para no quitarle al ISP un reenvío que ya use. Va en variables para que el valor se
+    # revise al correr y el on-error pruebe el otro.
+    preferred, fallback = ("yes", "local") if routeros6 else ("local", "yes")
+    s.add(f':local fwd "{preferred}"')
+    s.add(f':local fwdalt "{fallback}"')
+    s.add(":local fw [:tostr [/ip ssh get forwarding-enabled]]")
+    s.add(':if (($fw = "no") || ($fw = "false")) do={')
+    s.add(
+        "  :do { /ip ssh set forwarding-enabled=$fwd } on-error={ /ip ssh set forwarding-enabled=$fwdalt }"
+    )
+    s.add("}")
     s.add(":local ffil [/ip firewall filter find where dynamic=no]")
     s.add_first(
         "/ip firewall filter",
         "ffil",
-        f'chain=forward out-interface=$ifn connection-state=established,related action=accept comment="{tag}"',
+        f"chain=input in-interface=$ifn src-address={prefix} protocol=tcp dst-port=$sshport"
+        f' action=accept comment="{gtag}"',
     )
-    for olt in olts:
-        olt_tag = f"{tag}:olt:{olt.name}"
-        s.add_first(
-            "/ip firewall nat",
-            "fnat",
-            f"chain=dstnat in-interface=$ifn dst-address={olt.nat_ip} action=dst-nat"
-            f' to-addresses={olt.real_ip} comment="{olt_tag}"',
-        )
-        s.add_first(
-            "/ip firewall nat",
-            "fnat",
-            f"chain=srcnat src-address={prefix} dst-address={olt.real_ip} action=masquerade"
-            f' comment="{olt_tag}"',
-        )
-        for protocol, port in (("tcp", olt.cli_port), ("udp", 161)):
-            s.add_first(
-                "/ip firewall filter",
-                "ffil",
-                f"chain=forward in-interface=$ifn dst-address={olt.real_ip} protocol={protocol}"
-                f' dst-port={port} action=accept comment="{olt_tag}"',
-            )
-        if trap_receiver is not None:
-            s.add_first(
-                "/ip firewall nat",
-                "fnat",
-                f"chain=srcnat src-address={olt.real_ip} dst-address={trap_receiver}"
-                f" protocol=udp dst-port=162 action=src-nat to-addresses={olt.nat_ip}"
-                f' comment="{olt_tag}:traps"',
-            )
-            s.add_first(
-                "/ip firewall filter",
-                "ffil",
-                f"chain=forward src-address={olt.real_ip} dst-address={trap_receiver}"
-                f' protocol=udp dst-port=162 out-interface=$ifn action=accept comment="{olt_tag}:traps"',
-            )
 
 
 @dataclass(frozen=True)
@@ -262,8 +291,7 @@ class SstpTunnel:
     hub_port: int
     ca_pem: str
     platform_prefix: IPv4Network
-    olts: Sequence[OltMapping] = ()
-    trap_receiver: IPv4Address | None = None
+    gateway: RouterGateway
     interface: str = "olterra"
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -275,7 +303,7 @@ class SstpTunnel:
         _host(self.hub_host)
         if not 1 <= self.hub_port <= 65535:
             raise ScriptError("Puerto fuera de rango")
-        _validate_olts(self.olts, self.trap_receiver, self.platform_prefix)
+        self.gateway.validate()
         try:
             validate_user(self.user)
             validate_password(self.password)
@@ -303,9 +331,7 @@ def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
     s.add("#")
     s.add("# 1. Instala el certificado de Olterra: el router solo habla con el concentrador real.")
     s.add(f"# 2. Crea el cliente SSTP (TLS sobre TCP {tunnel.hub_port}) hacia el concentrador.")
-    s.add("# 3. Publica cada OLT con una IP unica de la plataforma (NAT 1:1).")
-    s.add("# 4. Permite solo SSH (22) y SNMP (161) desde la plataforma hacia cada OLT,")
-    s.add("#    y los traps SNMP (162) de la OLT hacia la plataforma.")
+    _describe_access(s, tunnel.gateway, first=3)
     s.add("# Se puede correr varias veces: borra y recrea solo lo marcado 'olterra'.")
     s.add("# Contiene la clave del tunel: no lo comparta ni lo guarde en un chat.")
     s.add("# Subalo como archivo (Files) y corralo con /import: pegarlo en la consola lo corrompe.")
@@ -333,7 +359,7 @@ def render_isp_sstp_script(tunnel: SstpTunnel) -> str:
     )
     s.add('/ip route remove [find where comment~"^olterra"]')
     s.add(f'/ip route add dst-address={prefix} gateway=$ifn comment="{tag}"')
-    _olt_rules(s, tag, prefix, tunnel.olts, tunnel.trap_receiver)
+    _gateway_rules(s, tag, prefix, tunnel.gateway, routeros6=True)
     s.add(
         ':put "Olterra: tunel SSTP configurado. En /interface sstp-client debe quedar conectado (R)."'
     )
@@ -348,16 +374,14 @@ class HubSstpPeer:
     user: str
     password: str
     address: IPv4Address
-    nat_ips: Sequence[IPv4Address] = ()
     profile: str = "olterra-sstp"
 
 
 def render_hub_sstp_peer(peer: HubSstpPeer) -> str:
     """Alta (o reemplazo) en el concentrador de un router del ISP que entra por SSTP.
 
-    Las IP NAT de sus OLT van como ``routes`` del secreto PPP: el concentrador las enruta al
-    túnel del router mientras está conectado. Si el router venía por WireGuard, se borra
-    su peer (misma marca).
+    Solo la IP del router en el túnel: sus OLT se alcanzan desde él (la puerta). Si el router
+    venía por WireGuard, se borra su peer (misma marca).
     """
     _label(peer.tenant, "El tenant")
     _label(peer.router, "El nombre del router")
@@ -368,12 +392,9 @@ def render_hub_sstp_peer(peer: HubSstpPeer) -> str:
     except InvalidSstp as exc:
         raise ScriptError(str(exc)) from exc
     tag = f"olterra:{peer.tenant}:{peer.router}"
-    routes = ",".join(f"{ip}/32" for ip in peer.nat_ips)
     secret = (
         f'/ppp secret add name="{peer.user}" password="{peer.password}" service=sstp'
-        f" profile={peer.profile} remote-address={peer.address}"
-        + (f' routes="{routes}"' if routes else "")
-        + f' comment="{tag}"'
+        f' profile={peer.profile} remote-address={peer.address} comment="{tag}"'
     )
     return (
         f"# Olterra - router {peer.router} del ISP {peer.tenant} en el concentrador (SSTP)\n"
@@ -392,7 +413,6 @@ class HubPeer:
     router: str
     public_key: str
     address: IPv4Address
-    nat_ips: Sequence[IPv4Address] = ()
     hub_interface: str = "olterra-hub"
 
 
@@ -403,7 +423,7 @@ def render_hub_peer(peer: HubPeer) -> str:
     _label(peer.hub_interface, "La interfaz del concentrador")
     validate_key(peer.public_key)
     tag = f"olterra:{peer.tenant}:{peer.router}"
-    allowed = ",".join(f"{ip}/32" for ip in (peer.address, *peer.nat_ips))
+    allowed = f"{peer.address}/32"
     return (
         f"# Olterra - router {peer.router} del ISP {peer.tenant} en el concentrador\n"
         "{\n"
@@ -427,8 +447,15 @@ def render_hub_bootstrap(
     sstp_host: str | None = None,
     tunnel_list: str = "olterra-tuneles",
     sstp_profile: str = "olterra-sstp",
+    api_password: str | None = None,
+    api_source: IPv4Address | None = None,
+    api_user: str = "olterra-api",
 ) -> str:
     """Configuración inicial del concentrador. Se puede correr de nuevo: rehace lo suyo.
+
+    Con ``api_password``, además, el usuario ``api_user`` de la API de RouterOS con el que
+    Olterra da de alta sola los routers de los ISP. Solo entra desde ``api_source`` (el
+    servidor de Olterra, por el túnel). La clave va a ``OLTERRA_TUNNEL_HUB_API_PASSWORD``.
 
     La llave privada WireGuard la genera el propio RouterOS al crear la interfaz; su
     pública va a ``OLTERRA_TUNNEL_HUB_PUBLIC_KEY``. Con ``sstp_port``, además, el servidor
@@ -454,6 +481,14 @@ def render_hub_bootstrap(
                 "El certificado SSTP necesita la IP o el nombre público del concentrador"
             )
         host = _host(sstp_host)
+    if api_password is not None:
+        _label(api_user, "El usuario de la API")
+        if api_source is None or api_source not in platform_prefix:
+            raise ScriptError("La API del concentrador solo se abre al servidor de Olterra")
+        try:
+            validate_password(api_password)
+        except InvalidSstp as exc:
+            raise ScriptError("La clave de la API debe ser de 24 a 64 letras o números") from exc
     tag = "olterra-hub"
     s = _Script()
     s.add("# Olterra - configuracion inicial del concentrador (RouterOS v7)")
@@ -527,12 +562,28 @@ def render_hub_bootstrap(
             f"/interface sstp-server server set enabled=yes port={sstp_port} certificate=olterra-sstp"
             f" default-profile={sstp_profile} authentication=mschap2 tls-version=only-1.2"
         )
+    if api_password is not None and api_source is not None:
+        # Usuario que solo agrega y quita routers: entra solo desde el servidor de Olterra.
+        s.add(f'/user remove [find where name="{api_user}"]')
+        s.add(f'/user group remove [find where name="{api_user}"]')
+        s.add(f'/user group add name={api_user} policy=api,read,write comment="{tag}"')
+        s.add(
+            f'/user add name={api_user} group={api_user} password="{api_password}"'
+            f' address={api_source}/32 comment="{tag}"'
+        )
+        _allow_service(s, "api", f"{api_source}/32", "apisvc")
+        s.add(":local apiport [/ip service get $apisvc port]")
     s.add(f'/ip firewall filter remove [find where comment~"^{tag}"]')
     s.add(":local ffil [/ip firewall filter find where dynamic=no]")
     tunnels = f"in-interface-list={tunnel_list} out-interface-list={tunnel_list}"
     rules = [
         f'chain=input protocol=udp dst-port={listen_port} action=accept comment="{tag}: WireGuard"',
     ]
+    if api_password is not None and api_source is not None:
+        rules.append(
+            f"chain=input in-interface={interface} src-address={api_source} protocol=tcp"
+            f' dst-port=$apiport action=accept comment="{tag}: API de Olterra"'
+        )
     if sstp_port is not None:
         rules.append(
             f'chain=input protocol=tcp dst-port={sstp_port} action=accept comment="{tag}: SSTP"'

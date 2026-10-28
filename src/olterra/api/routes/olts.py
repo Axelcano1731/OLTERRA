@@ -1,4 +1,9 @@
-"""OLT: alta (con credenciales en la bóveda e IP NAT única) y consultas de solo lectura."""
+"""OLT: alta (con credenciales en la bóveda) y consultas de solo lectura.
+
+Una OLT detrás de un MikroTik del túnel se alcanza por él (la puerta): el plan lleva la IP
+real de la OLT y ``Target.via`` con el router. Las OLT de un router con script viejo siguen
+por su IP NAT (198.19.x.x) hasta que el router se rote.
+"""
 
 from __future__ import annotations
 
@@ -29,11 +34,10 @@ from olterra.api.schemas import (
 from olterra.api.state import audit
 from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Olt, PlanRun, TunnelRouter
-from olterra.db.models import Tenant as TenantRow
 from olterra.db.session import tenant_session
 from olterra.drivers import DRIVERS, get_driver
 from olterra.drivers.base import Access, CliMode, CommandCall, CommandTemplate
-from olterra.executor.plan import Credential, Plan, Priority, Target
+from olterra.executor.plan import Credential, Gateway, Plan, Priority, Target
 from olterra.orchestrator import build_read_plan
 from olterra.security.vault import Vault
 
@@ -52,13 +56,6 @@ def _check_real_ip(state: Any, real_ip: Any) -> None:
             f"{real_ip} es una IP del túnel. Va la IP que la OLT tiene en la red del ISP,"
             " la misma con la que se abre su página web (por ejemplo 192.168.1.50).",
         )
-
-
-def _lowest_free(used: set[int], start: int) -> int:
-    index = start
-    while index in used:
-        index += 1
-    return index
 
 
 async def _get_olt(session: Any, olt_id: UUID) -> Olt:
@@ -173,19 +170,8 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> OltCreated:
                     )
                 if await session.get(TunnelRouter, body.router_id) is None:
                     raise HTTPException(status.HTTP_404_NOT_FOUND, "Router del túnel no encontrado")
-                net_index = (
-                    await session.execute(
-                        select(TenantRow.net_index).where(TenantRow.id == ctx.tenant_id)
-                    )
-                ).scalar_one()
-                used = {
-                    index
-                    for index in (await session.execute(select(Olt.nat_index))).scalars()
-                    if index is not None
-                }
+                # Sin IP NAT: Olterra llega a la IP real de la OLT desde el MikroTik (la puerta).
                 olt.router_id = body.router_id
-                olt.nat_index = _lowest_free(used, 0)
-                olt.nat_ip = str(state.addresses.nat_address(net_index, olt.nat_index))
             session.add(olt)
             await session.flush()
             await audit(
@@ -219,8 +205,6 @@ async def delete_olt(olt_id: UUID, ctx: Tenant) -> None:
     """Borra la OLT, su credencial cifrada y su historial de consultas.
 
     Quedan sus ONU y planes borrados en cascada; la bitácora conserva quién la borró y cómo era.
-    Si estaba detrás de un router del túnel, hay que rotar ese router para que su script deje de
-    publicarla.
     """
     ctx.require("olt:write")
     async with ctx.session() as session:
@@ -474,11 +458,14 @@ def executor_key(state: Any) -> str:
 async def olt_access(
     session: Any, tenant_id: UUID, state: Any, olt_id: UUID
 ) -> tuple[Olt, Credential, Target]:
-    """La OLT, su credencial descifrada (solo en memoria) y a dónde conectarse."""
+    """La OLT, su credencial descifrada (solo en memoria) y a dónde conectarse.
+
+    Detrás de un MikroTik que ya es puerta: la IP real de la OLT, por el router. Detrás de uno
+    con script viejo: la IP NAT de la OLT, si la tiene. Sin router: su IP directa.
+    """
     olt = await _get_olt(session, olt_id)
-    host = olt.nat_ip or olt.real_ip
-    if host is None or olt.credential_id is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "La OLT no tiene IP alcanzable o credencial")
+    if olt.credential_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La OLT no tiene credencial")
     row = await session.get(CredentialRow, olt.credential_id)
     if row is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "La credencial de la OLT no existe")
@@ -486,6 +473,36 @@ async def olt_access(
     credential = Credential.model_validate_json(
         Vault.decrypt(tenant_id, dek, f"credential:{row.id}", row.ciphertext)
     )
+    via: Gateway | None = None
+    host = olt.real_ip
+    gateway = await session.get(TunnelRouter, olt.router_id) if olt.router_id else None
+    if gateway is not None and gateway.gateway_credential_id is not None:
+        stored = await session.get(CredentialRow, gateway.gateway_credential_id)
+        if stored is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Falta la clave de Olterra del MikroTik {gateway.name}: rótalo en Túnel",
+            )
+        gateway_login = Credential.model_validate_json(
+            Vault.decrypt(tenant_id, dek, f"credential:{stored.id}", stored.ciphertext)
+        )
+        credential.gateway_password = gateway_login.password
+        via = Gateway(
+            host=str(gateway.overlay_ip).split("/")[0],
+            port=gateway.ssh_port,
+            username=gateway_login.username or "olterra",
+            name=gateway.name,
+        )
+    elif gateway is not None:
+        if olt.nat_ip is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"El MikroTik {gateway.name} tiene el script viejo de Olterra: en Túnel, rótalo e"
+                " importa el script nuevo una última vez. Desde ahí, toda OLT nueva funciona sola.",
+            )
+        host = olt.nat_ip
+    if host is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La OLT no tiene IP")
     target = Target(
         host=str(host).split("/")[0],
         ssh_port=olt.ssh_port,
@@ -493,6 +510,7 @@ async def olt_access(
         ssh_host_key=olt.ssh_host_key,
         cli_protocol="telnet" if olt.cli_protocol == "telnet" else "ssh",
         telnet_port=olt.telnet_port,
+        via=via,
     )
     return olt, credential, target
 

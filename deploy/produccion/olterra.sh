@@ -160,6 +160,8 @@ OLTERRA_DB_HOST=
 OLTERRA_TUNNEL_HUB_HOST=
 OLTERRA_TUNNEL_HUB_PORT=13231
 OLTERRA_TUNNEL_HUB_PUBLIC_KEY=
+# API del CHR (secreto; la da olterra-admin concentrador): alta automática de los MikroTik.
+OLTERRA_TUNNEL_HUB_API_PASSWORD=
 # SSTP para RouterOS v6: la CA del concentrador en una línea (docs/DESPLIEGUE.md, Túnel).
 OLTERRA_TUNNEL_SSTP_PORT=4443
 OLTERRA_TUNNEL_SSTP_CA=

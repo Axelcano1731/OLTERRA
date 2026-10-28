@@ -22,6 +22,10 @@ class SshConnectOptions:
     legacy_algorithms: bool = False
     connect_timeout: float = 15.0
     terminal_width: int = 512
+    # Conexión SSH ya abierta al MikroTik del ISP (la puerta): la de la OLT sale desde él.
+    tunnel: asyncssh.SSHClientConnection | None = None
+    # Nombre del MikroTik, para los errores.
+    tunnel_name: str = ""
 
 
 class AsyncsshTransport:
@@ -70,6 +74,8 @@ def _connect_kwargs(options: SshConnectOptions) -> dict[str, Any]:
         "login_timeout": options.connect_timeout,
         "keepalive_interval": 30,
     }
+    if options.tunnel is not None:
+        kwargs["tunnel"] = options.tunnel
     if options.known_host_key:
         kwargs["known_hosts"] = ([asyncssh.import_public_key(options.known_host_key)], [], [])
     else:
@@ -89,6 +95,8 @@ def _connect_kwargs(options: SshConnectOptions) -> dict[str, Any]:
 
 def connect_error(protocol: str, options: SshConnectOptions, exc: BaseException) -> CliError:
     """Por qué no se abrió la conexión. Un TimeoutError viene sin texto: se dice qué pasó."""
+    if options.tunnel is not None and isinstance(exc, asyncssh.ChannelOpenError):
+        return forward_error(options, exc)
     reason = str(exc).strip()
     if isinstance(exc, TimeoutError) or not reason:
         reason = (
@@ -96,6 +104,48 @@ def connect_error(protocol: str, options: SshConnectOptions, exc: BaseException)
             "(si la OLT está en la red del ISP, va detrás de su router del túnel)"
         )
     return CliError(f"No se pudo abrir {protocol} contra {options.host}:{options.port}: {reason}")
+
+
+def forward_error(options: SshConnectOptions, exc: asyncssh.ChannelOpenError) -> CliError:
+    """El MikroTik no abrió la conexión hacia la OLT: o no deja reenviar, o la OLT no contesta."""
+    router = f"El MikroTik {options.tunnel_name}".rstrip()
+    if exc.code == asyncssh.OPEN_ADMINISTRATIVELY_PROHIBITED:
+        return CliError(
+            f"{router} no deja a Olterra abrir conexiones hacia su red: vuelve a importar en ese "
+            "router el script de Olterra (Túnel > Rotar)"
+        )
+    reason = exc.reason.strip() or "sin respuesta"
+    return CliError(
+        f"{router} no pudo conectarse con la OLT {options.host}:{options.port} ({reason}): revisa "
+        "que esa sea la IP de la OLT en la red del ISP, que el MikroTik la alcance y el puerto"
+    )
+
+
+async def open_gateway(options: SshConnectOptions) -> asyncssh.SSHClientConnection:
+    """Entra al MikroTik del ISP con el usuario ``olterra``: por esa conexión salen las de las OLT.
+
+    ``options.tunnel_name`` es el nombre del router, para los errores.
+    """
+    router = f"al MikroTik {options.tunnel_name}".rstrip()
+    try:
+        return await asyncssh.connect(**_connect_kwargs(options))
+    except asyncssh.PermissionDenied as exc:
+        raise CliError(
+            f"No se pudo entrar {router}: rechazó al usuario de Olterra. Vuelve a importar en ese "
+            "router el script de Olterra (Túnel > Rotar)"
+        ) from exc
+    except asyncssh.HostKeyNotVerifiable as exc:
+        raise CliError(f"No se pudo entrar {router}: su llave SSH cambió") from exc
+    except (OSError, asyncssh.Error, TimeoutError) as exc:
+        reason = str(exc).strip()
+        if isinstance(exc, TimeoutError) or not reason:
+            reason = (
+                f"no respondió en {options.connect_timeout:g} s; revisa que su túnel esté conectado "
+                "(Túnel) y que su servicio SSH esté habilitado"
+            )
+        raise CliError(
+            f"No se pudo entrar {router} ({options.host}:{options.port}): {reason}"
+        ) from exc
 
 
 async def open_ssh_transport(options: SshConnectOptions) -> AsyncsshTransport:

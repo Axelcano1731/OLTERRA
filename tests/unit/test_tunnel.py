@@ -10,7 +10,7 @@ from olterra.tunnel.routeros import (
     HubPeer,
     HubSstpPeer,
     IspTunnel,
-    OltMapping,
+    RouterGateway,
     ScriptError,
     SstpTunnel,
     render_hub_bootstrap,
@@ -73,6 +73,9 @@ def test_wireguard_keys() -> None:
         validate_key("YWJj")  # base64 válido de 3 bytes
 
 
+GATEWAY = RouterGateway(password="Puerta0lterra" + "x" * 19)
+
+
 def tunnel(**overrides: object) -> IspTunnel:
     private, _ = generate_keypair()
     _, hub_public = generate_keypair()
@@ -85,8 +88,7 @@ def tunnel(**overrides: object) -> IspTunnel:
         "hub_port": 13231,
         "hub_public_key": hub_public,
         "platform_prefix": IPv4Network("198.18.0.0/24"),
-        "olts": [OltMapping("OLT-1", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0"))],
-        "trap_receiver": IPv4Address("198.18.0.2"),
+        "gateway": GATEWAY,
     }
     values.update(overrides)
     return IspTunnel(**values)  # type: ignore[arg-type]
@@ -106,31 +108,57 @@ def test_isp_script_contents() -> None:
     assert ":while ([:len [/interface wireguard find where listen-port=$p]] > 0)" in script
     assert "endpoint-address=hub.olterra.co endpoint-port=13231" in script
     assert f'private-key="{t.private_key}"' in script
-    # NAT 1:1, masquerade hacia la OLT y traps salientes con la IP única de la OLT.
-    assert (
-        "chain=dstnat in-interface=$ifn dst-address=198.19.0.0 action=dst-nat to-addresses=192.168.8.200"
-        in script
-    )
-    assert (
-        "chain=srcnat src-address=198.18.0.0/24 dst-address=192.168.8.200 action=masquerade"
-        in script
-    )
-    assert "dst-port=162 action=src-nat to-addresses=198.19.0.0" in script
-    # Solo SSH y SNMP hacia la OLT.
-    assert "protocol=tcp dst-port=22 action=accept" in script
-    assert "protocol=udp dst-port=161 action=accept" in script
-    assert "dst-port=23" not in script and "dst-port=80" not in script
-    # Idempotente: limpia lo propio antes de crear y ubica las reglas antes de las del ISP.
+    # Sin reglas por OLT: las del script viejo se borran y no se crean otras.
     assert '/ip firewall nat remove [find where comment~"^olterra"]' in script
+    assert "dst-nat" not in script and "masquerade" not in script
     assert "place-before=[:pick $ffil 0]" in script
     # Script ASCII: RouterOS no siempre muestra bien las tildes.
     assert script.isascii()
 
 
-def test_isp_script_without_traps_or_olts() -> None:
-    script = render_isp_script(tunnel(olts=[], trap_receiver=None))
-    assert "dst-nat" not in script
-    assert "dst-port=162" not in script
+def test_isp_script_makes_the_mikrotik_a_gateway() -> None:
+    """El usuario olterra solo entra por SSH desde la plataforma y no puede cambiar nada."""
+    script = render_isp_script(tunnel())
+    lines = script.splitlines()
+    assert (
+        '/user group add name=olterra policy=ssh,read comment="olterra:isp-piloto:puerta"' in lines
+    )
+    assert (
+        f'/user add name=olterra group=olterra password="{GATEWAY.password}"'
+        ' address=198.18.0.0/24 comment="olterra:isp-piloto:puerta"'
+    ) in lines
+    # Correrlo de nuevo no duplica el usuario ni el grupo.
+    assert lines.index('/user remove [find where name="olterra"]') < lines.index(
+        '/user group remove [find where name="olterra"]'
+    )
+    # Reenvío SSH solo si estaba apagado; en v7 "local" y, si no lo acepta, "yes".
+    assert ':local fwd "local"' in lines and ':local fwdalt "yes"' in lines
+    assert ':if (($fw = "no") || ($fw = "false")) do={' in lines
+    # SSH abierto a la plataforma por el túnel, en el puerto que tenga el router.
+    assert (
+        "chain=input in-interface=$ifn src-address=198.18.0.0/24 protocol=tcp dst-port=$sshport"
+        ' action=accept comment="olterra:isp-piloto:puerta"'
+    ) in script
+    # Si el SSH estaba apagado se enciende solo para la plataforma; si estaba limitado, se agrega.
+    assert "/ip service set $svc disabled=no address=198.18.0.0/24" in script
+    assert '/ip service set $svc address=($csv . "198.18.0.0/24")' in script
+    assert ":if ($sshport != 22) do={" in script
+    assert "Las OLT nuevas funcionan solas" in script
+
+
+def test_gateway_ssh_port_and_password_are_validated() -> None:
+    script = render_isp_script(
+        tunnel(gateway=RouterGateway(password=GATEWAY.password, ssh_port=2222))
+    )
+    assert ":if ($sshport != 2222) do={" in script
+    for bad in (
+        RouterGateway(password="corta"),
+        RouterGateway(password=GATEWAY.password[:-1] + '"'),  # una comilla rompe la cadena
+        RouterGateway(password=GATEWAY.password, ssh_port=0),
+        RouterGateway(password=GATEWAY.password, user="olterra admin"),
+    ):
+        with pytest.raises(ScriptError):
+            render_isp_script(tunnel(gateway=bad))
 
 
 @pytest.mark.parametrize(
@@ -141,14 +169,6 @@ def test_isp_script_without_traps_or_olts() -> None:
         {"hub_host": "hub.olterra.co; /ip service enable telnet"},
         {"hub_public_key": "x" * 44},
         {"address": IPv4Address("198.18.0.5")},  # dentro del prefijo de la plataforma
-        {"trap_receiver": IPv4Address("10.0.0.1")},
-        {"olts": [OltMapping('OLT"1', IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0"))]},
-        {
-            "olts": [
-                OltMapping("A", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0")),
-                OltMapping("B", IPv4Address("192.168.8.201"), IPv4Address("198.19.0.0")),
-            ]
-        },
     ],
 )
 def test_isp_script_rejects_unsafe_input(overrides: dict[str, object]) -> None:
@@ -158,12 +178,9 @@ def test_isp_script_rejects_unsafe_input(overrides: dict[str, object]) -> None:
 
 def test_hub_scripts() -> None:
     _, public = generate_keypair()
-    peer = render_hub_peer(
-        HubPeer(
-            "isp-piloto", "BNG-1", public, IPv4Address("198.18.1.1"), [IPv4Address("198.19.0.0")]
-        )
-    )
-    assert "allowed-address=198.18.1.1/32,198.19.0.0/32" in peer
+    peer = render_hub_peer(HubPeer("isp-piloto", "BNG-1", public, IPv4Address("198.18.1.1")))
+    # Solo la IP del router: sus OLT se alcanzan desde él, así que una OLT nueva no cambia nada.
+    assert "allowed-address=198.18.1.1/32 " in peer
     assert 'comment="olterra:isp-piloto:BNG-1"' in peer
 
     bootstrap = render_hub_bootstrap(
@@ -208,8 +225,7 @@ def sstp_tunnel(**overrides: object) -> SstpTunnel:
         "hub_port": 4443,
         "ca_pem": ca_pem(),
         "platform_prefix": PLATFORM,
-        "olts": [OltMapping("OLT-1", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0"))],
-        "trap_receiver": IPv4Address("198.18.0.2"),
+        "gateway": GATEWAY,
     }
     return SstpTunnel(**(values | overrides))  # type: ignore[arg-type]
 
@@ -232,10 +248,10 @@ def test_sstp_script_for_routeros_v6() -> None:
     [contents] = [line for line in script.splitlines() if "contents=" in line]
     assert contents.count("-----BEGIN CERTIFICATE-----\\n") == 1
     assert "/certificate import file-name=olterra-ca.txt" in script
-    # Lo mismo que en v7 para cada OLT: NAT 1:1, SSH/SNMP y traps.
-    assert "dst-address=198.19.0.0 action=dst-nat to-addresses=192.168.8.200" in script
-    assert "dst-address=192.168.8.200 protocol=tcp dst-port=22 action=accept" in script
-    assert "to-addresses=198.19.0.0" in script  # los traps salen con la IP NAT de la OLT
+    # La misma puerta que en v7; el reenvío prueba primero "yes" (v6) y luego "local".
+    assert "/user group add name=olterra policy=ssh,read" in script
+    assert ':local fwd "yes"' in script and ':local fwdalt "local"' in script
+    assert "dst-nat" not in script
     assert "/ip route add dst-address=198.18.0.0/24 gateway=$ifn" in script
 
 
@@ -277,14 +293,14 @@ def test_hub_sstp_peer_and_switching_transport() -> None:
             "olterra-isp-piloto-CORE_VIOTA",
             password,
             IPv4Address("198.18.1.1"),
-            [IPv4Address("198.19.0.0"), IPv4Address("198.19.0.1")],
         )
     )
     assert (
         '/ppp secret add name="olterra-isp-piloto-CORE_VIOTA"'
         f' password="{password}" service=sstp profile=olterra-sstp remote-address=198.18.1.1'
-        ' routes="198.19.0.0/32,198.19.0.1/32"'
+        ' comment="olterra:isp-piloto:CORE_VIOTA"'
     ) in peer
+    assert "routes=" not in peer
     tag = 'comment="olterra:isp-piloto:CORE_VIOTA"'
     # Si venía por WireGuard, su peer se va; y al revés, el alta WireGuard borra el secreto.
     assert f"/interface wireguard peers remove [find where {tag}]" in peer
@@ -324,23 +340,4 @@ def test_hub_bootstrap_with_sstp() -> None:
             peer_pool=IPv4Network("198.18.0.0/16"),
             nat_pool=IPv4Network("198.19.0.0/16"),
             sstp_port=4443,
-        )
-
-
-def test_isp_script_opens_the_cli_port_of_each_olt() -> None:
-    olts = [
-        OltMapping("OLT-SSH", IPv4Address("192.168.8.200"), IPv4Address("198.19.0.0")),
-        OltMapping("OLT-TEL", IPv4Address("172.17.0.2"), IPv4Address("198.19.0.1"), cli_port=23),
-    ]
-    script = render_isp_script(tunnel(olts=olts))
-    assert "dst-address=192.168.8.200 protocol=tcp dst-port=22 action=accept" in script
-    assert "dst-address=172.17.0.2 protocol=tcp dst-port=23 action=accept" in script
-    assert "dst-address=172.17.0.2 protocol=tcp dst-port=22 " not in script
-    with pytest.raises(ScriptError):
-        render_isp_script(
-            tunnel(
-                olts=[
-                    OltMapping("X", IPv4Address("10.0.0.2"), IPv4Address("198.19.0.2"), cli_port=0)
-                ]
-            )
         )

@@ -97,7 +97,13 @@ class Settings(BaseSettings):
     tunnel_hub_host: str | None = None
     tunnel_hub_port: int = 13231
     tunnel_hub_public_key: str | None = None
-    tunnel_trap_receiver: str = "198.18.0.2"
+    # API de RouterOS del concentrador, por el túnel: con la clave, Olterra da de alta sola los
+    # routers de los ISP (sin ella, la interfaz muestra el bloque para pegarlo a mano). El
+    # usuario lo crea ``olterra-admin concentrador``.
+    tunnel_hub_api_host: str = "198.18.0.1"
+    tunnel_hub_api_port: int = 8728
+    tunnel_hub_api_user: str = "olterra-api"
+    tunnel_hub_api_password: SecretStr | None = None
     # SSTP para RouterOS v6 (sin WireGuard). La CA es pública: la del concentrador, en PEM o
     # solo su base64 en una línea (así cabe en .env). Sin ella no se dan de alta routers v6.
     tunnel_sstp_port: int = 4443

@@ -44,6 +44,10 @@ export interface Olt {
   /** Por dónde entra Olterra a la CLI. Telnet solo si la OLT no acepta su usuario por SSH. */
   cli_protocol: CliProtocol
   telnet_port: number
+  /** El MikroTik por el que entra Olterra (null: conexión directa). */
+  router_name: string | null
+  /** Ese MikroTik ya es puerta; false: tiene el script viejo y hay que rotarlo una vez. */
+  router_gateway: boolean | null
   /** pending (nunca consultada), online o unreachable: lo actualiza cada consulta. */
   status: string
   last_seen_at: string | null
@@ -186,13 +190,20 @@ export interface TunnelRouter {
   wg_public_key: string | null
   ppp_user: string | null
   routeros_version: string | null
+  /** Puerto del SSH del MikroTik: por ahí entra Olterra a la puerta. */
+  ssh_port: number
+  /** Su script ya lo deja como puerta: toda OLT nueva funciona sola. Si no, hay que rotarlo una vez. */
+  gateway: boolean
   created_at: string
 }
 
 export interface RouterScripts {
   router: TunnelRouter
   isp_script: string
+  /** Para pegar en el concentrador solo si Olterra no pudo darlo de alta sola. */
   hub_script: string
+  hub_registered: boolean
+  hub_error: string | null
 }
 
 export type Severity = 'error' | 'advertencia' | 'info'

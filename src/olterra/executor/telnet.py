@@ -1,9 +1,9 @@
-"""Transporte Telnet para ``CliSession``, solo para la captura de laboratorio.
+"""Transporte Telnet para ``CliSession``.
 
-Telnet viaja en claro: Olterra no lo usa hacia las OLT de los clientes (va por SSH dentro
-del túnel). Sirve para capturar desde la red del ISP una OLT a la que no se llega por SSH.
-Rechaza toda opción que el servidor proponga y hace el login de la CLI (``Login:`` y
-``Password:``) antes de entregar la sesión.
+Para las OLT que no aceptan a los usuarios de la CLI por SSH. Telnet viaja en claro, así que
+solo se usa dentro del túnel: o por la IP NAT de la OLT, o desde el MikroTik del ISP (la
+puerta: la conexión TCP sale del router por reenvío SSH). Rechaza toda opción que el servidor
+proponga y hace el login de la CLI (``Login:`` y ``Password:``) antes de entregar la sesión.
 """
 
 from __future__ import annotations
@@ -11,6 +11,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+from typing import Any
+
+import asyncssh
 
 from olterra.executor.cli import CliError
 from olterra.executor.ssh import SshConnectOptions, connect_error
@@ -25,7 +28,8 @@ _ASKS_AGAIN = re.compile(r"(?i)(login|username|user name|password)\s*:\s*$")
 
 
 class TelnetTransport:
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    # Un par de streams de asyncio, o el de un canal SSH del MikroTik (misma interfaz en bytes).
+    def __init__(self, reader: Any, writer: Any) -> None:
         self._reader = reader
         self._writer = writer
         self._pending = b""
@@ -106,10 +110,13 @@ class TelnetTransport:
 
 async def open_telnet_transport(options: SshConnectOptions) -> TelnetTransport:
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(options.host, options.port), options.connect_timeout
-        )
-    except (OSError, TimeoutError) as exc:
+        if options.tunnel is not None:
+            # Desde el MikroTik del ISP: la conexión TCP a la OLT la abre el router.
+            opening: Any = options.tunnel.open_connection(options.host, options.port)
+        else:
+            opening = asyncio.open_connection(options.host, options.port)
+        reader, writer = await asyncio.wait_for(opening, options.connect_timeout)
+    except (OSError, TimeoutError, asyncssh.Error) as exc:
         raise connect_error("Telnet", options, exc) from exc
     transport = TelnetTransport(reader, writer)
     try:

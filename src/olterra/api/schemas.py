@@ -110,6 +110,12 @@ class OltOut(BaseModel):
     snmp_port: int
     cli_protocol: CliProtocol = "ssh"
     telnet_port: int = 23
+    router_name: str | None = Field(None, description="El MikroTik por el que entra Olterra")
+    router_gateway: bool | None = Field(
+        None,
+        description="Ese MikroTik ya es puerta (toda OLT nueva funciona sola); False: tiene el "
+        "script viejo y hay que rotarlo una vez",
+    )
     status: str = Field(description="pending (nunca consultada), online o unreachable")
     last_seen_at: datetime | None = Field(None, description="Última vez que respondió")
     created_at: datetime
@@ -379,6 +385,9 @@ class RouterCreate(BaseModel):
         None,
         description="Si no se indica: RouterOS 6 va por SSTP (no tiene WireGuard), el resto por WireGuard",
     )
+    ssh_port: int = Field(
+        22, ge=1, le=65535, description="Puerto del SSH del MikroTik: por ahí entra Olterra"
+    )
 
 
 class RouterUpdate(BaseModel):
@@ -386,6 +395,7 @@ class RouterUpdate(BaseModel):
 
     routeros_version: str | None = Field(None, pattern=ROUTEROS_VERSION)
     transport: Transport | None = None
+    ssh_port: int | None = Field(None, ge=1, le=65535)
 
 
 class RouterOut(BaseModel):
@@ -399,6 +409,12 @@ class RouterOut(BaseModel):
     wg_public_key: str | None = Field(description="Solo WireGuard")
     ppp_user: str | None = Field(description="Solo SSTP: usuario del secreto PPP")
     routeros_version: str | None
+    ssh_port: int = 22
+    gateway: bool = Field(
+        False,
+        description="El script del router ya lo deja como puerta hacia sus OLT; si no, tiene un "
+        "script viejo y hay que rotarlo una vez",
+    )
     created_at: datetime
 
 
@@ -407,7 +423,13 @@ class RouterScriptOut(BaseModel):
     isp_script: str = Field(
         description="Para el MikroTik del ISP. Contiene su llave privada o su clave SSTP."
     )
-    hub_script: str = Field(description="Para el concentrador de la plataforma")
+    hub_script: str = Field(
+        description="Para el concentrador, si Olterra no pudo darlo de alta sola (hub_registered)"
+    )
+    hub_registered: bool = Field(
+        default=False, description="Olterra ya dio de alta el router en el concentrador por su API"
+    )
+    hub_error: str | None = Field(default=None, description="Por qué no se pudo darlo de alta solo")
 
 
 class ReconOnu(BaseModel):

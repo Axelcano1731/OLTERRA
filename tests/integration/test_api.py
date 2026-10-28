@@ -20,7 +20,7 @@ from sqlalchemy import select
 from olterra.admin import create_api_key, create_tenant
 from olterra.api.app import create_app
 from olterra.config import Settings
-from olterra.db.models import AuditLog, Credential, Olt, ProvisionJob, TenantKey
+from olterra.db.models import AuditLog, Credential, Olt, ProvisionJob, TenantKey, TunnelRouter
 from olterra.db.session import create_engine, session_factory
 from olterra.devtools.demo_recon import demo_input
 from olterra.devtools.vsol_sim import VsolSimulator
@@ -30,8 +30,9 @@ from olterra.executor.plan import Plan
 from olterra.executor.runner import PlanRunner
 from olterra.executor.worker import Executor
 from olterra.security import apikeys
-from olterra.security.sealed import generate_keypair
+from olterra.security.sealed import generate_keypair, unseal
 from olterra.security.vault import Vault
+from olterra.tunnel.hub_api import HubApiError
 from olterra.tunnel.wireguard import generate_keypair as wg_keypair
 from tests.conftest import PgDatabase, b64key, ca_pem
 
@@ -145,13 +146,21 @@ def test_authentication(env: Env) -> None:
     assert env.client.get("/v1/olts", headers=env.headers(forged)).status_code == 401
 
 
-def test_router_olt_nat_and_isolation(env: Env) -> None:
+def gateway_password(script: str) -> str:
+    match = re.search(r'/user add name=olterra group=olterra password="([A-Za-z0-9]+)"', script)
+    assert match is not None
+    return match.group(1)
+
+
+def test_router_is_the_gateway_to_its_olts_and_tenants_are_isolated(env: Env) -> None:
     created = env.client.post("/v1/tunnel/routers", json={"name": "BNG-1"}, headers=env.headers())
     assert created.status_code == 201, created.text
     router = created.json()
     assert router["router"]["overlay_ip"].startswith("198.18.")
+    assert router["router"]["gateway"] and router["router"]["ssh_port"] == 22
     assert "endpoint-address=hub.olterra.co" in router["isp_script"]
     assert router["router"]["wg_public_key"] in router["hub_script"]
+    first_password = gateway_password(router["isp_script"])
 
     olt = create_olt(
         env,
@@ -160,17 +169,43 @@ def test_router_olt_nat_and_isolation(env: Env) -> None:
         latitude=4.45,
         longitude=-74.63,
     )
-    assert olt["nat_ip"].startswith("198.19.")
+    # Sin IP NAT: Olterra llega a la IP real desde el MikroTik. Una OLT nueva no cambia nada
+    # del router ni del concentrador.
+    assert olt["nat_ip"] is None
     assert "password" not in olt
 
-    rotated = env.client.post(
-        f"/v1/tunnel/routers/{router['router']['id']}/script", headers=env.headers()
-    ).json()
-    assert (
-        f"dst-address={olt['nat_ip']} action=dst-nat to-addresses=192.168.8.200"
-        in rotated["isp_script"]
+    response = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["system.version"]},
+        headers=env.headers(),
     )
+    assert response.status_code == 202, response.text
+    [plan] = env.publisher.plans
+    assert plan.target.host == "192.168.8.200"
+    assert plan.target.via is not None
+    assert (plan.target.via.host, plan.target.via.port, plan.target.via.username) == (
+        router["router"]["overlay_ip"],
+        22,
+        "olterra",
+    )
+    assert plan.credential is not None
+    sealed = SecretCredential.model_validate_json(
+        unseal(env.executor_private_key, plan.credential, plan.seal_context())
+    )
+    assert sealed.gateway_password is not None
+    assert sealed.gateway_password.get_secret_value() == first_password
+    assert first_password not in plan.model_dump_json()
+
+    rotated = env.client.post(
+        f"/v1/tunnel/routers/{router['router']['id']}/script",
+        json={"ssh_port": 2222},
+        headers=env.headers(),
+    ).json()
     assert rotated["router"]["wg_public_key"] != router["router"]["wg_public_key"]
+    assert rotated["router"]["ssh_port"] == 2222
+    assert gateway_password(rotated["isp_script"]) != first_password  # rotar cambia la puerta
+    assert "dst-nat" not in rotated["isp_script"]
+    assert f"allowed-address={router['router']['overlay_ip']}/32 " in rotated["hub_script"]
 
     # B no ve nada de A, ni por lista ni por id.
     assert env.client.get("/v1/olts", headers=env.headers(env.key_b)).json() == []
@@ -210,6 +245,37 @@ def test_router_olt_nat_and_isolation(env: Env) -> None:
     actions, blobs = asyncio.run(inspect())
     assert {"tunnel.router.create", "olt.create", "tunnel.router.rotate_keys"} <= set(actions)
     assert blobs and all(b"olterra-sim" not in blob for blob in blobs)
+    assert all(first_password.encode() not in blob for blob in blobs)
+
+
+def test_olt_behind_a_router_with_the_old_script(env: Env) -> None:
+    """Un router dado de alta antes de la puerta: sus OLT nuevas piden rotarlo una vez."""
+    router = env.client.post(
+        "/v1/tunnel/routers", json={"name": "BNG-VIEJO"}, headers=env.headers()
+    ).json()["router"]
+    olt = create_olt(env, router_id=router["id"], real_ip="172.17.1.2")
+
+    async def forget_gateway() -> None:
+        engine = create_engine(env.pg.owner_url)
+        try:
+            async with session_factory(engine)() as session, session.begin():
+                row = await session.get(TunnelRouter, UUID(router["id"]))
+                assert row is not None
+                row.gateway_credential_id = None
+        finally:
+            await engine.dispose()
+
+    asyncio.run(forget_gateway())
+    listed = env.client.get("/v1/tunnel/routers", headers=env.headers()).json()
+    assert [r["gateway"] for r in listed] == [False]
+    response = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["system.version"]},
+        headers=env.headers(),
+    )
+    assert response.status_code == 409
+    assert "BNG-VIEJO tiene el script viejo" in response.json()["detail"]
+    assert env.publisher.plans == []
 
 
 def test_query_end_to_end(env: Env) -> None:
@@ -503,13 +569,14 @@ def test_sstp_router_for_routeros_v6(env: Env) -> None:
     password = match.group(1)
     assert f'password="{password}" service=sstp' in body["hub_script"]  # la misma en los dos
 
-    # Con una OLT detrás, el concentrador enruta su IP NAT por el túnel SSTP.
-    olt = create_olt(env, router_id=router["id"], real_ip="192.168.8.200")
+    # Con una OLT detrás, el concentrador sigue igual: solo la IP del router (la puerta).
+    create_olt(env, router_id=router["id"], real_ip="192.168.8.200")
     rotated = env.client.post(
         f"/v1/tunnel/routers/{router['id']}/script", headers=env.headers()
     ).json()
     assert rotated["router"]["transport"] == "sstp"
-    assert f'routes="{olt["nat_ip"]}/32"' in rotated["hub_script"]
+    assert "routes=" not in rotated["hub_script"]
+    assert "/user add name=olterra group=olterra" in rotated["isp_script"]
     assert password not in rotated["isp_script"]  # rotar cambia la clave
     listed = env.client.get("/v1/tunnel/routers", headers=env.headers()).json()
     assert [r["transport"] for r in listed] == ["sstp"]
@@ -811,14 +878,7 @@ def test_olt_over_telnet(env: Env) -> None:
     )
     assert (olt["cli_protocol"], olt["telnet_port"]) == ("telnet", 23)
 
-    # El script del router abre el puerto Telnet de esa OLT, no el SSH.
-    script = env.client.post(
-        f"/v1/tunnel/routers/{router['router']['id']}/script", headers=env.headers()
-    ).json()["isp_script"]
-    rules = [line for line in script.splitlines() if "dst-address=172.17.0.2 protocol=tcp" in line]
-    assert rules and all("dst-port=23 " in line for line in rules)
-
-    # La consulta sale con el protocolo de la OLT.
+    # La consulta sale con el protocolo de la OLT, desde el MikroTik hacia su IP real.
     response = env.client.post(
         f"/v1/olts/{olt['id']}/queries",
         json={"commands": ["system.version"]},
@@ -827,6 +887,7 @@ def test_olt_over_telnet(env: Env) -> None:
     assert response.status_code == 202, response.text
     [plan] = env.publisher.plans
     assert (plan.target.cli_protocol, plan.target.telnet_port) == ("telnet", 23)
+    assert plan.target.host == "172.17.0.2" and plan.target.via is not None
 
     # Y se puede volver a SSH desde Editar.
     edited = env.client.patch(
@@ -890,3 +951,46 @@ def test_olt_of_another_brand(env: Env) -> None:
     assert edited.status_code == 200 and edited.json()["driver"] == "bcd-gpon"
     bad = env.client.patch(f"/v1/olts/{olt['id']}", json={"driver": "zte"}, headers=env.headers())
     assert bad.status_code == 422
+
+
+def test_router_is_registered_in_the_hub_by_itself(env: Env) -> None:
+    """Con la API del concentrador configurada, nadie pega el bloque a mano."""
+    registered: list[Any] = []
+
+    async def registrar(peer: Any) -> None:
+        registered.append(peer)
+
+    state = env.client.app.state.olterra  # type: ignore[attr-defined]
+    state.hub_registrar = registrar
+    try:
+        body = env.client.post(
+            "/v1/tunnel/routers", json={"name": "BNG-AUTO"}, headers=env.headers()
+        ).json()
+        assert body["hub_registered"] and body["hub_error"] is None
+        [peer] = registered
+        assert (peer.router, str(peer.address)) == ("BNG-AUTO", body["router"]["overlay_ip"])
+
+        async def broken(peer: Any) -> None:
+            raise HubApiError("No se pudo dar de alta el router en el concentrador: timeout")
+
+        state.hub_registrar = broken
+        rotated = env.client.post(
+            f"/v1/tunnel/routers/{body['router']['id']}/script", headers=env.headers()
+        ).json()
+        assert not rotated["hub_registered"]
+        assert "concentrador" in rotated["hub_error"]
+        assert rotated["router"]["wg_public_key"] in rotated["hub_script"]  # queda el manual
+    finally:
+        state.hub_registrar = None
+
+
+def test_olt_says_which_mikrotik_it_goes_through(env: Env) -> None:
+    router = env.client.post(
+        "/v1/tunnel/routers", json={"name": "BNG-INFO"}, headers=env.headers()
+    ).json()["router"]
+    behind = create_olt(env, router_id=router["id"], real_ip="172.16.0.2")
+    direct = create_olt(env, real_ip="10.0.0.40")
+    assert (behind["router_name"], behind["router_gateway"]) == ("BNG-INFO", True)
+    assert (direct["router_name"], direct["router_gateway"]) == (None, None)
+    listed = {o["id"]: o for o in env.client.get("/v1/olts", headers=env.headers()).json()}
+    assert listed[behind["id"]]["router_gateway"] is True

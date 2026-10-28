@@ -43,6 +43,8 @@ class AppState:
     background: list[Any] = field(default_factory=list)
     # Lo que corre después de guardar cada resultado (p. ej. avanzar un trabajo de alta).
     result_hooks: list[Callable[[PlanResult], Awaitable[None]]] = field(default_factory=list)
+    # Da de alta un router en el concentrador por su API; None: el operador pega el bloque.
+    hub_registrar: Callable[[Any], Awaitable[None]] | None = None
 
     def require_vault(self) -> Vault:
         if self.vault is None:

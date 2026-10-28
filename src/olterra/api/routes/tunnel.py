@@ -1,8 +1,13 @@
 """Routers del ISP en el túnel: alta, script para el MikroTik y alta en el concentrador.
 
 Dos transportes hacia el mismo concentrador: WireGuard (RouterOS 7) y SSTP (RouterOS 6, que
-no tiene WireGuard). La credencial del router (llave privada o clave SSTP) se genera aquí,
-va una sola vez en los scripts y no se guarda: si hace falta el script otra vez, se rota.
+no tiene WireGuard). La credencial del túnel (llave privada o clave SSTP) se genera aquí, va
+una sola vez en los scripts y no se guarda: si hace falta el script otra vez, se rota.
+
+El script también deja al MikroTik como **puerta** hacia sus OLT: un usuario ``olterra`` que
+solo entra por SSH desde la plataforma y no puede cambiar nada. Su clave sí se guarda (cifrada
+con la llave del ISP, como las de las OLT): el ejecutor la usa en cada consulta. Con la puerta,
+las OLT no tienen reglas propias: agregar una no toca el router ni el concentrador.
 """
 
 from __future__ import annotations
@@ -13,19 +18,24 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from olterra.api.deps import State, Tenant
 from olterra.api.schemas import RouterCreate, RouterOut, RouterScriptOut, RouterUpdate, Transport
 from olterra.api.state import AppState, audit
-from olterra.db.models import Olt, TunnelRouter
+from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Tenant as TenantRow
+from olterra.db.models import TunnelRouter
+from olterra.executor.plan import Credential
+from olterra.security.vault import Vault
+from olterra.tunnel.hub_api import HubApiError
 from olterra.tunnel.routeros import (
     HubPeer,
     HubSstpPeer,
     IspTunnel,
-    OltMapping,
+    RouterGateway,
     SstpTunnel,
     render_hub_peer,
     render_hub_sstp_peer,
@@ -34,6 +44,8 @@ from olterra.tunnel.routeros import (
 )
 from olterra.tunnel.sstp import InvalidSstp, generate_password, normalize_ca, ppp_user
 from olterra.tunnel.wireguard import generate_keypair
+
+GATEWAY_USER = "olterra"
 
 router = APIRouter(prefix="/v1/tunnel/routers", tags=["Túnel"])
 
@@ -90,30 +102,50 @@ def _identity(row: TunnelRouter) -> dict[str, Any]:
     return {"transport": row.transport, "public_key": row.wg_public_key, "ppp_user": row.ppp_user}
 
 
-async def _scripts(
-    session: Any, state: AppState, tenant: TenantRow, row: TunnelRouter, secret: str
-) -> RouterScriptOut:
+async def _new_gateway(session: Any, state: AppState, row: TunnelRouter) -> RouterGateway:
+    """Clave nueva para el usuario ``olterra`` del MikroTik, guardada cifrada (reemplaza la
+    anterior al rotar)."""
+    password = generate_password()
+    credential = Credential(username=GATEWAY_USER, password=SecretStr(password))
+    dek = await state.tenant_dek(session, row.tenant_id)
+    stored = (
+        await session.get(CredentialRow, row.gateway_credential_id)
+        if row.gateway_credential_id
+        else None
+    )
+    if stored is None:
+        stored = CredentialRow(
+            tenant_id=row.tenant_id, kind="routeros", label=f"MikroTik {row.name}", ciphertext=b""
+        )
+        session.add(stored)
+        await session.flush()
+        row.gateway_credential_id = stored.id
+    else:
+        stored.rotated_at = datetime.now(UTC)
+    stored.ciphertext = Vault.encrypt(
+        row.tenant_id, dek, f"credential:{stored.id}", credential.reveal_json()
+    )
+    return RouterGateway(password=password, ssh_port=row.ssh_port, user=GATEWAY_USER)
+
+
+async def _register_in_hub(state: AppState, out: RouterScriptOut, peer: Any) -> None:
+    """Da de alta el router en el concentrador; si no se puede, queda el bloque manual."""
+    if state.hub_registrar is None:
+        return
+    try:
+        await state.hub_registrar(peer)
+    except HubApiError as exc:
+        out.hub_error = str(exc)
+        return
+    out.hub_registered = True
+
+
+def _scripts(
+    state: AppState, tenant: TenantRow, row: TunnelRouter, secret: str, gateway: RouterGateway
+) -> tuple[RouterScriptOut, HubPeer | HubSstpPeer]:
     hub_host, hub_credential = _hub(state, row.transport)  # type: ignore[arg-type]
-    olts = (
-        await session.execute(
-            select(Olt).where(
-                Olt.router_id == row.id, Olt.nat_ip.is_not(None), Olt.real_ip.is_not(None)
-            )
-        )
-    ).scalars()
-    mappings = [
-        OltMapping(
-            o.name,
-            _ip(o.real_ip),
-            _ip(o.nat_ip),
-            cli_port=o.telnet_port if o.cli_protocol == "telnet" else o.ssh_port,
-        )
-        for o in olts
-    ]
-    nat_ips = [m.nat_ip for m in mappings]
     settings = state.settings
     prefix = IPv4Network(settings.tunnel_platform_prefix)
-    traps = IPv4Address(settings.tunnel_trap_receiver)
     if row.transport == "sstp":
         user = row.ppp_user or ""
         isp_script = render_isp_sstp_script(
@@ -126,13 +158,12 @@ async def _scripts(
                 hub_port=settings.tunnel_sstp_port,
                 ca_pem=hub_credential,
                 platform_prefix=prefix,
-                olts=mappings,
-                trap_receiver=traps,
+                gateway=gateway,
             )
         )
-        hub_script = render_hub_sstp_peer(
-            HubSstpPeer(tenant.slug, row.name, user, secret, _ip(row.overlay_ip), nat_ips)
-        )
+        sstp_peer = HubSstpPeer(tenant.slug, row.name, user, secret, _ip(row.overlay_ip))
+        hub_script = render_hub_sstp_peer(sstp_peer)
+        peer: HubPeer | HubSstpPeer = sstp_peer
     else:
         isp_script = render_isp_script(
             IspTunnel(
@@ -144,24 +175,23 @@ async def _scripts(
                 hub_port=settings.tunnel_hub_port,
                 hub_public_key=hub_credential,
                 platform_prefix=prefix,
-                olts=mappings,
-                trap_receiver=traps,
+                gateway=gateway,
             )
         )
-        hub_script = render_hub_peer(
-            HubPeer(
-                tenant=tenant.slug,
-                router=row.name,
-                public_key=row.wg_public_key or "",
-                address=_ip(row.overlay_ip),
-                nat_ips=nat_ips,
-            )
+        wg_peer = HubPeer(
+            tenant=tenant.slug,
+            router=row.name,
+            public_key=row.wg_public_key or "",
+            address=_ip(row.overlay_ip),
         )
-    return RouterScriptOut(
+        hub_script = render_hub_peer(wg_peer)
+        peer = wg_peer
+    out = RouterScriptOut(
         router=RouterOut.model_validate(_router_dict(row)),
         isp_script=isp_script,
         hub_script=hub_script,
     )
+    return out, peer
 
 
 def _router_dict(row: TunnelRouter) -> dict[str, Any]:
@@ -174,6 +204,8 @@ def _router_dict(row: TunnelRouter) -> dict[str, Any]:
         "wg_public_key": row.wg_public_key,
         "ppp_user": row.ppp_user,
         "routeros_version": row.routeros_version,
+        "ssh_port": row.ssh_port,
+        "gateway": row.gateway_credential_id is not None,
         "created_at": row.created_at,
     }
 
@@ -207,9 +239,12 @@ async def create_router(body: RouterCreate, ctx: Tenant, state: State) -> Router
                 peer_index=peer_index,
                 overlay_ip=str(state.addresses.peer_address(tenant.net_index, peer_index)),
                 routeros_version=body.routeros_version,
+                ssh_port=body.ssh_port,
             )
             secret = _credentials(row, tenant, transport)
             session.add(row)
+            await session.flush()
+            gateway = await _new_gateway(session, state, row)
             await session.flush()
             await session.refresh(row)
             await audit(
@@ -222,7 +257,9 @@ async def create_router(body: RouterCreate, ctx: Tenant, state: State) -> Router
                 after={"name": row.name, "overlay_ip": str(row.overlay_ip), **_identity(row)},
                 source_ip=ctx.client_ip,
             )
-            return await _scripts(session, state, tenant, row, secret)
+            out, peer = _scripts(state, tenant, row, secret, gateway)
+            await _register_in_hub(state, out, peer)
+            return out
     except IntegrityError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un router con ese nombre") from exc
 
@@ -231,10 +268,11 @@ async def create_router(body: RouterCreate, ctx: Tenant, state: State) -> Router
 async def rotate_and_render(
     router_id: UUID, ctx: Tenant, state: State, body: RouterUpdate | None = None
 ) -> RouterScriptOut:
-    """Rota la credencial del router y devuelve los scripts con las OLT actuales.
+    """Rota las credenciales del router (túnel y puerta) y devuelve sus scripts.
 
     Con otra ``routeros_version`` (o ``transport``) cambia de transporte: así un router v6
-    dado de alta como v7 pasa a SSTP sin borrarlo ni cambiar su IP en el túnel.
+    dado de alta como v7 pasa a SSTP sin borrarlo ni cambiar su IP en el túnel. Un router con
+    script viejo (reglas NAT por OLT) pasa a ser puerta al importar el script nuevo.
     """
     ctx.require("tunnel:write")
     async with ctx.session() as session:
@@ -248,9 +286,12 @@ async def rotate_and_render(
         else:
             version, transport = row.routeros_version, row.transport  # type: ignore[assignment]
         _hub(state, transport)
-        before = _identity(row)
+        before = {**_identity(row), "ssh_port": row.ssh_port}
         row.routeros_version = version
+        if body is not None and body.ssh_port is not None:
+            row.ssh_port = body.ssh_port
         secret = _credentials(row, tenant, transport)
+        gateway = await _new_gateway(session, state, row)
         await session.flush()
         await audit(
             session,
@@ -260,7 +301,14 @@ async def rotate_and_render(
             target_type="tunnel_router",
             target_id=str(row.id),
             before=before,
-            after={**_identity(row), "at": datetime.now(UTC).isoformat()},
+            after={
+                **_identity(row),
+                "ssh_port": row.ssh_port,
+                "puerta": True,
+                "at": datetime.now(UTC).isoformat(),
+            },
             source_ip=ctx.client_ip,
         )
-        return await _scripts(session, state, tenant, row, secret)
+        out, peer = _scripts(state, tenant, row, secret, gateway)
+        await _register_in_hub(state, out, peer)
+        return out

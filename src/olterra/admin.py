@@ -39,6 +39,7 @@ from olterra.db.session import create_engine, session_factory, tenant_session
 from olterra.security import apikeys, passwords, sealed
 from olterra.security.vault import Vault
 from olterra.tunnel.routeros import ScriptError, render_hub_bootstrap
+from olterra.tunnel.sstp import generate_password
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
 _USERNAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{2,31}$")
@@ -242,6 +243,11 @@ def main(argv: list[str] | None = None) -> None:
     hub.add_argument(
         "--ip", default="198.18.0.1", help="IP del concentrador dentro del prefijo de la plataforma"
     )
+    hub.add_argument(
+        "--servidor",
+        default="198.18.0.2",
+        help="IP del servidor de Olterra en el túnel: la única que entra a la API del concentrador",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -255,6 +261,7 @@ def main(argv: list[str] | None = None) -> None:
             run_migrations()
         elif args.accion == "concentrador":
             settings = get_settings()
+            api_password = generate_password()
             print(
                 render_hub_bootstrap(
                     listen_port=settings.tunnel_hub_port,
@@ -265,7 +272,15 @@ def main(argv: list[str] | None = None) -> None:
                     # SSTP para RouterOS v6: su certificado lleva la IP pública del concentrador.
                     sstp_port=settings.tunnel_sstp_port if settings.tunnel_hub_host else None,
                     sstp_host=settings.tunnel_hub_host,
+                    api_password=api_password,
+                    api_source=IPv4Address(args.servidor),
                 )
+            )
+            # Fuera del script (stderr): la línea para el .env del servidor de Olterra.
+            print(
+                "\nEn el .env del servidor de Olterra (y ./olterra.sh actualizar):\n"
+                f"OLTERRA_TUNNEL_HUB_API_PASSWORD={api_password}",
+                file=sys.stderr,
             )
         else:
             asyncio.run(_with_owner(args.accion, args))

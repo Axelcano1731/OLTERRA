@@ -188,16 +188,20 @@ export const listAudit = (query: AuditQuery = {}) => {
 }
 
 export const listRouters = () => api<TunnelRouter[]>('/v1/tunnel/routers')
-export const createRouter = (name: string, routerosVersion?: string) =>
+export const createRouter = (name: string, routerosVersion?: string, sshPort = 22) =>
   api<RouterScripts>('/v1/tunnel/routers', {
-    json: { name, routeros_version: routerosVersion || null },
+    json: { name, routeros_version: routerosVersion || null, ssh_port: sshPort },
   })
-/** Rota la credencial; con otra versión de RouterOS cambia el transporte (6 → SSTP). */
-export const rotateRouter = (id: string, routerosVersion?: string) =>
-  api<RouterScripts>(`/v1/tunnel/routers/${encodeURIComponent(id)}/script`, {
+/** Rota las credenciales; con otra versión de RouterOS cambia el transporte (6 → SSTP). */
+export const rotateRouter = (id: string, routerosVersion?: string, sshPort?: number) => {
+  const json: Record<string, unknown> = {}
+  if (routerosVersion) json.routeros_version = routerosVersion
+  if (sshPort !== undefined) json.ssh_port = sshPort
+  return api<RouterScripts>(`/v1/tunnel/routers/${encodeURIComponent(id)}/script`, {
     method: 'POST',
-    json: routerosVersion ? { routeros_version: routerosVersion } : undefined,
+    json: Object.keys(json).length ? json : undefined,
   })
+}
 
 export const listRecons = (limit = 20) => api<ReconSummary[]>(`/v1/reconciliations?limit=${limit}`)
 export const getRecon = (id: string) => api<Recon>(`/v1/reconciliations/${encodeURIComponent(id)}`)

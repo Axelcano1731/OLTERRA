@@ -273,7 +273,9 @@ correrlo dos veces no duplica nada.
 
 - Plataforma (concentrador, ejecutores, receptor de traps): `198.18.0.0/24`.
 - Routers de cada ISP: un `/28` por tenant dentro de `198.18.0.0/16`.
-- IP única por OLT (NAT 1:1): un `/26` por tenant dentro de `198.19.0.0/16`.
+- IP única por OLT (NAT 1:1): un `/26` por tenant dentro de `198.19.0.0/16`. Solo para las OLT
+  de routers con el script de antes del 2026-10-28; con la puerta (A.20) las OLT no tienen IP
+  en el túnel.
 
 198.18.0.0/15 es el rango de pruebas de RFC 2544: casi ningún ISP lo enruta, a diferencia de
 10/8 (pools), 100.64/10 (CGNAT), 172.16/12 (gestión; el overlay de ISPWatch usa 172.18.x) y
@@ -283,8 +285,8 @@ construcción y no hace falta mirar datos de otros tenants. Límite actual: 1024
 routers y 64 OLT por tenant (configurable).
 
 En el concentrador, la plataforma llega a todos los ISP y los ISP no se ven entre sí (reglas
-de `olterra-admin concentrador`). Las traps salen de cada OLT con su IP única (src-nat en el
-MikroTik), así el receptor sabe de qué OLT vienen aunque todas sean 192.168.8.x.
+de `olterra-admin concentrador`). Las traps quedan para después: con la puerta no hay src-nat
+por OLT, así que el receptor tendrá que reconocer la OLT por el contenido de la trap.
 
 ### A.6 Credenciales selladas para el ejecutor
 
@@ -487,3 +489,22 @@ falta el script otra vez, se rotan las llaves (`POST /v1/tunnel/routers/{id}/scr
 - Pendiente: importar y exportar KMZ, hilos y fusiones por caja, presupuesto óptico calculado vs.
   medido, y ubicar con el GPS del teléfono (app de campo).
 
+### A.20 El MikroTik como puerta (2026-10-28)
+
+Con NAT 1:1, cada OLT nueva obligaba a rotar el script del MikroTik (su llave no se guarda, A.8)
+y a pegar su IP en el concentrador. El cliente no debería saber nada de eso. Ahora el script
+del MikroTik, que se importa una sola vez, crea el usuario `olterra` (grupo `ssh,read`, solo
+desde `198.18.0.0/24`) y habilita el reenvío SSH. El ejecutor entra al MikroTik con ese usuario
+(`Target.via`, clave sellada en `gateway_password`) y abre desde ahí la conexión TCP a la IP
+real de la OLT, por SSH o Telnet. La clave del usuario `olterra` sí se guarda, cifrada como las
+de las OLT: la necesita cada consulta.
+
+- Agregar, editar o borrar una OLT no toca el MikroTik ni el concentrador.
+- El concentrador solo conoce la IP del router en el túnel. Olterra lo da de alta por la API de
+  RouterOS (usuario `olterra-api`, solo desde el servidor) al crear o rotar un router; si no
+  está configurada, queda el bloque manual.
+- Se descartó que Olterra escriba reglas en el MikroTik (pediría permiso de escritura sobre el
+  router principal del cliente). El usuario `olterra` puede abrir conexiones hacia la red del
+  ISP pero no cambiar nada del router.
+- Solo TCP: SNMP (UDP) no pasa por el reenvío SSH. Olterra no lo usa en producción (solo la
+  herramienta de captura); el monitoreo va por la CLI.

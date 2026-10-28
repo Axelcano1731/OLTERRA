@@ -161,8 +161,8 @@ async function submit(): Promise<void> {
               :aria-invalid="!!show('realIp')"
             />
             <p v-if="show('realIp')" class="hint text-danger">{{ show('realIp') }}</p>
-            <p v-else-if="olt.data.value.router_id" class="hint">
-              Si la cambias, rota las llaves de su MikroTik en Túnel para publicar la nueva.
+            <p v-else-if="olt.data.value.router_name" class="hint">
+              La IP con la que el MikroTik {{ olt.data.value.router_name }} llega a la OLT.
             </p>
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -174,8 +174,7 @@ async function submit(): Promise<void> {
               </select>
               <p class="hint">
                 Telnet solo si la OLT no deja entrar por SSH con su usuario (pasa en algunas VSOL).
-                Viaja sin cifrar entre tu MikroTik y la OLT. Si la OLT está detrás de un router del
-                túnel, después de cambiarlo rota su script y vuelve a importarlo.
+                Viaja sin cifrar entre tu MikroTik y la OLT.
               </p>
             </div>
             <div v-if="form.cliProtocol === 'ssh'">

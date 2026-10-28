@@ -34,11 +34,13 @@ const canWrite = computed(() => can('tunnel:write'))
 const showForm = ref(false)
 const name = ref('')
 const version = ref<Major>('7')
+const sshPort = ref(22)
 const busy = ref(false)
 const formError = ref<string | null>(null)
 
 const confirming = ref<string | null>(null)
 const rotateVersion = ref<Major>('7')
+const rotatePort = ref(22)
 const rotating = ref<string | null>(null)
 const rowError = ref<string | null>(null)
 
@@ -48,6 +50,10 @@ const scriptsReason = ref<'created' | 'rotated'>('created')
 const scriptsBox = useTemplateRef<HTMLElement>('scripts')
 
 const isSstp = computed(() => scripts.value?.router.transport === 'sstp')
+
+function validPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535
+}
 
 function major(router: TunnelRouter): Major {
   return router.transport === 'sstp' ? '6' : '7'
@@ -66,9 +72,13 @@ async function create(): Promise<void> {
     formError.value = 'El nombre va sin espacios: letras, números, punto, guion o guion bajo.'
     return
   }
+  if (!validPort(sshPort.value)) {
+    formError.value = 'El puerto SSH va de 1 a 65535.'
+    return
+  }
   busy.value = true
   try {
-    const result = await createRouter(name.value.trim(), version.value)
+    const result = await createRouter(name.value.trim(), version.value, sshPort.value)
     name.value = ''
     showForm.value = false
     await routers.reload()
@@ -83,15 +93,21 @@ async function create(): Promise<void> {
 function askRotation(router: TunnelRouter): void {
   confirming.value = router.id
   rotateVersion.value = major(router)
+  rotatePort.value = router.ssh_port
 }
 
 async function rotate(router: TunnelRouter): Promise<void> {
   rowError.value = null
+  if (!validPort(rotatePort.value)) {
+    rowError.value = 'El puerto SSH va de 1 a 65535.'
+    return
+  }
   rotating.value = router.id
   try {
     // Solo si cambia la versión se manda: así se pasa un router v6 dado de alta como v7 a SSTP.
     const changed = rotateVersion.value !== major(router) ? rotateVersion.value : undefined
-    const result = await rotateRouter(router.id, changed)
+    const port = rotatePort.value !== router.ssh_port ? rotatePort.value : undefined
+    const result = await rotateRouter(router.id, changed, port)
     confirming.value = null
     await routers.reload()
     await reveal(result, 'rotated')
@@ -110,7 +126,7 @@ function closeScripts(): void {
 <template>
   <PageHeader
     title="Túnel"
-    description="Olterra llega a tus OLT por un túnel que sale de tu MikroTik hacia el concentrador: WireGuard en RouterOS 7, SSTP en RouterOS 6. No abres puertos: corres un script en el MikroTik."
+    description="Olterra llega a tus OLT por un túnel que sale de tu MikroTik: WireGuard en RouterOS 7, SSTP en RouterOS 6. Corres un script una sola vez y el MikroTik queda como puerta: toda OLT que agregues detrás de él funciona sola."
   >
     <template #actions>
       <button
@@ -130,7 +146,8 @@ function closeScripts(): void {
       <div>
         <h2 id="nuevo-router" class="font-semibold">Agregar un MikroTik</h2>
         <p class="mt-1 text-sm text-muted">
-          Olterra genera su credencial y el script. La credencial va en el script y no se guarda.
+          Olterra genera el script. Lo corres una sola vez: después, cada OLT que agregues detrás de
+          este MikroTik funciona sin volver a tocarlo.
         </p>
       </div>
       <button type="button" class="btn-ghost p-1.5" aria-label="Cerrar" @click="showForm = false">
@@ -138,7 +155,7 @@ function closeScripts(): void {
       </button>
     </div>
     <form
-      class="mt-4 grid gap-4 sm:grid-cols-[1fr_13rem_auto] sm:items-end"
+      class="mt-4 grid gap-4 sm:grid-cols-[1fr_13rem_7rem_auto] sm:items-end"
       @submit.prevent="create"
     >
       <div>
@@ -158,6 +175,18 @@ function closeScripts(): void {
             {{ item.label }}
           </option>
         </select>
+      </div>
+      <div>
+        <label for="ssh-port" class="label">Puerto SSH</label>
+        <input
+          id="ssh-port"
+          v-model.number="sshPort"
+          type="number"
+          min="1"
+          max="65535"
+          class="input"
+          title="El del servicio SSH del MikroTik (IP > Services): por ahí entra Olterra"
+        />
       </div>
       <button type="submit" class="btn-primary" :disabled="busy">
         <LoaderCircle v-if="busy" class="size-4 animate-spin" />
@@ -181,7 +210,7 @@ function closeScripts(): void {
     <div class="flex items-start justify-between gap-3">
       <div>
         <h2 id="scripts-titulo" class="font-semibold">
-          {{ scriptsReason === 'created' ? 'Script listo' : 'Credencial rotada' }} para
+          {{ scriptsReason === 'created' ? 'Script listo' : 'Credenciales rotadas' }} para
           {{ scripts.router.name }}
         </h2>
         <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -193,7 +222,7 @@ function closeScripts(): void {
     </div>
     <AlertBox tone="warning" class="mt-4" title="Se muestra una sola vez">
       El script trae {{ isSstp ? 'la clave SSTP' : 'la llave privada' }} del router y Olterra no la
-      guarda. Descárgalo ahora; si lo pierdes, rota la credencial y corre el script nuevo.
+      guarda. Descárgalo ahora; si lo pierdes, rota el router y corre el script nuevo.
       <template v-if="scriptsReason === 'rotated'">
         El túnel con la credencial anterior deja de funcionar hasta que lo corras.
       </template>
@@ -212,8 +241,26 @@ function closeScripts(): void {
             : 'En /interface wireguard peers, last-handshake debe ser reciente.'
         }}
       </li>
-      <li>El segundo bloque es el alta en el concentrador y la aplica Olterra.</li>
+      <li v-if="scripts.hub_registered">
+        Olterra ya dio de alta este MikroTik en el concentrador: no hay nada más que hacer.
+      </li>
+      <li v-else>
+        Falta el alta en el concentrador: el administrador de Olterra pega el segundo bloque en el
+        CHR.
+      </li>
+      <li>
+        Listo: cada OLT que agregues detrás de este MikroTik funciona sola. No hay que volver a
+        correr el script.
+      </li>
     </ol>
+    <AlertBox
+      v-if="scripts.hub_error"
+      tone="warning"
+      class="mt-4"
+      title="No se pudo dar de alta solo en el concentrador"
+    >
+      {{ scripts.hub_error }}
+    </AlertBox>
     <div class="mt-4 space-y-4">
       <CopyBlock
         :text="scripts.isp_script"
@@ -221,6 +268,7 @@ function closeScripts(): void {
         :filename="`olterra-${scripts.router.name}.rsc`"
       />
       <CopyBlock
+        v-if="!scripts.hub_registered"
         :text="scripts.hub_script"
         label="Alta en el concentrador"
         :filename="`concentrador-${scripts.router.name}.rsc`"
@@ -250,6 +298,7 @@ function closeScripts(): void {
           <th class="px-4 py-2.5">MikroTik</th>
           <th class="px-4 py-2.5">IP en el túnel</th>
           <th class="px-4 py-2.5">Transporte</th>
+          <th class="px-4 py-2.5">OLT nuevas</th>
           <th class="px-4 py-2.5">Identidad</th>
           <th class="px-4 py-2.5">Alta</th>
           <th class="px-4 py-2.5"><span class="sr-only">Acciones</span></th>
@@ -266,6 +315,22 @@ function closeScripts(): void {
             <span v-if="item.routeros_version" class="ml-1.5 text-xs text-muted">
               v{{ item.routeros_version }}
             </span>
+          </td>
+          <td class="px-4 py-3">
+            <StatusPill
+              v-if="item.gateway"
+              tone="success"
+              title="El MikroTik es la puerta: Olterra llega a cualquier OLT de su red"
+            >
+              Funcionan solas
+            </StatusPill>
+            <StatusPill
+              v-else
+              tone="warning"
+              title="Tiene el script viejo (una regla por OLT): rótalo e impórtalo una última vez"
+            >
+              Rótalo una vez
+            </StatusPill>
           </td>
           <td
             class="max-w-[12rem] truncate px-4 py-3 font-mono text-xs text-muted"
@@ -288,6 +353,15 @@ function closeScripts(): void {
                     {{ option.label }}
                   </option>
                 </select>
+                <input
+                  v-model.number="rotatePort"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  class="input w-20 py-1 text-xs"
+                  aria-label="Puerto SSH del MikroTik"
+                  title="Puerto SSH del MikroTik"
+                />
                 <button
                   type="button"
                   class="btn-primary px-2.5 py-1 text-xs"
@@ -309,11 +383,11 @@ function closeScripts(): void {
                 v-else
                 type="button"
                 class="btn-ghost px-2 py-1 text-xs"
-                title="Genera una credencial nueva y el script con las OLT de hoy; también cambia la versión de RouterOS"
+                title="Genera credenciales nuevas y el script; también cambia la versión de RouterOS o el puerto SSH"
                 @click="askRotation(item)"
               >
                 <RotateCw class="size-3.5" />
-                Rotar o cambiar versión
+                Rotar o cambiar
               </button>
             </template>
           </td>

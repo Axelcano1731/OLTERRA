@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from geoalchemy2 import Geometry
 from sqlalchemy import (
@@ -27,9 +27,10 @@ from sqlalchemy import (
     SmallInteger,
     Text,
     func,
+    select,
 )
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column
 
 NAMING = {
     "ix": "ix_%(column_0_label)s",
@@ -114,6 +115,12 @@ class TunnelRouter(Base):
     ppp_user: Mapped[str | None] = mapped_column(Text, unique=True)  # solo SSTP
     routeros_version: Mapped[str | None] = mapped_column(Text)
     last_handshake_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Puerta hacia las OLT (migración 0012): el usuario "olterra" del MikroTik, solo SSH desde
+    # el túnel. Sin ella el router tiene un script viejo y sus OLT van por NAT 1:1.
+    gateway_credential_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("credentials.id", ondelete="SET NULL")
+    )
+    ssh_port: Mapped[int] = mapped_column(Integer, server_default="22")
     created_at: Mapped[datetime] = _created()
 
 
@@ -151,6 +158,22 @@ class Olt(Base):
     monitored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    if TYPE_CHECKING:  # columnas calculadas, definidas abajo
+        router_name: str | None
+        router_gateway: bool | None
+
+
+# Por dónde entra Olterra a la OLT: el nombre de su MikroTik y si ese router ya es puerta
+# (para que la interfaz no pida rotarlo por cada OLT nueva).
+Olt.router_name = column_property(  # type: ignore[assignment]
+    select(TunnelRouter.name).where(TunnelRouter.id == Olt.router_id).scalar_subquery()
+)
+Olt.router_gateway = column_property(  # type: ignore[assignment]
+    select(TunnelRouter.gateway_credential_id.is_not(None))
+    .where(TunnelRouter.id == Olt.router_id)
+    .scalar_subquery()
+)
 
 
 class Onu(Base):
