@@ -23,7 +23,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from olterra.api.deps import State, Tenant
-from olterra.api.schemas import RouterCreate, RouterOut, RouterScriptOut, RouterUpdate, Transport
+from olterra.api.schemas import (
+    RouterCreate,
+    RouterOut,
+    RouterScriptOut,
+    RouterSettings,
+    RouterUpdate,
+    Transport,
+)
 from olterra.api.state import AppState, audit
 from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Tenant as TenantRow
@@ -262,6 +269,31 @@ async def create_router(body: RouterCreate, ctx: Tenant, state: State) -> Router
             return out
     except IntegrityError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un router con ese nombre") from exc
+
+
+@router.patch("/{router_id}", response_model=RouterOut)
+async def update_router(router_id: UUID, body: RouterSettings, ctx: Tenant) -> RouterOut:
+    """Corrige el puerto SSH del MikroTik sin rotar: el script ya importado sigue sirviendo."""
+    ctx.require("tunnel:write")
+    async with ctx.session() as session:
+        row = await session.get(TunnelRouter, router_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Router no encontrado")
+        before = {"ssh_port": row.ssh_port}
+        row.ssh_port = body.ssh_port
+        await session.flush()
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="tunnel.router.update",
+            target_type="tunnel_router",
+            target_id=str(row.id),
+            before=before,
+            after={"ssh_port": row.ssh_port},
+            source_ip=ctx.client_ip,
+        )
+        return RouterOut.model_validate(_router_dict(row))
 
 
 @router.post("/{router_id}/script", response_model=RouterScriptOut)

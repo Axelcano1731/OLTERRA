@@ -4,6 +4,9 @@
 
 ### Cambiado
 
+- El puerto SSH de un MikroTik se corrige en Túnel (**SSH → Cambiar**) sin rotarlo: el
+  script ya importado sigue sirviendo (`PATCH /v1/tunnel/routers/{id}`). Pasó con Viotá, que
+  tiene el SSH en el 2222.
 - **El MikroTik del ISP es la puerta hacia sus OLT**: el script del router (se importa una sola
   vez) crea el usuario `olterra`, que solo entra por SSH desde la plataforma y no puede cambiar
   nada, y habilita el reenvío SSH. Olterra entra por él a la IP real de cada OLT, así que

@@ -390,6 +390,12 @@ class RouterCreate(BaseModel):
     )
 
 
+class RouterSettings(BaseModel):
+    """Lo que se corrige sin rotar: no cambia nada en el MikroTik ni en el concentrador."""
+
+    ssh_port: int = Field(ge=1, le=65535, description="Puerto del SSH del MikroTik")
+
+
 class RouterUpdate(BaseModel):
     """Al rotar: otra versión de RouterOS cambia el transporte (6 → SSTP, 7 → WireGuard)."""
 
