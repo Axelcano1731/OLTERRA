@@ -639,7 +639,11 @@ def test_update_olt_and_its_credentials(env: Env) -> None:
 def test_new_olt_without_password_gets_the_factory_one(env: Env) -> None:
     defaults = env.client.get("/v1/olts/defaults", headers=env.headers())
     assert defaults.status_code == 200
-    assert defaults.json() == {"username": "admin", "password_configured": True}
+    assert defaults.json() | {"drivers": []} == {
+        "username": "admin",
+        "password_configured": True,
+        "drivers": [],
+    }
     assert FACTORY_PASSWORD not in defaults.text
 
     # Sin usuario ni clave: los de fábrica; la clave de enable es la que pone el cliente.
@@ -836,3 +840,53 @@ def test_olt_over_telnet(env: Env) -> None:
         ).status_code
         == 422
     )
+
+
+def test_olt_of_another_brand(env: Env) -> None:
+    """HSGQ y BCD (Tocaima): solo lectura, con sus propios comandos."""
+    defaults = env.client.get("/v1/olts/defaults", headers=env.headers()).json()
+    brands = {d["key"]: d["writes"] for d in defaults["drivers"]}
+    assert brands == {"vsol-gpon": True, "hsgq-gpon": False, "bcd-gpon": False}
+
+    # Las claves de fábrica del servidor son de VSOL: otra marca necesita las suyas.
+    no_password = env.client.post(
+        "/v1/olts", json={"name": "OLT-HSGQ-0", "driver": "hsgq-gpon"}, headers=env.headers()
+    )
+    assert no_password.status_code == 400
+    unknown = env.client.post(
+        "/v1/olts",
+        json={"name": "OLT-X", "driver": "huawei", "username": "a", "password": "b"},
+        headers=env.headers(),
+    )
+    assert unknown.status_code == 422
+
+    olt = create_olt(env, driver="hsgq-gpon", real_ip="172.17.1.2", model="HSGQ-G008")
+    assert olt["driver"] == "hsgq-gpon"
+    commands = env.client.get(f"/v1/olts/{olt['id']}/commands", headers=env.headers()).json()
+    by_key = {c["key"]: c for c in commands}
+    assert by_key["onu.state"]["command"] == "show ont-info {pon} all"
+    assert "onu.optical" not in by_key
+
+    response = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["onu.state"], "pon": [2]},
+        headers=env.headers(),
+    )
+    assert response.status_code == 202, response.text
+    [plan] = env.publisher.plans
+    assert "show ont-info 2 all" in [step.command for step in plan.steps]
+
+    # Un comando que esta marca no tiene: 400 que lo dice, no un 500.
+    missing = env.client.post(
+        f"/v1/olts/{olt['id']}/queries",
+        json={"commands": ["onu.optical"], "onu": ["1:1"]},
+        headers=env.headers(),
+    )
+    assert missing.status_code == 400
+
+    edited = env.client.patch(
+        f"/v1/olts/{olt['id']}", json={"driver": "bcd-gpon"}, headers=env.headers()
+    )
+    assert edited.status_code == 200 and edited.json()["driver"] == "bcd-gpon"
+    bad = env.client.patch(f"/v1/olts/{olt['id']}", json={"driver": "zte"}, headers=env.headers())
+    assert bad.status_code == 422

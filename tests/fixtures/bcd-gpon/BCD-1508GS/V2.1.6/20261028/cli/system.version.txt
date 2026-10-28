@@ -1,0 +1,2 @@
+  Hardware version : V1.1
+  Firmware version : V2.1.6_181108 (Nov  8 2018 14:54:37)

@@ -3,15 +3,17 @@ import { LoaderCircle, LockKeyhole, Save } from '@lucide/vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getOlt, updateOlt, type CliProtocol, type OltUpdate } from '@/api'
+import { getOlt, getOltDefaults, updateOlt, type CliProtocol, type OltUpdate } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { oltWrites } from '@/lib/labels'
 import { errorText, useAsync } from '@/lib/useAsync'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const olt = useAsync(() => getOlt(props.id))
+const defaults = useAsync(getOltDefaults)
 
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
 
@@ -19,6 +21,7 @@ const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]
 const defaultProtocol = (): CliProtocol => 'ssh'
 
 const form = reactive({
+  driver: '',
   model: '',
   firmware: '',
   realIp: '',
@@ -35,6 +38,7 @@ const form = reactive({
 
 watch(olt.data, (value) => {
   if (!value) return
+  form.driver = value.driver
   form.model = value.model ?? ''
   form.firmware = value.firmware ?? ''
   form.realIp = value.real_ip ?? ''
@@ -71,6 +75,7 @@ function body(): OltUpdate {
   const current = olt.data.value
   const changes: OltUpdate = {}
   if (!current) return changes
+  if (form.driver && form.driver !== current.driver) changes.driver = form.driver
   if (form.model.trim() !== (current.model ?? '')) changes.model = form.model.trim()
   if (form.firmware.trim() !== (current.firmware ?? '')) changes.firmware = form.firmware.trim()
   if (form.realIp.trim() && form.realIp.trim() !== current.real_ip) {
@@ -124,6 +129,19 @@ async function submit(): Promise<void> {
       <section class="card p-5 sm:p-6">
         <h2 class="font-semibold">Equipo y conexión</h2>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="driver" class="label">Marca</label>
+            <select id="driver" v-model="form.driver" class="input">
+              <option
+                v-for="item in defaults.data.value?.drivers ?? []"
+                :key="item.key"
+                :value="item.key"
+              >
+                {{ item.label }}
+              </option>
+            </select>
+            <p class="hint">Cambia los comandos que Olterra le manda: debe ser la marca real.</p>
+          </div>
           <div>
             <label for="model" class="label">Modelo</label>
             <input id="model" v-model="form.model" class="input" placeholder="V1600G0-B" />
@@ -209,9 +227,12 @@ async function submit(): Promise<void> {
           Son las de la CLI (SSH) de la OLT, que pueden ser distintas de las de su web. Aquí solo se
           corrige lo que Olterra tiene guardado; vacío = no cambia. Para cambiar la clave en la
           propia OLT, usa
-          <RouterLink :to="{ name: 'olt-password', params: { id } }" class="font-medium underline"
-            >Cambiar clave</RouterLink
-          >.
+          <template v-if="oltWrites(olt.data.value.driver)">
+            <RouterLink :to="{ name: 'olt-password', params: { id } }" class="font-medium underline"
+              >Cambiar clave</RouterLink
+            >.
+          </template>
+          <template v-else>su web o su CLI: en esta marca Olterra todavía no la cambia.</template>
         </p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div>

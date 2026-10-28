@@ -43,6 +43,10 @@ class ParamError(ValueError):
     pass
 
 
+class UnsupportedCommand(ParamError):
+    """La marca de la OLT todavía no tiene ese comando en Olterra (p. ej. aprovisionar en HSGQ)."""
+
+
 # --- Validación de parámetros --------------------------------------------------
 # Nada que venga de un usuario entra a una plantilla sin pasar por aquí: un
 # "\n" en una descripción sería un comando inyectado en la OLT.
@@ -234,6 +238,10 @@ class CommandCall:
     params: Mapping[str, Any] = field(default_factory=dict)
 
 
+# Interpreta la salida de un comando: (texto, parámetros de la llamada) -> datos.
+Parser = Callable[[str, Mapping[str, Any]], Any]
+
+
 @dataclass
 class Driver:
     key: str
@@ -242,6 +250,13 @@ class Driver:
     session: SessionProfile
     commands: Mapping[str, CommandTemplate]
     overrides: Sequence[CommandOverride] = ()
+    # Llave del catálogo -> parser. Las llaves comunes (onu.state, onu.rx_power_all,
+    # interfaces.brief, system.version…) devuelven las mismas estructuras en todas las marcas.
+    parsers: Mapping[str, Parser] = field(default_factory=dict)
+    # Nombre para mostrar ("VSOL GPON", "HSGQ GPON").
+    label: str = ""
+    # Cuántos PON trae un modelo, para las marcas cuya lista de ONU no muestra los PON vacíos.
+    pon_count: Callable[[str | None], int | None] | None = None
     # En orden: de lo general a lo específico; la última regla que calza manda.
     capability_rules: Sequence[CapabilityRule] = ()
     enter_config: str = "configure terminal"
@@ -252,7 +267,11 @@ class Driver:
     def command(
         self, key: str, model: str | None = None, firmware: str | None = None
     ) -> CommandTemplate:
-        base = self.commands[key]
+        base = self.commands.get(key)
+        if base is None:
+            raise UnsupportedCommand(
+                f"Olterra todavía no sabe hacer '{key}' en las OLT {self.label or self.vendor}"
+            )
         for override in self.overrides:
             if (
                 override.key == key

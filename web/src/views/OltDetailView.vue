@@ -11,7 +11,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import PlanResult from '@/components/PlanResult.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { formatDateTime, timeAgo } from '@/lib/format'
-import { oltStatus, planStatus } from '@/lib/labels'
+import { oltBrand, oltStatus, oltWrites, planStatus } from '@/lib/labels'
 import { parseOnus, parsePons, TargetError } from '@/lib/targets'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
@@ -139,7 +139,8 @@ watch(waiting, (now, before) => {
           <StatusPill :tone="oltStatus(olt.data.value.status).tone">
             {{ oltStatus(olt.data.value.status).label }}
           </StatusPill>
-          <span>{{ olt.data.value.model ?? 'Modelo sin indicar' }}</span>
+          <span>{{ oltBrand(olt.data.value.driver) }}</span>
+          <span>· {{ olt.data.value.model ?? 'Modelo sin indicar' }}</span>
           <span v-if="olt.data.value.firmware">· {{ olt.data.value.firmware }}</span>
           <RouterLink
             v-if="can('audit:read')"
@@ -151,7 +152,7 @@ watch(waiting, (now, before) => {
       </template>
       <template #actions>
         <RouterLink
-          v-if="can('onu:write')"
+          v-if="can('onu:write') && oltWrites(olt.data.value.driver)"
           :to="{ name: 'olt-provision', params: { id } }"
           class="btn-primary"
         >
@@ -167,7 +168,11 @@ watch(waiting, (now, before) => {
             <Pencil class="size-4" />
             Editar
           </RouterLink>
-          <RouterLink :to="{ name: 'olt-password', params: { id } }" class="btn-secondary">
+          <RouterLink
+            v-if="oltWrites(olt.data.value.driver)"
+            :to="{ name: 'olt-password', params: { id } }"
+            class="btn-secondary"
+          >
             <KeyRound class="size-4" />
             Cambiar clave
           </RouterLink>

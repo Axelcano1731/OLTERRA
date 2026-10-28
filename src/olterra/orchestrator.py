@@ -8,34 +8,16 @@ su parser. Si el parser no reconoce la salida, el resultado lo dice; no adivina.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from olterra.drivers.base import Access, CommandCall, Driver, UnrecognizedOutput
-from olterra.drivers.vsol_gpon import parsers as vsol
-from olterra.drivers.vsol_gpon import provisioning as vsol_provisioning
+from olterra.drivers import get_driver
+from olterra.drivers.base import Access, CommandCall, Driver, Parser, UnrecognizedOutput
+from olterra.drivers.vsol_gpon import PARSERS
 from olterra.executor.plan import Credential, Plan, PlanResult, Priority, StepResult, Target
 from olterra.security.masking import redact
 from olterra.security.sealed import seal
-
-Parser = Callable[[str, dict[str, Any]], Any]
-
-PARSERS: dict[str, Parser] = {
-    "system.version": lambda text, params: vsol.parse_version(text),
-    "onu.list": lambda text, params: vsol.parse_onu_list(text, params.get("pon")),
-    "onu.autofind": lambda text, params: vsol.parse_autofind(text, params.get("pon")),
-    "onu.rx_power_all": lambda text, params: vsol.parse_rx_power(text, params.get("pon")),
-    "onu.optical": lambda text, params: vsol.parse_onu_optical(text),
-    "onu.state": lambda text, params: vsol.parse_onu_state(text, params.get("pon")),
-    "onu.distance": lambda text, params: vsol.parse_onu_distance(text),
-    "onu.description": lambda text, params: vsol.parse_onu_description(text),
-    "pon.statistics": lambda text, params: vsol.parse_pon_statistics(text),
-    "interfaces.brief": lambda text, params: vsol.parse_interfaces_brief(text),
-    "onu.capability": lambda text, params: vsol.parse_onu_capability(text),
-    # "Copiar una ONU": la plantilla y lo del cliente, sacados de su configuración.
-    "onu.service_config": lambda text, params: vsol_provisioning.parse_onu_running_config(text),
-}
 
 
 class PlanBuildError(ValueError):
@@ -208,10 +190,22 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+def parsers_for(driver_key: str) -> Mapping[str, Parser]:
+    """Los parsers de la marca de la OLT (VSOL si el driver no existe)."""
+    try:
+        return get_driver(driver_key).parsers
+    except KeyError:
+        return PARSERS
+
+
 def interpret(
-    calls: Sequence[dict[str, Any]], step_commands: Sequence[str], result: PlanResult
+    calls: Sequence[dict[str, Any]],
+    step_commands: Sequence[str],
+    result: PlanResult,
+    driver_key: str = "vsol-gpon",
 ) -> dict[str, Any]:
     """Resultado listo para guardar: salidas enmascaradas y, si hay parser, datos estructurados."""
+    parsers = parsers_for(driver_key)
     outputs = []
     for index, step in pair_outputs([c["command"] for c in calls], step_commands, result.steps):
         call = calls[index]
@@ -222,7 +216,7 @@ def interpret(
             "error": step.error,
             "output": redact(step.output) if step.output is not None else None,
         }
-        parser = PARSERS.get(call["key"])
+        parser = parsers.get(call["key"])
         if parser is not None and step.ok and step.output is not None:
             try:
                 entry["data"] = _jsonable(parser(step.output, call["params"]))

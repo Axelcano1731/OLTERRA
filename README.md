@@ -50,6 +50,7 @@ cd web; npm install; npm run dev      # http://localhost:5173
 | [ARQUITECTURA.md](docs/ARQUITECTURA.md) | El plan y las decisiones de implementación (Anexo A) | Diseño, stack, integraciones, despliegue |
 | [LABORATORIO.md](docs/LABORATORIO.md) | Protocolo de la fase 0: preparar la OLT, capturar, revisar, preguntas abiertas | Lo que se prueba en el laboratorio |
 | [DRIVERS_VSOL.md](docs/DRIVERS_VSOL.md) | Comandos, SNMP, capacidades por modelo y sus fuentes | Un comando, parser u OID |
+| [DRIVERS_HSGQ_BCD.md](docs/DRIVERS_HSGQ_BCD.md) | Drivers de solo lectura HSGQ-G008 y BCD-1508GS: comandos y diferencias | Un comando o parser de esas marcas |
 | [BASE_DATOS.md](docs/BASE_DATOS.md) | Roles, RLS, tablas, cómo sumar una tabla | Una migración |
 | [DESPLIEGUE.md](docs/DESPLIEGUE.md) | Producción: servidor, dominio, `./olterra.sh`, respaldos, túnel y seguridad | `deploy/produccion/`, imágenes, variables de producción |
 | [INTERFAZ.md](docs/INTERFAZ.md) | Pantallas, cómo habla con la API, sesión, seguridad y comandos de la interfaz | Una pantalla, un endpoint que usa, la sesión |

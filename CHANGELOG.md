@@ -14,6 +14,14 @@
 
 ### Agregado
 
+- OLT **HSGQ** (HSGQ-G008, V1.3.12C) y **BCD** (BCD-1508GS, V2.1.6, CLI tipo C-Data), de
+  solo lectura: consultas, monitoreo (estado y señal de cada ONU) y respaldos. Se elige con
+  **Marca** al agregar o editar la OLT (`driver` en la API; `/v1/olts/defaults` lista las
+  marcas y cuáles admiten escrituras). Aprovisionar y "Cambiar clave" no aparecen en esas
+  OLT y la API responde 400 si se piden. La HSGQ numera las ONU desde 0: Olterra le suma 1.
+  Capturas de las OLT de Tocaima con nombres de clientes reemplazados; ver
+  `docs/DRIVERS_HSGQ_BCD.md`. Cada driver trae sus parsers (`Driver.parsers`) y
+  `olterra-capture` arma la captura desde el catálogo de cualquier driver.
 - Acceso a la CLI de cada OLT por SSH o **Telnet** ("Acceso a la CLI" al agregar o editar la
   OLT; migración `0011`). Para las VSOL que no aceptan a los usuarios de la CLI por SSH, como
   la de 8 PON de Tocaima. El ejecutor entra por Telnet (negociación, `Login:`/`Password:` y

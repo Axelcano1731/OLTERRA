@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 
-from olterra.drivers import get_driver
-from olterra.orchestrator import PARSERS
+from olterra.drivers import DRIVERS, get_driver
+from olterra.orchestrator import parsers_for
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -38,9 +38,10 @@ def _load(path: Path) -> dict[str, Any]:
 )
 def test_parsers_recognize_lab_captures(manifest: Path) -> None:
     data = _load(manifest)
+    parsers = parsers_for(data["driver"])
     checked = 0
     for entry in data["commands"]:
-        parser = PARSERS.get(entry["key"])
+        parser = parsers.get(entry["key"])
         if parser is None or not entry["ok"] or not entry.get("file"):
             continue
         text = (manifest.parent / entry["file"]).read_text(encoding="utf-8")
@@ -57,16 +58,25 @@ def test_verified_commands_have_lab_evidence() -> None:
         for entry in data["commands"]
         if entry["ok"]
     }
-    driver = get_driver("vsol-gpon")
     unbacked = [
-        c.key
+        f"{driver.key}:{c.key}"
+        for driver in DRIVERS.values()
         for c in driver.commands.values()
         if c.verified and (driver.key, c.key) not in evidence
     ]
     assert not unbacked, f"Marcados como verificados sin captura que los respalde: {unbacked}"
 
 
-def test_driver_doc_lists_every_command() -> None:
-    doc = (ROOT / "docs" / "DRIVERS_VSOL.md").read_text(encoding="utf-8")
-    missing = [key for key in get_driver("vsol-gpon").commands if f"`{key}`" not in doc]
-    assert not missing, f"Falta documentar en docs/DRIVERS_VSOL.md: {missing}"
+DRIVER_DOCS = {
+    "vsol-gpon": "DRIVERS_VSOL.md",
+    "hsgq-gpon": "DRIVERS_HSGQ_BCD.md",
+    "bcd-gpon": "DRIVERS_HSGQ_BCD.md",
+}
+
+
+@pytest.mark.parametrize("driver_key", sorted(DRIVERS))
+def test_driver_doc_lists_every_command(driver_key: str) -> None:
+    name = DRIVER_DOCS[driver_key]
+    doc = (ROOT / "docs" / name).read_text(encoding="utf-8")
+    missing = [key for key in get_driver(driver_key).commands if f"`{key}`" not in doc]
+    assert not missing, f"Falta documentar en docs/{name}: {missing}"

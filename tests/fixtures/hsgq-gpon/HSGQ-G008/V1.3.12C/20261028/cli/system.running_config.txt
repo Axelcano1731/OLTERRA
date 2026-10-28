@@ -1,0 +1,192 @@
+Current configuration:
+!
+hostname "OLT_3"
+!! easymode disable
+!TR069 Config Profile
+!!
+!ONT Traffic Config Profile
+!!
+ont-lineprofile gpon profile-id 0 profile-name "INTERNET"
+ tcont 1 dba-profile-id 3
+ gem add 1 tcont 1
+ gem mapping 1 0 vlan 117
+ gem mapping 1 1 vlan 119
+ gem mapping 1 2 vlan 121
+ gem mapping 1 3 vlan 123
+ gem mapping 1 4 vlan 105
+ commit
+ exit
+ont-srvprofile gpon profile-id 0 profile-name "srvprofile_default_0"
+ ont-port eth adaptive
+ igmp-version v2
+ commit
+ exit
+!Voice Config Profile
+!!
+!!GPON Configuration
+ont autofind no-aging
+interface gpon 1
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_045"
+ont add 0 sn-auth 47504F4E21FDE8EC omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 0 name "CLIENTE_025"
+ont add 1 sn-auth 47504F4EB560A45F omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 1 name "CLIENTE_018"
+ont add 2 sn-auth 47504F4E9B09E4AE omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont add 3 sn-auth 47504F4E61AF5B86 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 3 name "CLIENTE_021"
+ont add 4 sn-auth 47504F4E12992B97 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 4 name "CLIENTE_022"
+ont add 5 sn-auth 47504F4E65BDC8B0 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 5 name "CLIENTE_010"
+ont add 7 sn-auth 47504F4E497F9921 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 7 name "CLIENTE_024"
+ont add 9 sn-auth 47504F4EF7AD200E omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 9 name "CLIENTE_026"
+ont add 11 sn-auth 47504F4E2A2B9560 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 11 name "CLIENTE_044"
+ont add 15 sn-auth 47504F4E9E7E2B10 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 15 name "CLIENTE_023"
+ont add 16 sn-auth 47504F4EB2C4A7EB omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 16 name "CLIENTE_033"
+exit
+interface gpon 2
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_046"
+ont add 0 sn-auth 47504F4E6AEA3BA6 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 0 name "CLIENTE_019"
+ont add 1 sn-auth 47504F4E3C72A869 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 1 name "CLIENTE_040"
+ont add 2 sn-auth 47504F4E00D147DD omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 2 name "CLIENTE_009"
+exit
+interface gpon 3
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_047"
+ont add 0 sn-auth 47504F4ED2FAD2BF omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 0 name "CLIENTE_014"
+ont add 1 sn-auth 47504F4E296E4AF3 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 1 name "CLIENTE_036"
+ont add 2 sn-auth 47504F4EA66AFC8D omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 2 name "CLIENTE_027"
+ont add 3 sn-auth 47504F4EBCDCFCFD omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 3 name "CLIENTE_053"
+ont add 4 sn-auth 47504F4E60B50FB6 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 4 name "CLIENTE_034"
+ont add 5 sn-auth 47504F4E1AE48E78 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 5 name "CLIENTE_035"
+ont add 6 sn-auth 47504F4EF851AA2F omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 6 name "CLIENTE_037"
+ont add 7 sn-auth 47504F4E90B74ABA omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 7 name "CLIENTE_002"
+ont add 8 sn-auth 47504F4EF3277564 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 8 name "CLIENTE_031"
+ont add 9 sn-auth 47504F4E9690A412 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 9 name "CLIENTE_041"
+ont add 10 sn-auth 47504F4E585A7285 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 10 name "CLIENTE_032"
+ont add 11 sn-auth 47504F4E5F90CA2A omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 11 name "CLIENTE_001"
+ont add 12 sn-auth 47504F4E8DB5BA0F omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 12 name "CLIENTE_004"
+ont add 13 sn-auth 47504F4E01637BF7 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 13 name "CLIENTE_003"
+ont add 14 sn-auth 47504F4E1CC63F8A omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 14 name "CLIENTE_015"
+ont add 15 sn-auth 47504F4EB3D84FD5 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 15 name "CLIENTE_006"
+ont add 16 sn-auth 47504F4E2F22B034 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 16 name "CLIENTE_016"
+ont add 17 sn-auth 47504F4E7863090B omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 17 name "CLIENTE_028"
+ont add 18 sn-auth 56534F4C9E7816CB omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 18 name "CLIENTE_030"
+ont add 19 sn-auth 47504F4EE7258821 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 19 name "CLIENTE_013"
+ont add 20 sn-auth 47504F4EAD93E51C omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 20 name "CLIENTE_011"
+ont add 21 sn-auth 47504F4EA56D3795 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 21 name "CLIENTE_029"
+ont add 22 sn-auth 47504F4E5A545F86 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 22 name "CLIENTE_012"
+ont add 23 sn-auth 47504F4EB61956B1 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 23 name "CLIENTE_008"
+ont add 24 sn-auth 47504F4E9602A935 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 24 name "CLIENTE_007"
+ont add 25 sn-auth 47504F4E3B303323 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 25 name "CLIENTE_005"
+ont add 26 sn-auth 47504F4E1A665520 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 26 name "CLIENTE_029"
+ont add 27 sn-auth 47504F4ECBB6CC2D omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 27 name "CLIENTE_039"
+ont add 28 sn-auth 47504F4EB8160EBA omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 28 name "CLIENTE_043"
+ont add 29 sn-auth 47504F4E4E57FC13 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 29 name "CLIENTE_054"
+ont add 30 sn-auth 47504F4E30C53148 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 30 name "CLIENTE_013"
+ont add 31 sn-auth 47504F4ED9163732 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 31 name "CLIENTE_017"
+ont add 32 sn-auth 47504F4E05A9F6E0 omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 32 name "CLIENTE_042"
+exit
+interface gpon 4
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_048"
+exit
+interface gpon 5
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_049"
+ont add 0 sn-auth 47504F4E7A6A0CFA omci ont-lineprofile-id 0 ont-srvprofile-id 0
+ont setting 0 name "CLIENTE_020"
+exit
+interface gpon 6
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_050"
+exit
+interface gpon 7
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_051"
+exit
+interface gpon 8
+port ont-autofind enable
+rogue-ont auto-detect state enable
+splitter add 1 parent 0 name "CLIENTE_055" desc "CLIENTE_052"
+exit
+vlan standard 1,105,117,119,121,123,300
+exit
+vlan 300 name "GESTION"
+interface ge 2
+vlan mode trunk
+vlan trunk 105,117,119,121,123,300
+exit
+auto-service-port port 1 transparent default-vlan 117
+auto-service-port port 2 transparent default-vlan 117
+auto-service-port port 3 transparent default-vlan 119
+auto-service-port port 4 transparent default-vlan 121
+auto-service-port port 5 transparent default-vlan 121
+!! ip route enable
+!!Acl configuration
+!!Packet filter configuration
+!!Acl & Qos configuration
+!
+!
+interface manage
+ifconfig 192.168.100.1 netmask 255.255.255.0
+exit
+interface vlanif 1
+ifconfig 192.168.99.1 netmask 255.255.255.0
+!!ifconfig sub dhcp
+exit
+interface vlanif 300
+ifconfig 172.17.1.2 netmask 255.255.255.0
+exit
+!
+end

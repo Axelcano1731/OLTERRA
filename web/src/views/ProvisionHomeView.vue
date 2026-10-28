@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Server } from '@lucide/vue'
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { listOlts } from '@/api'
@@ -8,11 +8,17 @@ import AlertBox from '@/components/AlertBox.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { oltWrites } from '@/lib/labels'
 import { useAsync } from '@/lib/useAsync'
 
 // "Aprovisionar" del menú: con una sola OLT entra directo; con varias, se elige.
 const router = useRouter()
-const olts = useAsync(listOlts)
+const all = useAsync(listOlts)
+// Las OLT de marcas de solo lectura todavía no se aprovisionan desde Olterra.
+const olts = {
+  ...all,
+  data: computed(() => all.data.value?.filter((olt) => oltWrites(olt.driver))),
+}
 
 watch(
   () => olts.data.value,
