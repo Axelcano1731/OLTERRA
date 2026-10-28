@@ -76,7 +76,11 @@ autorizar) y con una ONU con atenuador (potencia baja). Así quedan muestras de 
 2. Copiar la carpeta revisada a `tests/fixtures/vsol-gpon/<modelo>/<firmware>/<fecha>/`.
 3. `pytest tests/unit/test_fixtures.py`: si un parser no reconoce la salida, falla y muestra
    cuál. Corregir el parser con esa salida como caso.
-4. Marcar `verified=True` en los comandos respaldados y actualizar DRIVERS_VSOL.md.
+4. Marcar `verified=True` en los comandos respaldados y actualizar DRIVERS_VSOL.md (o
+   DRIVERS_HSGQ_BCD.md). Con otra marca: `olterra-capture --driver hsgq-gpon|bcd-gpon`; sus
+   capturas llevan nombres de clientes en la configuración y en las tablas de ONU, que hay que
+   reemplazar a mano antes de copiarlas a `tests/fixtures` (el anonimizador solo cambia
+   seriales y MAC).
 
 ## 4. Preguntas que el laboratorio responde
 

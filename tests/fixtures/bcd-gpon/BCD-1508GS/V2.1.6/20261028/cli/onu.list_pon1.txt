@@ -1,0 +1,50 @@
+-----------------------------------------------------------------------------
+  Port  ONT   SN            Control   Run      Config   Match
+        ID                  flag      state    state    state
+ ----------------------------------------------------------------------------
+  1     1     GPONB1A801A2  Active    Online   Success  Match
+  1     2     GPON0B301264  Active    Online   Success  Mismatch
+  1     3     GPON7DE5E754  Active    Online   Success  Match
+  1     4     GPON849149F6  Active    Offline  Initial  Initial
+  1     5     GPON337AA508  Active    Online   Success  Match
+  1     6     GPON17398903  Active    Online   Success  Match
+  1     7     GPON382DC93D  Active    Online   Success  Mismatch
+  1     8     GPONF2A70A98  Active    Online   Success  Match
+  1     9     VSOL8ACFF945  Active    Online   Success  Mismatch
+  1     10    GPON47A6591A  Active    Online   Success  Match
+  1     11    GPON6A9448CB  Active    Online   Success  Match
+  1     12    VSOLB5D28517  Active    Online   Success  Mismatch
+  1     13    VSOL8D0CD11F  Active    Online   Success  Mismatch
+  1     14    VSOL0455550C  Active    Online   Success  Mismatch
+  1     15    GPONC922CFF9  Active    Online   Success  Mismatch
+  1     16    GPONB7DB790B  Active    Offline  Initial  Initial
+  1     17    GPON2960DE68  Active    Online   Success  Match
+  1     18    GPON162CF8FA  Active    Offline  Initial  Initial
+  1     19    GPON51864547  Active    Online   Success  Match
+  1     20    GPONCEE03557  Active    Online   Success  Match
+  1     100   GPON77E20B47  Active    Online   Success  Match
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  1     1    CLIENTE_083
+  1     2    CLIENTE_034
+  1     3    CLIENTE_062
+  1     4    CLIENTE_022
+  1     5    CLIENTE_018
+  1     6    CLIENTE_070
+  1     7    CLIENTE_027
+  1     8    CLIENTE_063
+  1     9    CLIENTE_060
+  1     10   CLIENTE_032
+  1     11   CLIENTE_040
+  1     12   CLIENTE_023
+  1     13   CLIENTE_011
+  1     14   CLIENTE_019
+  1     15   CLIENTE_048
+  1     16   CLIENTE_043
+  1     17   CLIENTE_064
+  1     20   CLIENTE_066
+  1     100  CLIENTE_009
+-----------------------------------------------------------------------------
+  Total: 21, online: 18

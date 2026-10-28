@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from olterra.api.deps import State, Tenant
 from olterra.api.schemas import (
     CommandOut,
+    DriverOption,
     OltCreate,
     OltCreated,
     OltDefaults,
@@ -30,10 +31,10 @@ from olterra.db.models import Credential as CredentialRow
 from olterra.db.models import Olt, PlanRun, TunnelRouter
 from olterra.db.models import Tenant as TenantRow
 from olterra.db.session import tenant_session
-from olterra.drivers import get_driver
+from olterra.drivers import DRIVERS, get_driver
 from olterra.drivers.base import Access, CliMode, CommandCall, CommandTemplate
 from olterra.executor.plan import Credential, Plan, Priority, Target
-from olterra.orchestrator import PARSERS, build_read_plan
+from olterra.orchestrator import build_read_plan
 from olterra.security.vault import Vault
 
 router = APIRouter(prefix="/v1/olts", tags=["OLT"])
@@ -73,7 +74,19 @@ async def olt_defaults(ctx: Tenant, state: State) -> OltDefaults:
     ctx.require("olt:read")
     settings = state.settings
     configured = settings.vsol_default_password is not None
-    return OltDefaults(username=settings.vsol_default_username, password_configured=configured)
+    drivers = [
+        DriverOption(
+            key=driver.key,
+            label=driver.label or driver.vendor,
+            writes=any(c.access is not Access.READ for c in driver.commands.values()),
+        )
+        for driver in DRIVERS.values()
+    ]
+    return OltDefaults(
+        username=settings.vsol_default_username,
+        password_configured=configured,
+        drivers=drivers,
+    )
 
 
 @router.get("", response_model=list[OltOut])
@@ -98,6 +111,9 @@ def _login(body: OltCreate, state: State) -> tuple[str, SecretStr, bool]:
         if not body.username:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Falta el usuario de la OLT")
         return body.username, password, False
+    if body.driver != "vsol-gpon":
+        # Las credenciales de fábrica del servidor son las de VSOL.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Falta el usuario y la clave de la OLT")
     if settings.vsol_default_password is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -136,6 +152,7 @@ async def create_olt(body: OltCreate, ctx: Tenant, state: State) -> OltCreated:
             olt = Olt(
                 tenant_id=ctx.tenant_id,
                 name=body.name,
+                driver=body.driver,
                 model=body.model,
                 firmware=body.firmware,
                 ssh_port=body.ssh_port,
@@ -247,6 +264,7 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
     async with ctx.session() as session:
         olt = await _get_olt(session, olt_id)
         before = {
+            "driver": olt.driver,
             "model": olt.model,
             "firmware": olt.firmware,
             "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
@@ -255,6 +273,8 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
             "cli_protocol": olt.cli_protocol,
             "telnet_port": olt.telnet_port,
         }
+        if body.driver is not None:
+            olt.driver = body.driver
         if "model" in changes:
             olt.model = (body.model or "").strip() or None
         if "firmware" in changes:
@@ -308,6 +328,7 @@ async def update_olt(olt_id: UUID, body: OltUpdate, ctx: Tenant, state: State) -
             before=before,
             # De las credenciales solo se anota cuáles cambiaron, nunca su valor.
             after={
+                "driver": olt.driver,
                 "model": olt.model,
                 "firmware": olt.firmware,
                 "real_ip": str(olt.real_ip).split("/")[0] if olt.real_ip else None,
@@ -399,7 +420,7 @@ async def list_commands(olt_id: UUID, ctx: Tenant) -> list[CommandOut]:
                     command=template.template,
                     scope=scope,
                     verified=template.verified,
-                    parsed=template.key in PARSERS,
+                    parsed=template.key in driver.parsers,
                     notes=template.notes,
                 )
             )

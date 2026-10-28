@@ -54,6 +54,8 @@ export type CliProtocol = 'ssh' | 'telnet'
 
 export interface OltCreate {
   name: string
+  /** Marca: vsol-gpon (por omisión), hsgq-gpon o bcd-gpon. */
+  driver?: string
   model?: string
   firmware?: string
   router_id?: string
@@ -76,13 +78,22 @@ export interface OltCreated extends Olt {
   used_default_credentials: boolean
 }
 
+export interface DriverOption {
+  key: string
+  label: string
+  /** Si Olterra sabe aprovisionar y cambiar cosas en esta marca (si no, solo lee). */
+  writes: boolean
+}
+
 export interface OltDefaults {
   username: string
   password_configured: boolean
+  drivers: DriverOption[]
 }
 
 /** Solo lo que cambia. En enable y comunidad SNMP, una cadena vacía la quita. */
 export interface OltUpdate {
+  driver?: string
   model?: string
   firmware?: string
   real_ip?: string

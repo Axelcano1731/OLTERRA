@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import { actorLabel, planStatus } from './labels'
+import { actorLabel, oltBrand, oltWrites, planStatus } from './labels'
 
 describe('labels', () => {
   it('muestra el actor de la bitácora en palabras', () => {
     expect(actorLabel('llave:local')).toBe('Llave local')
     expect(actorLabel('llave:a:b')).toBe('Llave a:b')
     expect(actorLabel('sistema')).toBe('sistema')
+  })
+
+  it('solo VSOL se aprovisiona; las demás marcas se muestran con su nombre', () => {
+    expect(oltBrand('hsgq-gpon')).toBe('HSGQ')
+    expect(oltBrand('otra')).toBe('otra')
+    expect(oltWrites('vsol-gpon')).toBe(true)
+    expect(oltWrites('bcd-gpon')).toBe(false)
   })
 
   it('un estado de plan desconocido se muestra tal cual', () => {

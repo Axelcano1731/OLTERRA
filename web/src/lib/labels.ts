@@ -23,6 +23,22 @@ export function oltStatus(status: string): { label: string; tone: Tone } {
   return { label: status, tone: 'neutral' }
 }
 
+// Reflejo de olterra.drivers.DRIVERS (/v1/olts/defaults trae la lista con `writes`).
+const BRANDS: Record<string, string> = {
+  'vsol-gpon': 'VSOL',
+  'hsgq-gpon': 'HSGQ',
+  'bcd-gpon': 'BCD',
+}
+
+export function oltBrand(driver: string): string {
+  return BRANDS[driver] ?? driver
+}
+
+/** Aprovisionar y cambiar la clave solo existen para VSOL; las demás marcas son de solo lectura. */
+export function oltWrites(driver: string): boolean {
+  return driver === 'vsol-gpon'
+}
+
 export const JOB_STATUS: Record<ProvisionJob['status'], { label: string; tone: Tone }> = {
   running: { label: 'En curso', tone: 'accent' },
   done: { label: 'Listo', tone: 'success' },

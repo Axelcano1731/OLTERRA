@@ -43,7 +43,7 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `api_keys` | Llaves de API (solo el SHA-256 del secreto) | leer; actualizar `last_used_at` |
 | `credentials` | Credenciales cifradas con la DEK (AAD = tenant + `credential:<id>`) | leer, crear, cambiar, borrar |
 | `tunnel_routers` | MikroTik del ISP en el túnel: IP del overlay y su transporte, con la llave pública WireGuard (RouterOS 7) o el usuario SSTP (RouterOS 6). Las claves privadas no se guardan | leer, crear, cambiar, borrar |
-| `olts` | OLT: driver, modelo, firmware, IP real, IP NAT única, credencial, llave SSH fijada, capacidades, ubicación (PostGIS) y por dónde se entra a la CLI (`cli_protocol` `ssh`/`telnet`, `telnet_port`) | leer, crear, cambiar, borrar |
+| `olts` | OLT: driver (`vsol-gpon`, `hsgq-gpon`, `bcd-gpon`; texto validado por la API), modelo, firmware, IP real, IP NAT única, credencial, llave SSH fijada, capacidades, ubicación (PostGIS) y por dónde se entra a la CLI (`cli_protocol` `ssh`/`telnet`, `telnet_port`) | leer, crear, cambiar, borrar |
 | `onus` | ONU por OLT/PON/índice: serial, fase, potencias, distancia, cliente | leer, crear, cambiar, borrar |
 | `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas). Índice por OLT para el historial de consultas | leer, crear, cambiar, borrar |
 | `provision_templates` | Plantillas de aprovisionamiento de ONU (`body` = perfiles, T-CONT, GEM, VLAN, WAN PPPoE, WiFi, gestión remota). Nada de un cliente. Las claves de las cuentas de la ONU van en `secrets`, cifradas con la DEK del tenant (AAD `provision_template:<id>`); la API solo dice si están guardadas | leer, crear, cambiar, borrar |

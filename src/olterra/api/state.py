@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from olterra.config import Settings
 from olterra.db.models import AuditLog, Olt, PlanRun, TenantKey
 from olterra.db.session import tenant_session
+from olterra.drivers import DRIVERS
 from olterra.executor.plan import Plan, PlanResult
 from olterra.orchestrator import interpret
 from olterra.security.vault import Vault
@@ -72,13 +73,14 @@ class AppState:
             if run is None:
                 log.warning("Resultado de un plan desconocido: %s", result.plan_id)
                 return
+            olt = await session.get(Olt, result.olt_id)
+            driver_key = olt.driver if olt is not None else "vsol-gpon"
             run.result = json.loads(
-                json.dumps(interpret(run.calls, run.commands, result), default=str)
+                json.dumps(interpret(run.calls, run.commands, result, driver_key), default=str)
             )
             run.status = result.status
             run.finished_at = datetime.now(UTC)
             status = olt_status_after(result)
-            olt = await session.get(Olt, result.olt_id)
             if status is not None and olt is not None:
                 olt.status = status
                 if status == "online":
@@ -89,12 +91,20 @@ class AppState:
                 if output.get("key") == "interfaces.brief" and isinstance(data, dict):
                     pons = data.get("pons") or []
                     if olt is not None and pons:
-                        olt.pon_ports = max(pons)
+                        olt.pon_ports = max(*pons, pon_count(olt) or 0)
         for hook in self.result_hooks:
             try:
                 await hook(result)
             except Exception:
                 log.exception("Falló un paso posterior al resultado del plan %s", result.plan_id)
+
+
+def pon_count(olt: Olt) -> int | None:
+    """Los PON que trae el modelo, si la marca lo sabe por el nombre del modelo."""
+    driver = DRIVERS.get(olt.driver)
+    if driver is None or driver.pon_count is None:
+        return None
+    return driver.pon_count(olt.model)
 
 
 def olt_status_after(result: PlanResult) -> str | None:

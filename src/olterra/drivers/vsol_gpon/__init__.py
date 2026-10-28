@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from olterra.drivers.base import Driver
+from olterra.drivers.base import Driver, Parser
+from olterra.drivers.vsol_gpon import parsers as vsol
+from olterra.drivers.vsol_gpon import provisioning as vsol_provisioning
 from olterra.drivers.vsol_gpon.capabilities import RULES
 from olterra.drivers.vsol_gpon.commands import COMMANDS, OVERRIDES
 from olterra.executor.plan import SessionProfile
@@ -38,6 +40,22 @@ SESSION = SessionProfile(
     error_patterns=ERRORS,
 )
 
+PARSERS: dict[str, Parser] = {
+    "system.version": lambda text, params: vsol.parse_version(text),
+    "onu.list": lambda text, params: vsol.parse_onu_list(text, params.get("pon")),
+    "onu.autofind": lambda text, params: vsol.parse_autofind(text, params.get("pon")),
+    "onu.rx_power_all": lambda text, params: vsol.parse_rx_power(text, params.get("pon")),
+    "onu.optical": lambda text, params: vsol.parse_onu_optical(text),
+    "onu.state": lambda text, params: vsol.parse_onu_state(text, params.get("pon")),
+    "onu.distance": lambda text, params: vsol.parse_onu_distance(text),
+    "onu.description": lambda text, params: vsol.parse_onu_description(text),
+    "pon.statistics": lambda text, params: vsol.parse_pon_statistics(text),
+    "interfaces.brief": lambda text, params: vsol.parse_interfaces_brief(text),
+    "onu.capability": lambda text, params: vsol.parse_onu_capability(text),
+    # "Copiar una ONU": la plantilla y lo del cliente, sacados de su configuración.
+    "onu.service_config": lambda text, params: vsol_provisioning.parse_onu_running_config(text),
+}
+
 VSOL_GPON = Driver(
     key="vsol-gpon",
     vendor="VSOL",
@@ -46,4 +64,6 @@ VSOL_GPON = Driver(
     commands=COMMANDS,
     overrides=OVERRIDES,
     capability_rules=RULES,
+    parsers=PARSERS,
+    label="VSOL GPON",
 )

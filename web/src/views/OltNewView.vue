@@ -10,7 +10,11 @@ import { errorText, useAsync } from '@/lib/useAsync'
 
 // Sugerencias escritas como las muestra la web de la OLT; se puede escribir cualquier otro. El
 // driver compara sin guiones, así que V1600G1-B y V1600G1B son el mismo (drivers/base.py).
-const KNOWN_MODELS = ['V1600G0-B', 'V1600G1', 'V1600G1-B', 'V1600G2', 'V1600GS']
+const KNOWN_MODELS: Record<string, string[]> = {
+  'vsol-gpon': ['V1600G0-B', 'V1600G1', 'V1600G1-B', 'V1600G2', 'V1600GS'],
+  'hsgq-gpon': ['HSGQ-G008'],
+  'bcd-gpon': ['BCD-1508GS'],
+}
 
 const NAME = /^[A-Za-z0-9_.-]{1,32}$/
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
@@ -18,13 +22,16 @@ const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]
 const router = useRouter()
 const routers = useAsync(listRouters)
 const defaults = useAsync(getOltDefaults)
-const factory = computed(() => defaults.data.value?.password_configured === true)
+const drivers = computed(
+  () => defaults.data.value?.drivers ?? [{ key: 'vsol-gpon', label: 'VSOL GPON', writes: true }],
+)
 
 // Función con tipo de retorno: así el formulario admite 'ssh' y 'telnet', no solo 'ssh'.
 const defaultProtocol = (): CliProtocol => 'ssh'
 
 const form = reactive({
   name: '',
+  driver: 'vsol-gpon',
   model: '',
   firmware: '',
   routerId: '',
@@ -40,6 +47,13 @@ const form = reactive({
   latitude: '',
   longitude: '',
 })
+
+// La clave de fábrica del servidor es la de VSOL: en otra marca van usuario y clave.
+const factory = computed(
+  () => defaults.data.value?.password_configured === true && form.driver === 'vsol-gpon',
+)
+const readOnly = computed(() => drivers.value.find((d) => d.key === form.driver)?.writes === false)
+const models = computed(() => KNOWN_MODELS[form.driver] ?? [])
 
 const submitted = ref(false)
 const busy = ref(false)
@@ -89,6 +103,7 @@ function body(): OltCreate {
   const optional = (text: string) => text.trim() || undefined
   return {
     name: form.name.trim(),
+    driver: form.driver,
     model: optional(form.model),
     firmware: optional(form.firmware),
     router_id: form.routerId || undefined,
@@ -137,7 +152,7 @@ async function submit(): Promise<void> {
   <form class="space-y-6" novalidate @submit.prevent="submit">
     <section class="card p-5 sm:p-6">
       <h2 class="font-semibold">Equipo</h2>
-      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <label for="name" class="label">Nombre</label>
           <input
@@ -151,16 +166,27 @@ async function submit(): Promise<void> {
           <p v-if="show('name')" class="hint text-danger">{{ show('name') }}</p>
         </div>
         <div>
+          <label for="driver" class="label">Marca</label>
+          <select id="driver" v-model="form.driver" class="input">
+            <option v-for="item in drivers" :key="item.key" :value="item.key">
+              {{ item.label }}
+            </option>
+          </select>
+          <p v-if="readOnly" class="hint">
+            Solo consultas, monitoreo y respaldos: aprovisionar todavía no existe en esta marca.
+          </p>
+        </div>
+        <div>
           <label for="model" class="label">Modelo</label>
           <input
             id="model"
             v-model="form.model"
             class="input"
             list="models"
-            placeholder="V1600G0-B"
+            :placeholder="models[0] ?? ''"
           />
           <datalist id="models">
-            <option v-for="model in KNOWN_MODELS" :key="model" :value="model" />
+            <option v-for="model in models" :key="model" :value="model" />
           </datalist>
           <p class="hint">
             Escríbelo como sale en la web de la OLT (Device Model); puede ser cualquiera.

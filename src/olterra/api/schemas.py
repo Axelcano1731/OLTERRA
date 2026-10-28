@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
+from olterra.drivers import DRIVERS
 from olterra.drivers.vsol_gpon.provisioning import TemplateBody, check_cli_secret
 from olterra.identifiers import normalize_gpon_serial
 
@@ -21,8 +22,15 @@ def _ip_text(value: Any) -> str | None:
 CliProtocol = Literal["ssh", "telnet"]
 
 
+def _known_driver(value: str | None) -> str | None:
+    if value is not None and value not in DRIVERS:
+        raise ValueError(f"Marca de OLT desconocida: {value} (hay {', '.join(sorted(DRIVERS))})")
+    return value
+
+
 class OltCreate(BaseModel):
     name: str = Field(pattern=r"^[A-Za-z0-9_.\-]{1,32}$")
+    driver: str = Field("vsol-gpon", description="Marca de la OLT: vsol-gpon, hsgq-gpon o bcd-gpon")
     model: str | None = None
     firmware: str | None = None
     router_id: UUID | None = Field(None, description="Router del túnel detrás del cual está la OLT")
@@ -50,17 +58,28 @@ class OltCreate(BaseModel):
     latitude: float | None = Field(None, ge=-90, le=90)
     longitude: float | None = Field(None, ge=-180, le=180)
 
+    _driver = field_validator("driver")(_known_driver)
+
+
+class DriverOption(BaseModel):
+    key: str
+    label: str
+    writes: bool = Field(description="Si Olterra sabe aprovisionar y cambiar cosas en esta marca")
+
 
 class OltDefaults(BaseModel):
-    """Lo que la interfaz necesita saber de las credenciales de fábrica (nunca la clave)."""
+    """Lo que la interfaz necesita para crear una OLT: credenciales de fábrica (nunca la
+    clave) y las marcas que Olterra conoce."""
 
     username: str
     password_configured: bool
+    drivers: list[DriverOption] = []
 
 
 class OltUpdate(BaseModel):
     """Cambia solo lo que viene. En las claves de enable y SNMP, una cadena vacía la quita."""
 
+    driver: str | None = None
     model: str | None = None
     firmware: str | None = None
     real_ip: IPv4Address | None = Field(None, description="IP de la OLT en la red del ISP")
@@ -72,6 +91,8 @@ class OltUpdate(BaseModel):
     password: SecretStr | None = Field(None, min_length=1)
     enable_password: SecretStr | None = None
     snmp_community: SecretStr | None = None
+
+    _driver = field_validator("driver")(_known_driver)
 
 
 class OltOut(BaseModel):

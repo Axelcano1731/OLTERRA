@@ -30,33 +30,12 @@ from olterra.capture.anonymize import Anonymizer
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall, CommandTemplate, Driver, UnrecognizedOutput
 from olterra.drivers.vsol_gpon import snmp as vsol_snmp
-from olterra.drivers.vsol_gpon.parsers import parse_version
 from olterra.executor.plan import Credential, Plan, PlanResult, Priority, SnmpWalk, Target
 from olterra.executor.runner import PlanRunner
 from olterra.orchestrator import pair_outputs
 from olterra.security.masking import redact
 
 PROFILE_KINDS = ("onu", "dba", "traffic", "line", "srv")
-PON_KEYS = (
-    "mac.by_pon",
-    "pon.info",
-    "pon.optical",
-    "pon.statistics",
-    "onu.autolearn",
-    "onu.autofind",
-    "onu.autofind_detail",
-    "onu.list",
-    "onu.rx_power_all",
-    "onu.state",
-)
-ONU_KEYS = (
-    "onu.detail",
-    "onu.optical",
-    "onu.capability",
-    "onu.service_config",
-    "onu.description",
-    "onu.distance",
-)
 SNMP_WALKS = {
     "sysDescr": vsol_snmp.SYS_DESCR,
     "ifDescr": "1.3.6.1.2.1.2.2.1.2",
@@ -103,19 +82,25 @@ def plan_calls(
         return driver.command(key, model, firmware)
 
     calls: list[CaptureCall] = []
+    per_pon: list[CommandTemplate] = []
+    per_onu: list[CommandTemplate] = []
     for base in driver.read_only_catalog():
         placeholders = set(base.placeholders())
-        if base.mode.value != "pon" and not placeholders:
+        if "onu" in placeholders:
+            per_onu.append(base)
+        elif "pon" in placeholders or base.mode.value == "pon":
+            per_pon.append(base)
+        elif "kind" in placeholders:
+            calls += [CaptureCall(template(base.key), {"kind": kind}) for kind in PROFILE_KINDS]
+        elif not placeholders:
             calls.append(CaptureCall(template(base.key), {}))
-    for kind in PROFILE_KINDS:
-        calls.append(CaptureCall(template("profile.list"), {"kind": kind}))
     for pon in pons:
-        for key in PON_KEYS:
-            calls.append(CaptureCall(template(key), {"pon": pon}))
+        calls += [CaptureCall(template(base.key), {"pon": pon}) for base in per_pon]
         for onu_pon, onu in onus:
             if onu_pon == pon:
-                for key in ONU_KEYS:
-                    calls.append(CaptureCall(template(key), {"pon": pon, "onu": onu}))
+                calls += [
+                    CaptureCall(template(base.key), {"pon": pon, "onu": onu}) for base in per_onu
+                ]
     return calls
 
 
@@ -199,14 +184,17 @@ async def run_capture(args: argparse.Namespace, password: str, enable_password: 
         text = redact(text, secrets)
         return anonymizer.text(text) if anonymizer else text
 
-    version_text = next(
-        (r.output for c, r in pairs if c.template.key == "system.version" and r.output), ""
-    )
-    try:
-        version = parse_version(version_text)
-        model, firmware = version.model, version.firmware
-    except UnrecognizedOutput:
-        model = firmware = None
+    model = firmware = None
+    for key in ("system.version", "system.device"):
+        parser = driver.parsers.get(key)
+        text = next((r.output for c, r in pairs if c.template.key == key and r.output), None)
+        if parser is None or text is None:
+            continue
+        try:
+            version = parser(text, {})
+        except UnrecognizedOutput:
+            continue
+        model, firmware = model or version.model, firmware or version.firmware
     if snmp_result and not model:
         sys_descr = next((v.value for s in snmp_result.steps for v in (s.varbinds or [])), "")
         model = vsol_snmp.detect_model(sys_descr)

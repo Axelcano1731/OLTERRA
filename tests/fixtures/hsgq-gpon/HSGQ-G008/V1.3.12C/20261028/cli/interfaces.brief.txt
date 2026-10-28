@@ -1,0 +1,55 @@
+----------------------------------------------------------------------------------------------------
+PON/ONU  Serial            State     Run        Config    Match     Last Link         ONT
+         Number                      State      State     State     down reason       Name
+----------------------------------------------------------------------------------------------------
+1/0      GPON21FDE8EC      Active    Online     normal    Initial                     CLIENTE_025
+1/1      GPONB560A45F      Active    Online     normal    Initial                     CLIENTE_018
+1/2      GPON9B09E4AE      Active    Online     normal    Initial                     CLIENTE_038
+1/3      GPON61AF5B86      Active    Online     normal    Initial                     CLIENTE_021
+1/4      GPON12992B97      Active    Online     normal    Initial                     CLIENTE_022
+1/5      GPON65BDC8B0      Active    Online     normal    Initial                     CLIENTE_010
+1/7      GPON497F9921      Active    Online     normal    Initial                     CLIENTE_024
+1/9      GPONF7AD200E      Active    Online     normal    Initial                     CLIENTE_026
+1/11     GPON2A2B9560      Inactive  Initial    initial   Initial                     CLIENTE_044
+1/15     GPON9E7E2B10      Active    Online     normal    Initial                     CLIENTE_023
+1/16     GPONB2C4A7EB      Active    Online     normal    Initial                     CLIENTE_033
+2/0      GPON6AEA3BA6      Active    Online     normal    Initial                     CLIENTE_019
+2/1      GPON3C72A869      Active    Online     normal    Initial                     CLIENTE_040
+2/2      GPON00D147DD      Active    Online     normal    Initial                     CLIENTE_009
+3/0      GPOND2FAD2BF      Active    Online     normal    Initial                     CLIENTE_014
+3/1      GPON296E4AF3      Active    Online     normal    Initial                     CLIENTE_036
+3/2      GPONA66AFC8D      Inactive  Initial    initial   Initial                     CLIENTE_027
+3/3      GPONBCDCFCFD      Active    Online     normal    Initial                     CLIENTE_053
+3/4      GPON60B50FB6      Inactive  Initial    initial   Initial                     CLIENTE_034
+3/5      GPON1AE48E78      Active    Online     normal    Initial                     CLIENTE_035
+3/6      GPONF851AA2F      Active    Online     normal    Initial                     CLIENTE_037
+3/7      GPON90B74ABA      Inactive  Initial    initial   Initial                     CLIENTE_002
+3/8      GPONF3277564      Active    Online     normal    Initial                     CLIENTE_031
+3/9      GPON9690A412      Active    Online     normal    Initial                     CLIENTE_041
+3/10     GPON585A7285      Inactive  Initial    initial   Initial                     CLIENTE_032
+3/11     GPON5F90CA2A      Active    Online     normal    Initial                     CLIENTE_001
+3/12     GPON8DB5BA0F      Active    Online     normal    Initial                     CLIENTE_004
+3/13     GPON01637BF7      Active    Online     normal    Initial                     CLIENTE_003
+3/14     GPON1CC63F8A      Active    Online     normal    Initial                     CLIENTE_015
+3/15     GPONB3D84FD5      Active    Online     normal    Initial                     CLIENTE_006
+3/16     GPON2F22B034      Active    Online     normal    Initial                     CLIENTE_016
+3/17     GPON7863090B      Active    Online     normal    Initial                     CLIENTE_028
+3/18     VSOL9E7816CB      Inactive  Initial    initial   Initial                     CLIENTE_030
+3/19     GPONE7258821      Inactive  Initial    initial   Initial                     CLIENTE_013
+3/20     GPONAD93E51C      Active    Offline    initial   Initial   Power down        CLIENTE_011
+3/21     GPONA56D3795      Inactive  Initial    initial   Initial                     CLIENTE_029
+3/22     GPON5A545F86      Inactive  Initial    initial   Initial                     CLIENTE_012
+3/23     GPONB61956B1      Active    Online     normal    Initial                     CLIENTE_008
+3/24     GPON9602A935      Active    Offline    initial   Initial   Power down        CLIENTE_007
+3/25     GPON3B303323      Active    Online     normal    Initial                     CLIENTE_005
+3/26     GPON1A665520      Active    Online     normal    Initial                     CLIENTE_029
+3/27     GPONCBB6CC2D      Inactive  Initial    initial   Initial                     CLIENTE_039
+3/28     GPONB8160EBA      Active    Online     normal    Initial                     CLIENTE_043
+3/29     GPON4E57FC13      Active    Online     normal    Initial                     CLIENTE_054
+3/30     GPON30C53148      Active    Online     normal    Initial                     CLIENTE_013
+3/31     GPOND9163732      Active    Online     normal    Initial                     CLIENTE_017
+3/32     GPON05A9F6E0      Active    Online     normal    Initial                     CLIENTE_042
+5/0      GPON7A6A0CFA      Active    Online     normal    Initial                     CLIENTE_020
+----------------------------------------------------------------------------------------------------
+  Total: 48   Online:36  Offline:12
+----------------------------------------------------------------------------------------------------
