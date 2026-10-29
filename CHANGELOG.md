@@ -4,6 +4,12 @@
 
 ### Cambiado
 
+- El script del MikroTik agrega la plataforma al "Available From" del SSH también en
+  RouterOS 7.24, donde la opción se llama `available-from` y `/ip service` lista además las
+  conexiones activas (en Tocaima había que hacerlo a mano en Winbox). Si el SSH está abierto a
+  todos (`0.0.0.0/0`), no se toca.
+- El script del MikroTik redirige el 22 del túnel al puerto real de su SSH (Viotá lo tiene en
+  el 52225): ya no hay que configurar el puerto en Olterra ni saber cuál es.
 - El puerto SSH de un MikroTik se corrige en Túnel (**SSH → Cambiar**) sin rotarlo: el
   script ya importado sigue sirviendo (`PATCH /v1/tunnel/routers/{id}`). Pasó con Viotá, que
   tiene el SSH en el 2222.

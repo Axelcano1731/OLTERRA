@@ -150,7 +150,10 @@ def test_bootstrap_creates_the_api_user_only_for_the_server() -> None:
         f'/user add name=olterra-api group=olterra-api password="{password}"'
         ' address=198.18.0.2/32 comment="olterra-hub"'
     ) in script
-    assert '/ip service set $apisvc address=($csv . "198.18.0.2/32")' in script
+    assert (
+        ':local add [:parse ("/ip service set " . $apisvc . " " . $apisvcprop . "=" . $csv'
+        ' . "198.18.0.2/32")]'
+    ) in script
     assert (
         "chain=input in-interface=olterra-hub src-address=198.18.0.2 protocol=tcp"
         ' dst-port=$apiport action=accept comment="olterra-hub: API de Olterra"'

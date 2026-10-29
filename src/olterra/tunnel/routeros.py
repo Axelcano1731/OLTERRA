@@ -205,29 +205,57 @@ def _allow_service(s: _Script, service: str, allowed: str, var: str) -> None:
     """Deja el servicio ``service`` del router (``ssh``, ``api``) abierto para ``allowed``.
 
     Si estaba apagado se enciende solo para ``allowed``; si estaba limitado a ciertas IP, se le
-    agrega ``allowed``; si estaba abierto a todos, no se toca. La lista se arma elemento por
-    elemento ("a,b,"): según la versión, get devuelve un arreglo o un texto, y los dos se
-    recorren igual con :foreach. Deja el id del servicio en ``$<var>``.
+    agrega ``allowed``; si estaba abierto a todos (lista vacía o ``0.0.0.0/0``), no se toca.
+    Deja el id del servicio en ``$<var>``.
+
+    Lo que cambió en RouterOS 7.24 (probado en el CHR y en Tocaima, 2026-10-28):
+
+    - ``/ip service`` también lista cada conexión activa con el mismo nombre ("ssh" aparece
+      una vez por sesión abierta): ``find`` devuelve varios id y ``get`` falla. El servicio es
+      el primero.
+    - La lista de IP se llama ``available-from``; ``address`` queda como alias que devuelve
+      nil. En RouterOS 6 y los 7 anteriores solo existe ``address``. Por eso se lee y escribe
+      con ``:parse``: el nombre de la opción se decide al correr, y una opción que esa versión
+      no conoce falla dentro de un ``on-error`` en vez de cortar el script.
+    - La lista se arma elemento por elemento ("a,b,"): según la versión, get devuelve un
+      arreglo o un texto, y los dos se recorren igual con :foreach.
     """
-    s.add(f':local {var} [/ip service find where name="{service}"]')
+    prop, items = f"{var}prop", f"{var}list"
+    s.add(f':local {var} [:pick [/ip service find where name="{service}"] 0]')
+    s.add(f':local {prop} "address"')
+    s.add(f':local {items} ""')
+    s.add(
+        f':do {{ :local g [:parse (":return [/ip service get " . ${var} . " available-from]")];'
+        f' :local v [$g]; :if ([:typeof $v] != "nil") do={{ :set {items} $v;'
+        f' :set {prop} "available-from" }} }} on-error={{}}'
+    )
+    s.add(f':if (${prop} = "address") do={{ :set {items} [/ip service get ${var} address] }}')
     s.add(f":if ([/ip service get ${var} disabled]) do={{")
-    s.add(f"  /ip service set ${var} disabled=no address={allowed}")
+    s.add(
+        f'  :local on [:parse ("/ip service set " . ${var} . " disabled=no " . ${prop}'
+        f' . "={allowed}")]'
+    )
+    s.add("  $on")
     s.add(
         f'  :put "Olterra: el servicio {service} estaba apagado; quedo encendido solo para'
         f' {allowed}."'
     )
     s.add("} else={")
-    s.add(f"  :local allowed [/ip service get ${var} address]")
-    s.add("  :if ([:len $allowed] > 0) do={")
-    s.add('    :local csv ""')
-    s.add('    :foreach a in=$allowed do={ :set csv ($csv . $a . ",") }')
-    s.add(f'    :if ([:typeof [:find $csv "{allowed}"]] = "nil") do={{')
-    s.add(f'      :do {{ /ip service set ${var} address=($csv . "{allowed}") }} on-error={{')
+    s.add('  :local csv ""')
+    s.add(f'  :foreach a in=${items} do={{ :set csv ($csv . $a . ",") }}')
     s.add(
-        f'        :put "Olterra: el servicio {service} solo acepta algunas IP. Agregue {allowed} en'
+        f'  :if (([:len $csv] > 0) && ([:typeof [:find $csv "0.0.0.0/0"]] = "nil")'
+        f' && ([:typeof [:find $csv "{allowed}"]] = "nil")) do={{'
+    )
+    s.add(
+        f'    :local add [:parse ("/ip service set " . ${var} . " " . ${prop} . "=" . $csv'
+        f' . "{allowed}")]'
+    )
+    s.add("    :do { $add } on-error={")
+    s.add(
+        f'      :put "Olterra: el servicio {service} solo acepta algunas IP. Agregue {allowed} en'
         f' IP > Services > {service} (Available From)."'
     )
-    s.add("      }")
     s.add("    }")
     s.add("  }")
     s.add("}")
@@ -253,10 +281,14 @@ def _gateway_rules(
     )
     _allow_service(s, "ssh", prefix, "svc")
     s.add(":local sshport [/ip service get $svc port]")
-    s.add(
-        f':if ($sshport != {gateway.ssh_port}) do={{ :put ("Olterra: el SSH de este router usa el'
-        f' puerto " . $sshport . " y Olterra espera el {gateway.ssh_port}: corrijalo en Olterra'
-        ' (Tunel > el router).") }'
+    # El SSH del router puede estar en cualquier puerto (Viotá lo tiene en el 52225): desde el
+    # túnel, el puerto que espera Olterra se redirige al real. Así nadie tiene que configurarlo.
+    s.add(":local fnat [/ip firewall nat find where dynamic=no]")
+    s.add_first(
+        "/ip firewall nat",
+        "fnat",
+        f"chain=dstnat in-interface=$ifn src-address={prefix} dst-address-type=local protocol=tcp"
+        f' dst-port={gateway.ssh_port} action=redirect to-ports=$sshport comment="{gtag}"',
     )
     # forwarding-enabled: "local" en RouterOS 7, "yes" en los 6 viejos. Solo se cambia si estaba
     # apagado, para no quitarle al ISP un reenvío que ya use. Va en variables para que el valor se

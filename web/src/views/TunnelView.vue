@@ -35,13 +35,11 @@ const canWrite = computed(() => can('tunnel:write'))
 const showForm = ref(false)
 const name = ref('')
 const version = ref<Major>('7')
-const sshPort = ref(22)
 const busy = ref(false)
 const formError = ref<string | null>(null)
 
 const confirming = ref<string | null>(null)
 const rotateVersion = ref<Major>('7')
-const rotatePort = ref(22)
 const rotating = ref<string | null>(null)
 const rowError = ref<string | null>(null)
 const editingPort = ref<string | null>(null)
@@ -76,13 +74,9 @@ async function create(): Promise<void> {
     formError.value = 'El nombre va sin espacios: letras, números, punto, guion o guion bajo.'
     return
   }
-  if (!validPort(sshPort.value)) {
-    formError.value = 'El puerto SSH va de 1 a 65535.'
-    return
-  }
   busy.value = true
   try {
-    const result = await createRouter(name.value.trim(), version.value, sshPort.value)
+    const result = await createRouter(name.value.trim(), version.value)
     name.value = ''
     showForm.value = false
     await routers.reload()
@@ -97,21 +91,15 @@ async function create(): Promise<void> {
 function askRotation(router: TunnelRouter): void {
   confirming.value = router.id
   rotateVersion.value = major(router)
-  rotatePort.value = router.ssh_port
 }
 
 async function rotate(router: TunnelRouter): Promise<void> {
   rowError.value = null
-  if (!validPort(rotatePort.value)) {
-    rowError.value = 'El puerto SSH va de 1 a 65535.'
-    return
-  }
   rotating.value = router.id
   try {
     // Solo si cambia la versión se manda: así se pasa un router v6 dado de alta como v7 a SSTP.
     const changed = rotateVersion.value !== major(router) ? rotateVersion.value : undefined
-    const port = rotatePort.value !== router.ssh_port ? rotatePort.value : undefined
-    const result = await rotateRouter(router.id, changed, port)
+    const result = await rotateRouter(router.id, changed)
     confirming.value = null
     await routers.reload()
     await reveal(result, 'rotated')
@@ -182,7 +170,7 @@ function closeScripts(): void {
       </button>
     </div>
     <form
-      class="mt-4 grid gap-4 sm:grid-cols-[1fr_13rem_7rem_auto] sm:items-end"
+      class="mt-4 grid gap-4 sm:grid-cols-[1fr_13rem_auto] sm:items-end"
       @submit.prevent="create"
     >
       <div>
@@ -202,18 +190,6 @@ function closeScripts(): void {
             {{ item.label }}
           </option>
         </select>
-      </div>
-      <div>
-        <label for="ssh-port" class="label">Puerto SSH</label>
-        <input
-          id="ssh-port"
-          v-model.number="sshPort"
-          type="number"
-          min="1"
-          max="65535"
-          class="input"
-          title="El del servicio SSH del MikroTik (IP > Services): por ahí entra Olterra"
-        />
       </div>
       <button type="submit" class="btn-primary" :disabled="busy">
         <LoaderCircle v-if="busy" class="size-4 animate-spin" />
@@ -389,7 +365,7 @@ function closeScripts(): void {
                 v-if="canWrite"
                 type="button"
                 class="btn-ghost ml-1 px-1.5 py-0.5 text-xs"
-                title="Si el script avisó que el SSH del router usa otro puerto: se corrige aquí, sin rotar"
+                title="El puerto por el que Olterra entra al MikroTik desde el túnel (22). El script lo redirige al SSH real: casi nunca hay que cambiarlo"
                 @click="editPort(item)"
               >
                 Cambiar
@@ -417,15 +393,6 @@ function closeScripts(): void {
                     {{ option.label }}
                   </option>
                 </select>
-                <input
-                  v-model.number="rotatePort"
-                  type="number"
-                  min="1"
-                  max="65535"
-                  class="input w-20 py-1 text-xs"
-                  aria-label="Puerto SSH del MikroTik"
-                  title="Puerto SSH del MikroTik"
-                />
                 <button
                   type="button"
                   class="btn-primary px-2.5 py-1 text-xs"
@@ -447,7 +414,7 @@ function closeScripts(): void {
                 v-else
                 type="button"
                 class="btn-ghost px-2 py-1 text-xs"
-                title="Genera credenciales nuevas y el script; también cambia la versión de RouterOS o el puerto SSH"
+                title="Genera credenciales nuevas y el script; también cambia la versión de RouterOS"
                 @click="askRotation(item)"
               >
                 <RotateCw class="size-3.5" />
