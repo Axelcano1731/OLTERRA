@@ -1,0 +1,29 @@
+----------------------------------------------------------------------------------------------------
+ PON ID                        : 1
+ ONU ID                        : 1
+ ONU Name                      : CLIENTE_018
+ State                         : Inactive
+ Run State                     : Initial
+ Config State                  : initial
+ Match State                   : Initial
+ Distance                      : 0
+ Authorize type                : SN-auth
+ SerialNumber                  : GPON22A96B8E
+ Password                      ******
+ Loid                          :
+ Loid-Password                 ******
+ US SD Ber                     : 0
+ DS SD Ber                     : 0
+ ISP                           : 0
+ ISP ONU Type                  : SFU
+ Last up Time                  : -
+ Last down Time                : -
+ Last DyingGasp Time           : -
+ Last down cause               :
+ Ont uptime                    : 0 days 0 hours 0 mins 0 secs
+ Line Profile ID               : 0
+ Line Profile Name             : INTERNET
+ Srv Profile ID                : 0
+ Srv Profile Name              : srvprofile_default_0
+ Ont Description               : No-description
+----------------------------------------------------------------------------------------------------

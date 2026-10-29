@@ -1,0 +1,8 @@
+ PON/ONU                       : 03/008
+ Vendor-ID                     : VSOL
+ Ont Version                   : V2.4F
+ Product Code                  : 0
+ Omcc Version                  : 80
+ Equipment-ID                  : VSOLV512
+ Main Software Version         : V3.3.0
+ Standby Software Version      : V3.3.0

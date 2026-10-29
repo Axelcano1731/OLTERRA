@@ -1,0 +1,8 @@
+ PON/ONU                       : 01/001
+ Vendor-ID                     :
+ Ont Version                   :
+ Product Code                  : 0
+ Omcc Version                  : 0
+ Equipment-ID                  :
+ Main Software Version         :
+ Standby Software Version      :

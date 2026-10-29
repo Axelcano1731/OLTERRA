@@ -1,0 +1,167 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "bcd-gpon",
+  "captured_at": "2026-10-29T16:08:34.516463+00:00",
+  "model": "BCD-1508GS",
+  "firmware": "V2.1.6_181108 (Nov  8 2018 14:54:37)",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "system.version",
+      "command": "show version",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 124,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/system.version.txt"
+    },
+    {
+      "key": "system.device",
+      "command": "show device",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 22,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/system.device.txt"
+    },
+    {
+      "key": "system.running_config",
+      "command": "show current-config",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 430,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/system.running_config.txt"
+    },
+    {
+      "key": "interfaces.brief",
+      "command": "show ont info all",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 191,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/interfaces.brief.txt"
+    },
+    {
+      "key": "onu.list",
+      "command": "show ont info 1 all",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 118,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.list_pon1.txt"
+    },
+    {
+      "key": "onu.state",
+      "command": "show ont info 1 all",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 118,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.state_pon1.txt"
+    },
+    {
+      "key": "onu.rx_power_all",
+      "command": "show ont optical-info 1 all",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 266,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.rx_power_all_pon1.txt"
+    },
+    {
+      "key": "onu.autofind",
+      "command": "show ont autofind 1",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 157,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.autofind_pon1.txt"
+    },
+    {
+      "key": "onu.detail",
+      "command": "show ont info 1 2",
+      "pon": 1,
+      "onu": 2,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 143,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.detail_pon1_onu2.txt"
+    },
+    {
+      "key": "onu.version",
+      "command": "show ont version 1 2",
+      "pon": 1,
+      "onu": 2,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 39,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.version_pon1_onu2.txt"
+    },
+    {
+      "key": "onu.optical",
+      "command": "show ont optical-info 1 2",
+      "pon": 1,
+      "onu": 2,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 27,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.optical_pon1_onu2.txt"
+    },
+    {
+      "key": "onu.detail",
+      "command": "show ont info 1 4",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 73,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.detail_pon1_onu4.txt"
+    },
+    {
+      "key": "onu.version",
+      "command": "show ont version 1 4",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 29,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.version_pon1_onu4.txt"
+    },
+    {
+      "key": "onu.optical",
+      "command": "show ont optical-info 1 4",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 44,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.optical_pon1_onu4.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT BCD-1508GS de Tocaima: lecturas por ONU con ONU apagadas; nombres reemplazados (2026-10-29)"
+}

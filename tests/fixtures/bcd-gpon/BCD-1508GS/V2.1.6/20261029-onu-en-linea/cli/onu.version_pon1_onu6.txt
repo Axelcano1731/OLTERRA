@@ -1,0 +1,10 @@
+-----------------------------------------------------------------------------
+  Port                         : 1
+  ONT-ID                       : 6
+  Vendor-ID                    : VSOL
+  ONT Version                  : V2.4
+  Product-ID                   : 0
+  Equipment-ID                 : VSOLV212
+  Main Software Version        : V3.3.0
+  Standby Software Version     : V3.3.0
+-----------------------------------------------------------------------------

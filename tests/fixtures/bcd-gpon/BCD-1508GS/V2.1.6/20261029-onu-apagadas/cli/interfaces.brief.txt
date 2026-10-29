@@ -1,0 +1,248 @@
+-----------------------------------------------------------------------------
+  Port  ONT   SN            Control   Run      Config   Match
+        ID                  flag      state    state    state
+ ----------------------------------------------------------------------------
+  1     1     GPONE2625B07  Active    Offline  Initial  Initial
+  1     2     GPON62449DB7  Active    Offline  Initial  Initial
+  1     3     GPON4824CBFA  Active    Offline  Initial  Initial
+  1     4     GPONAB7923D3  Active    Offline  Initial  Initial
+  1     5     GPON51425684  Active    Offline  Initial  Initial
+  1     6     GPOND7752995  Active    Online   Success  Match
+  1     7     GPON07FD6DF6  Active    Offline  Initial  Initial
+  1     8     GPONF9705247  Active    Offline  Initial  Initial
+  1     9     VSOL12C355C5  Active    Offline  Initial  Initial
+  1     10    GPON6C936091  Active    Offline  Initial  Initial
+  1     11    GPON182A5BBB  Active    Offline  Initial  Initial
+  1     12    VSOL9766198E  Active    Offline  Initial  Initial
+  1     13    VSOL95EA96A7  Active    Offline  Initial  Initial
+  1     14    VSOL1354E6F6  Active    Offline  Initial  Initial
+  1     15    GPON5B34E61A  Active    Offline  Initial  Initial
+  1     16    GPON122CC162  Active    Offline  Initial  Initial
+  1     17    GPONBEE04823  Active    Offline  Initial  Initial
+  1     18    GPONBE075115  Active    Offline  Initial  Initial
+  1     19    GPONED386D36  Active    Offline  Initial  Initial
+  1     20    GPON563C95B6  Active    Offline  Initial  Initial
+  1     100   GPON6275B0A1  Active    Offline  Initial  Initial
+  2     1     GPON47D9BE66  Active    Offline  Initial  Initial
+  2     2     GPON023CA707  Active    Offline  Initial  Initial
+  2     3     GPON0152C256  Active    Offline  Initial  Initial
+  2     4     GPON1726BB98  Active    Offline  Initial  Initial
+  2     5     GPON885C69DC  Active    Offline  Initial  Initial
+  2     6     GPONECCF371D  Active    Offline  Initial  Initial
+  2     7     GPON5C42FCF3  Active    Offline  Initial  Initial
+  2     8     GPONEB6BA01F  Active    Offline  Initial  Initial
+  2     9     GPONB468BB0F  Active    Offline  Initial  Initial
+  2     10    GPONCD734372  Active    Offline  Initial  Initial
+  2     11    GPON68B3933E  Active    Offline  Initial  Initial
+  2     12    GPONEEFEF92B  Active    Offline  Initial  Initial
+  2     13    GPONB1ADD9B2  Active    Offline  Initial  Initial
+  2     15    GPONABACB6D6  Active    Offline  Initial  Initial
+  2     16    GPONA3B8C1F4  Active    Offline  Initial  Initial
+  2     18    GPONB75835B8  Active    Offline  Initial  Initial
+  2     19    GPON5B2E5502  Active    Offline  Initial  Initial
+  2     22    GPON04F7959B  Active    Offline  Initial  Initial
+  3     1     GPON02E56AAF  Active    Offline  Initial  Initial
+  3     2     GPONDB090FB3  Active    Offline  Initial  Initial
+  3     3     GPONC5CBA590  Active    Offline  Initial  Initial
+  3     4     GPON845F693E  Active    Offline  Initial  Initial
+  3     5     GPON641F7E83  Active    Offline  Initial  Initial
+  3     6     GPONC171F0C0  Active    Offline  Initial  Initial
+  3     7     GPONA0165CC6  Active    Offline  Initial  Initial
+  3     8     GPONDAC66E84  Active    Offline  Initial  Initial
+  3     9     GPONFC167B0D  Active    Offline  Initial  Initial
+  3     10    GPON4E64AC1F  Active    Offline  Initial  Initial
+  3     11    GPONF5C6584B  Active    Offline  Initial  Initial
+  3     13    GPON6A22ED0C  Active    Offline  Initial  Initial
+  3     14    VSOLD2398778  Active    Offline  Initial  Initial
+  3     15    VSOLDEA09258  Active    Offline  Initial  Initial
+  3     16    GPON91DFD0E7  Active    Offline  Initial  Initial
+  3     17    GPONCB1A0EDA  Active    Offline  Initial  Initial
+  3     18    GPON16783C86  Active    Offline  Initial  Initial
+  3     19    GPONFADD7C45  Active    Offline  Initial  Initial
+  3     20    GPON8CFD1BFF  Active    Offline  Initial  Initial
+  4     1     GPONFACBF8B6  Active    Offline  Initial  Initial
+  4     2     GPON52FBFC92  Active    Online   Success  Match
+  4     3     GPON41B7B4C6  Active    Offline  Initial  Initial
+  4     4     GPON89A5E7E1  Active    Offline  Initial  Initial
+  4     5     GPONF4DF0432  Active    Offline  Initial  Initial
+  4     6     GPONE71D5BD6  Active    Offline  Initial  Initial
+  4     7     GPONFD53D2F4  Active    Offline  Initial  Initial
+  4     8     GPONBB198A73  Active    Offline  Initial  Initial
+  4     9     GPON98992AAA  Active    Offline  Initial  Initial
+  6     1     GPONF400C4F5  Active    Offline  Initial  Initial
+  6     2     GPON8E274739  Active    Offline  Initial  Initial
+  6     3     GPON2318CA1A  Active    Offline  Initial  Initial
+  6     4     GPONE39C5E55  Active    Offline  Initial  Initial
+  6     5     GPONA33F7649  Active    Offline  Initial  Initial
+  6     6     GPONDBDFD9AC  Active    Offline  Initial  Initial
+  6     7     GPONC7EC3E02  Active    Offline  Initial  Initial
+  6     8     GPON4FF2351A  Active    Offline  Initial  Initial
+  6     9     GPON041EB53F  Active    Offline  Initial  Initial
+  6     19    GPON440249A1  Active    Offline  Initial  Initial
+  7     1     GPONF6ED1142  Active    Offline  Initial  Initial
+  7     2     VSOL9F403909  Active    Offline  Initial  Initial
+  7     4     GPONFCCDB626  Active    Offline  Initial  Initial
+  7     5     VSOLBB1991A3  Active    Offline  Initial  Initial
+  7     7     GPON86C308A0  Active    Offline  Initial  Initial
+  7     8     GPONEA970731  Active    Offline  Initial  Initial
+  7     9     GPON7DBF4A0F  Active    Offline  Initial  Initial
+  7     10    GPON51C7CFA2  Active    Offline  Initial  Initial
+  7     11    VSOL9A9C09C8  Active    Offline  Initial  Initial
+  7     13    GPON61D54475  Active    Offline  Initial  Initial
+  7     14    GPON2B92A51F  Active    Offline  Initial  Initial
+  7     15    GPON7F82B07C  Active    Offline  Initial  Initial
+  7     16    GPON78677A0E  Active    Offline  Initial  Initial
+  7     17    GPON1ED6431B  Active    Offline  Initial  Initial
+  7     18    GPONB6D8A70A  Active    Offline  Initial  Initial
+  7     19    GPONDCB76D10  Active    Offline  Initial  Initial
+  7     20    GPONADEFEDE9  Active    Offline  Initial  Initial
+  7     21    GPOND301A335  Active    Offline  Initial  Initial
+  7     22    GPON4EAEF104  Active    Offline  Initial  Initial
+  7     23    GPON756D596B  Active    Offline  Initial  Initial
+  7     25    GPON573F3D64  Active    Offline  Initial  Initial
+  7     27    GPONADC0B837  Active    Offline  Initial  Initial
+  8     1     GPONEA73306B  Active    Offline  Initial  Initial
+  8     2     GPON50E23FD2  Active    Offline  Initial  Initial
+  8     3     GPON018EA8E3  Active    Offline  Initial  Initial
+  8     4     GPONB8A27997  Active    Online   Success  Match
+  8     5     GPONF999A3C5  Active    Online   Success  Match
+  8     6     GPONAC021A95  Active    Offline  Initial  Initial
+  8     7     GPON1AC75CC6  Active    Offline  Initial  Initial
+  8     8     GPON092368B1  Active    Offline  Initial  Initial
+  8     9     GPONE2071153  Active    Offline  Initial  Initial
+  8     10    GPON9C6C28BA  Active    Offline  Initial  Initial
+  8     11    GPON4C3F38BA  Active    Offline  Initial  Initial
+  8     12    GPOND929F00C  Active    Offline  Initial  Initial
+  8     13    VSOLF322D767  Active    Offline  Initial  Initial
+  8     14    GPON8728E933  Active    Offline  Initial  Initial
+  8     15    GPON02D91156  Active    Offline  Initial  Initial
+  8     16    GPONEA63E77A  Active    Offline  Initial  Initial
+  8     17    GPON13E3ADD3  Active    Offline  Initial  Initial
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  1     1    CLIENTE_083
+  1     2    CLIENTE_034
+  1     3    CLIENTE_062
+  1     4    CLIENTE_022
+  1     5    CLIENTE_018
+  1     6    CLIENTE_070
+  1     7    CLIENTE_027
+  1     8    CLIENTE_063
+  1     9    CLIENTE_060
+  1     10   CLIENTE_032
+  1     11   CLIENTE_040
+  1     12   CLIENTE_023
+  1     13   CLIENTE_011
+  1     14   CLIENTE_019
+  1     15   CLIENTE_048
+  1     16   CLIENTE_043
+  1     17   CLIENTE_064
+  1     20   CLIENTE_066
+  1     100  CLIENTE_009
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  2     1    CLIENTE_050
+  2     2    CLIENTE_006
+  2     3    CLIENTE_073
+  2     4    CLIENTE_094
+  2     5    CLIENTE_036
+  2     6    CLIENTE_084
+  2     7    CLIENTE_047
+  2     8    CLIENTE_093
+  2     9    CLIENTE_086
+  2     10   CLIENTE_030
+  2     11   CLIENTE_067
+  2     12   CLIENTE_059
+  2     13   CLIENTE_081
+  2     15   CLIENTE_014
+  2     16   CLIENTE_089
+  2     18   CLIENTE_010
+  2     19   CLIENTE_004
+  2     22   CLIENTE_041
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  3     1    CLIENTE_078
+  3     2    CLIENTE_056
+  3     3    CLIENTE_054
+  3     4    CLIENTE_031
+  3     5    CLIENTE_045
+  3     6    CLIENTE_008
+  3     7    CLIENTE_092
+  3     8    CLIENTE_046
+  3     9    CLIENTE_017
+  3     11   CLIENTE_095
+  3     13   CLIENTE_052
+  3     14   CLIENTE_013
+  3     15   CLIENTE_082
+  3     16   CLIENTE_042
+  3     17   CLIENTE_092
+  3     18   CLIENTE_007
+  3     19   CLIENTE_028
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  4     1    CLIENTE_088
+  4     2    CLIENTE_096
+  4     3    CLIENTE_029
+  4     4    CLIENTE_026
+  4     6    CLIENTE_003
+  4     7    CLIENTE_090
+  4     9    CLIENTE_024
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  6     1    CLIENTE_055
+  6     2    CLIENTE_080
+  6     3    CLIENTE_025
+  6     4    CLIENTE_085
+  6     5    CLIENTE_012
+  6     6    CLIENTE_053
+  6     7    CLIENTE_079
+  6     19   CLIENTE_016
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  7     1    CLIENTE_005
+  7     2    CLIENTE_039
+  7     4    CLIENTE_074
+  7     5    CLIENTE_039
+  7     7    CLIENTE_071
+  7     8    CLIENTE_002
+  7     9    CLIENTE_075
+  7     10   CLIENTE_065
+  7     11   CLIENTE_058
+  7     13   CLIENTE_049
+  7     14   CLIENTE_015
+  7     16   CLIENTE_061
+  7     17   CLIENTE_001
+  7     20   CLIENTE_057
+  7     22   CLIENTE_051
+  7     23   CLIENTE_077
+  7     25   CLIENTE_076
+  7     27   CLIENTE_072
+ ----------------------------------------------------------------------------
+  Port  ONT  Description
+        ID
+ ----------------------------------------------------------------------------
+  8     1    CLIENTE_069
+  8     3    CLIENTE_035
+  8     4    CLIENTE_020
+  8     7    CLIENTE_037
+  8     8    CLIENTE_021
+  8     9    CLIENTE_038
+  8     10   CLIENTE_068
+  8     11   CLIENTE_087
+  8     13   CLIENTE_091
+  8     16   CLIENTE_033
+  8     17   CLIENTE_044
+-----------------------------------------------------------------------------
+  Total: 116, online: 4

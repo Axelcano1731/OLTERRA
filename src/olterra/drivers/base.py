@@ -134,6 +134,12 @@ PARAM_TYPES: dict[str, Callable[[Any], str]] = {
     ),
     "ipv4": _ipv4,
     "netmask": _netmask,
+    # HSGQ numera las ONU desde 0: la ONU 1 de Olterra es la 0 de la OLT.
+    "onu_from_zero": lambda value: str(int(_int_range(1, 128)(value)) - 1),
+    # HSGQ y BCD tienen perfiles con id 0.
+    "profile_id0": _int_range(0, 32767),
+    # Puertos de la ONU como los pide la HSGQ: "1-4", "1,3", "1".
+    "port_list": _pattern(r"[1-8](?:[-,][1-8]){0,7}", "puertos como 1-4 o 1,3"),
 }
 
 
@@ -255,6 +261,9 @@ class Driver:
     parsers: Mapping[str, Parser] = field(default_factory=dict)
     # Nombre para mostrar ("VSOL GPON", "HSGQ GPON").
     label: str = ""
+    # Si la interfaz tiene el flujo de alta de ONU para esta marca (plantillas, trabajos). Tener
+    # comandos de escritura en el catálogo no basta: HSGQ y BCD los tienen sin flujo todavía.
+    provisioning: bool = False
     # Cuántos PON trae un modelo, para las marcas cuya lista de ONU no muestra los PON vacíos.
     pon_count: Callable[[str | None], int | None] | None = None
     # En orden: de lo general a lo específico; la última regla que calza manda.

@@ -1,0 +1,55 @@
+----------------------------------------------------------------------------------------------------
+PON/ONU  Serial            State     Run        Config    Match     Last Link         ONT
+         Number                      State      State     State     down reason       Name
+----------------------------------------------------------------------------------------------------
+1/0      GPONB3AF9A84      Inactive  Initial    initial   Initial                     CLIENTE_025
+1/1      GPON8FDAC66E      Inactive  Initial    initial   Initial                     CLIENTE_018
+1/2      GPON39388B07      Inactive  Initial    initial   Initial                     CLIENTE_038
+1/3      GPON34A164A5      Inactive  Initial    initial   Initial                     CLIENTE_021
+1/4      GPON2474AC00      Inactive  Initial    initial   Initial                     CLIENTE_022
+1/5      GPON3617B88D      Inactive  Initial    initial   Initial                     CLIENTE_010
+1/7      GPON93983ED9      Inactive  Initial    initial   Initial                     CLIENTE_024
+1/9      GPON813573D3      Inactive  Initial    initial   Initial                     CLIENTE_026
+1/11     GPONFE5180B3      Inactive  Initial    initial   Initial                     CLIENTE_044
+1/15     GPOND95A9935      Inactive  Initial    initial   Initial                     CLIENTE_023
+1/16     GPON4B83115A      Inactive  Initial    initial   Initial                     CLIENTE_033
+2/0      GPON2B75C2D3      Inactive  Initial    initial   Initial                     CLIENTE_019
+2/1      GPONEC8207EC      Inactive  Initial    initial   Initial                     CLIENTE_040
+2/2      GPON0E3A5831      Inactive  Initial    initial   Initial                     CLIENTE_009
+3/0      GPON197B4BB7      Inactive  Initial    initial   Initial                     CLIENTE_014
+3/1      GPONE00D4EC3      Inactive  Initial    initial   Initial                     CLIENTE_036
+3/2      GPON63DFE17C      Inactive  Initial    initial   Initial                     CLIENTE_027
+3/3      GPONF3100944      Inactive  Initial    initial   Initial                     CLIENTE_053
+3/4      GPONAA79D884      Inactive  Initial    initial   Initial                     CLIENTE_034
+3/5      GPON63B35F95      Inactive  Initial    initial   Initial                     CLIENTE_035
+3/6      GPON2128AA59      Inactive  Initial    initial   Initial                     CLIENTE_037
+3/7      GPON5B5C7461      Inactive  Initial    initial   Initial                     CLIENTE_002
+3/8      GPOND1A47239      Active    Online     normal    Initial                     CLIENTE_031
+3/9      GPON36BA576A      Inactive  Initial    initial   Initial                     CLIENTE_041
+3/10     GPONEB6CD7C1      Inactive  Initial    initial   Initial                     CLIENTE_032
+3/11     GPONFBAA6CB0      Inactive  Initial    initial   Initial                     CLIENTE_001
+3/12     GPON3F09BE3B      Inactive  Initial    initial   Initial                     CLIENTE_004
+3/13     GPON5041982A      Inactive  Initial    initial   Initial                     CLIENTE_003
+3/14     GPON577B25C9      Inactive  Initial    initial   Initial                     CLIENTE_015
+3/15     GPONB82A8ECF      Inactive  Initial    initial   Initial                     CLIENTE_006
+3/16     GPONFE981F4E      Inactive  Initial    initial   Initial                     CLIENTE_016
+3/17     GPON07CCDF0C      Inactive  Initial    initial   Initial                     CLIENTE_028
+3/18     VSOL8FCBAB6E      Inactive  Initial    initial   Initial                     CLIENTE_030
+3/19     GPON086F866E      Inactive  Initial    initial   Initial                     CLIENTE_013
+3/20     GPONDAD5E5C6      Inactive  Initial    initial   Initial                     CLIENTE_011
+3/21     GPON550D51B5      Inactive  Initial    initial   Initial                     CLIENTE_029
+3/22     GPON9814AE67      Inactive  Initial    initial   Initial                     CLIENTE_012
+3/23     GPON998C9149      Inactive  Initial    initial   Initial                     CLIENTE_008
+3/24     GPONFB796E95      Inactive  Initial    initial   Initial                     CLIENTE_007
+3/25     GPON1D2D2425      Inactive  Initial    initial   Initial                     CLIENTE_005
+3/26     GPONA317D93B      Inactive  Initial    initial   Initial                     CLIENTE_029
+3/27     GPONF97A9048      Inactive  Initial    initial   Initial                     CLIENTE_039
+3/28     GPON2472F0ED      Inactive  Initial    initial   Initial                     CLIENTE_043
+3/29     GPON2A044495      Inactive  Initial    initial   Initial                     CLIENTE_054
+3/30     GPON3658EBDE      Inactive  Initial    initial   Initial                     CLIENTE_013
+3/31     GPON1984E505      Inactive  Initial    initial   Initial                     CLIENTE_017
+3/32     GPON40F40236      Inactive  Initial    initial   Initial                     CLIENTE_042
+5/0      GPON6133B8B2      Inactive  Initial    initial   Initial                     CLIENTE_020
+----------------------------------------------------------------------------------------------------
+  Total: 48   Online:1  Offline:47
+----------------------------------------------------------------------------------------------------

@@ -141,9 +141,122 @@ def test_bcd_rx_power_runs_inside_the_gpon_interface() -> None:
 
 
 @pytest.mark.parametrize("key", ["hsgq-gpon", "bcd-gpon"])
-def test_provisioning_is_not_available_yet(key: str) -> None:
+def test_writes_exist_but_are_not_verified(key: str) -> None:
+    """El alta salió de la ayuda y la configuración: queda bloqueada hasta probarla."""
+    driver = get_driver(key)
+    for name in ("onu.authorize", "onu.set_description", "onu.reboot", "onu.delete", "config.save"):
+        template = driver.command(name)
+        assert template.access.value == "write" and not template.verified, name
     with pytest.raises(UnsupportedCommand):
-        get_driver(key).command("onu.authorize")
+        driver.command("onu.service_config")  # "copiar una ONU" es solo de VSOL
+
+
+# --- Lecturas por ONU (capturas del 2026-10-29) -----------------------------------------------
+
+HSGQ_ON = FIXTURES / "hsgq-gpon" / "HSGQ-G008" / "V1.3.12C" / "20261029-onu-en-linea" / "cli"
+HSGQ_OFF = FIXTURES / "hsgq-gpon" / "HSGQ-G008" / "V1.3.12C" / "20261029-onu-apagadas" / "cli"
+BCD_ON = FIXTURES / "bcd-gpon" / "BCD-1508GS" / "V2.1.6" / "20261029-onu-en-linea" / "cli"
+BCD_OFF = FIXTURES / "bcd-gpon" / "BCD-1508GS" / "V2.1.6" / "20261029-onu-apagadas" / "cli"
+
+
+def test_hsgq_onu_detail_and_version() -> None:
+    detail = hsgq_gpon.parse_onu_detail(_read(HSGQ_ON, "onu.detail_pon3_onu9"), {"pon": 3})
+    # "ONU ID : 8" en la OLT es la ONU 9 en Olterra.
+    assert (detail.pon, detail.onu, detail.phase, detail.distance_m) == (3, 9, "working", 4786)
+    assert detail.line_profile == "INTERNET" and detail.name is not None
+    assert detail.uptime is not None and detail.uptime.startswith("0 days")
+    version = hsgq_gpon.parse_onu_version(_read(HSGQ_ON, "onu.version_pon3_onu9"))
+    assert (version.online, version.vendor, version.model, version.software) == (
+        True,
+        "VSOL",
+        "VSOLV512",
+        "V3.3.0",
+    )
+    off = hsgq_gpon.parse_onu_version(_read(HSGQ_OFF, "onu.version_pon1_onu2"))
+    assert not off.online and off.model is None
+    down = hsgq_gpon.parse_onu_detail(_read(HSGQ_OFF, "onu.detail_pon1_onu12"), {"pon": 1})
+    assert (down.onu, down.phase) == (12, "offline")
+
+
+def test_bcd_onu_detail_version_and_optical() -> None:
+    detail = bcd_gpon.parse_onu_detail(_read(BCD_ON, "onu.detail_pon1_onu6"), {"pon": 1})
+    assert (detail.pon, detail.onu, detail.phase, detail.distance_m) == (1, 6, "working", 1122)
+    assert (detail.line_profile, detail.service_profile) == ("lineprofile_10", "srvprofile_11")
+    version = bcd_gpon.parse_onu_version(_read(BCD_ON, "onu.version_pon1_onu6"))
+    assert (version.vendor, version.model, version.hardware) == ("VSOL", "VSOLV212", "V2.4")
+    optical = bcd_gpon.parse_onu_optical(_read(BCD_ON, "onu.optical_pon1_onu6"), {"pon": 1})
+    assert optical is not None
+    assert optical.rx_dbm == pytest.approx(-28.862)
+    assert optical.bias_ma == pytest.approx(18.7)  # la OLT la da en uA
+    # Una ONU apagada: "The ONT does not online", no es un error.
+    assert bcd_gpon.parse_onu_optical(_read(BCD_OFF, "onu.optical_pon1_onu4"), {"pon": 1}) is None
+    assert not bcd_gpon.parse_onu_version(_read(BCD_OFF, "onu.version_pon1_onu4")).online
+
+
+def test_hsgq_writes_subtract_one_and_keep_keys_sealed() -> None:
+    steps = get_driver("hsgq-gpon").build_cli_steps(
+        [
+            CommandCall(
+                "onu.authorize",
+                {"pon": 2, "onu": 5, "serial": "GPON21FDE8EC", "line_profile": 0, "srv_profile": 0},
+            ),
+            CommandCall("onu.set_description", {"pon": 2, "onu": 5, "description": "Casa_Lopez"}),
+            CommandCall(
+                "onu.wan_pppoe",
+                {
+                    "pon": 2,
+                    "onu": 5,
+                    "vlan": 117,
+                    "pppoe_user": "cliente.5",
+                    "lan_eth": "1-4",
+                    "lan_ssid": "1",
+                },
+            ),
+            CommandCall("onu.wifi", {"pon": 2, "onu": 5, "ssid": "Casa_Lopez"}),
+            CommandCall("config.save"),
+        ]
+    )
+    commands = [s.command for s in steps]
+    assert commands[:2] == ["configure", "interface gpon 2"]
+    assert (
+        "ont add 4 sn-auth GPON21FDE8EC omci ont-lineprofile-id 0 ont-srvprofile-id 0" in commands
+    )
+    assert 'ont setting 4 name "Casa_Lopez"' in commands
+    assert (
+        "ont wanconfig add 4 connection-type internet vlan tag 117 ipmode pppoe cliente.5"
+        " {{secret:pppoe_password}} lan_eth 1-4 lan_ssid 1"
+    ) in commands
+    assert (
+        "ont wificonfig 4 1 wifiname Casa_Lopez security wpa2psk wpaencrypt aes"
+        " sharekey {{secret:wifi_key}}"
+    ) in commands
+    assert commands[-2:] == ["save", "end"] or commands[-1] == "save"
+
+
+def test_bcd_writes() -> None:
+    steps = get_driver("bcd-gpon").build_cli_steps(
+        [
+            CommandCall(
+                "onu.authorize",
+                {
+                    "pon": 1,
+                    "onu": 20,
+                    "serial": "GPON0B301264",
+                    "line_profile": 10,
+                    "srv_profile": 11,
+                },
+            ),
+            CommandCall("onu.set_description", {"pon": 1, "onu": 20, "description": "Casa_Lopez"}),
+            CommandCall("config.save"),
+        ]
+    )
+    commands = [s.command for s in steps]
+    assert commands[:2] == ["config", "interface gpon"]
+    assert (
+        "ont add 1 20 sn-auth GPON0B301264 ont-lineprofile-id 10 ont-srvprofile-id 11" in commands
+    )
+    assert "ont description 1 20 Casa_Lopez" in commands
+    assert "save" in commands
 
 
 @pytest.mark.parametrize(

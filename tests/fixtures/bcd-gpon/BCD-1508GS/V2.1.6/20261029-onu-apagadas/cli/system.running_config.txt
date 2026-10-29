@@ -1,0 +1,408 @@
+Current configuration:
+!
+traffic-profile profile-id 1 profile-name TP20M cir 10000 pir 20000 cbs 2000 pbs 2000
+alarm filter 10
+!
+dba-profile profile-id 1 profile-name 5_MEGAS
+  type3 assure 1984 max 4992
+  commit
+ exit
+!
+dba-profile profile-id 2 profile-name 10_MEGAS
+  type3 assure 4992 max 9984
+  commit
+ exit
+!
+dba-profile profile-id 3 profile-name 15_MEGAS
+  type3 assure 9984 max 14976
+  commit
+ exit
+!
+dba-profile profile-id 4 profile-name 20_MEGAS
+  type3 assure 14976 max 19968
+  commit
+ exit
+!
+dba-profile profile-id 5 profile-name 30_MEGAS
+  type3 assure 19968 max 29952
+  commit
+ exit
+!
+dba-profile profile-id 10 profile-name test
+  type5 fix 4992 assure 0 max 499968
+  commit
+ exit
+!
+dba-profile profile-id 11 profile-name 100_Megas
+  type5 fix 99968 assure 0 max 99968
+  commit
+ exit
+!
+ont-lineprofile profile-id 1 profile-name 5_MEGAS
+  tcont 1 dba-profile-id 1
+   gem add 1 tcont 1
+    gem mapping 1 1 vlan 101
+    gem mapping 1 3 vlan 103
+    gem mapping 1 5 vlan 105
+    gem mapping 1 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 2 profile-name 10_MEGAS
+  tcont 1 dba-profile-id 2
+   gem add 1 tcont 1
+    gem mapping 1 1 vlan 101
+    gem mapping 1 3 vlan 103
+    gem mapping 1 5 vlan 105
+    gem mapping 1 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 3 profile-name 15_MEGAS
+  tcont 1 dba-profile-id 3
+   gem add 1 tcont 1
+    gem mapping 1 1 vlan 101
+    gem mapping 1 3 vlan 103
+    gem mapping 1 5 vlan 105
+    gem mapping 1 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 4 profile-name 20_MEGAS
+  tcont 1 dba-profile-id 4
+   gem add 1 tcont 1
+    gem mapping 1 1 vlan 101
+    gem mapping 1 3 vlan 103
+    gem mapping 1 5 vlan 105
+    gem mapping 1 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 5 profile-name 30_MEGAS
+  tcont 1 dba-profile-id 5
+   gem add 1 tcont 1
+    gem mapping 1 1 vlan 101
+    gem mapping 1 3 vlan 103
+    gem mapping 1 5 vlan 105
+    gem mapping 1 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 10 profile-name lineprofile_10
+  tcont 1 dba-profile-id 10
+   gem add 13 tcont 1
+    gem mapping 13 1 vlan 101
+    gem mapping 13 2 vlan 90
+    gem mapping 13 3 vlan 103
+    gem mapping 13 5 vlan 105
+    gem mapping 13 7 vlan 107
+  commit
+ exit
+!
+ont-lineprofile profile-id 11 profile-name 100_Megas
+  tcont 2 dba-profile-id 11
+   gem add 11 tcont 2
+    gem mapping 11 1 vlan 101
+    gem mapping 11 3 vlan 103
+    gem mapping 11 5 vlan 105
+    gem mapping 11 7 vlan 107
+  commit
+ exit
+!
+ont-srvprofile profile-id 10 profile-name srvprofile_10
+  ont-port eth 4 pots 1 catv 0
+  commit
+ exit
+!
+ont-srvprofile profile-id 11 profile-name srvprofile_11
+  ont-port eth 2 pots 0 catv 0
+  commit
+ exit
+!
+interface gpon
+  ont add 1 1 sn-auth GPONE2625B07 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 1 CLIENTE_083
+  ont add 1 2 sn-auth GPON62449DB7 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 2 CLIENTE_034
+  ont add 1 3 sn-auth GPON4824CBFA ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 3 CLIENTE_062
+  ont add 1 4 sn-auth GPONAB7923D3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 4 CLIENTE_022
+  ont add 1 5 sn-auth GPON51425684 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 5 CLIENTE_018
+  ont add 1 6 sn-auth GPOND7752995 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 6 CLIENTE_070
+  ont add 1 7 sn-auth GPON07FD6DF6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 7 CLIENTE_027
+  ont add 1 8 sn-auth GPONF9705247 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 8 CLIENTE_063
+  ont add 1 9 sn-auth VSOL12C355C5 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 9 CLIENTE_060
+  ont add 1 10 sn-auth GPON6C936091 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 10 CLIENTE_032
+  ont add 1 11 sn-auth GPON182A5BBB ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 11 CLIENTE_040
+  ont add 1 12 sn-auth VSOL9766198E ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 12 CLIENTE_023
+  ont add 1 13 sn-auth VSOL95EA96A7 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 13 CLIENTE_011
+  ont add 1 14 sn-auth VSOL1354E6F6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 14 CLIENTE_019
+  ont add 1 15 sn-auth GPON5B34E61A ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 15 CLIENTE_048
+  ont add 1 16 sn-auth GPON122CC162 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 16 CLIENTE_043
+  ont add 1 17 sn-auth GPONBEE04823 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 17 CLIENTE_064
+  ont add 1 18 sn-auth GPONBE075115 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 1 19 sn-auth GPONED386D36 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 1 20 sn-auth GPON563C95B6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 20 CLIENTE_066
+  ont add 1 100 sn-auth GPON6275B0A1 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 1 100 CLIENTE_009
+  ont autofind 1 enable
+  ont autoauth 1 enable
+  ont add 2 1 sn-auth GPON47D9BE66 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 1 CLIENTE_050
+  ont add 2 2 sn-auth GPON023CA707 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 2 CLIENTE_006
+  ont add 2 3 sn-auth GPON0152C256 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 3 CLIENTE_073
+  ont add 2 4 sn-auth GPON1726BB98 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 4 CLIENTE_094
+  ont add 2 5 sn-auth GPON885C69DC ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 5 CLIENTE_036
+  ont add 2 6 sn-auth GPONECCF371D ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 6 CLIENTE_084
+  ont add 2 7 sn-auth GPON5C42FCF3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 7 CLIENTE_047
+  ont add 2 8 sn-auth GPONEB6BA01F ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 8 CLIENTE_093
+  ont add 2 9 sn-auth GPONB468BB0F ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 9 CLIENTE_086
+  ont add 2 10 sn-auth GPONCD734372 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 10 CLIENTE_030
+  ont add 2 11 sn-auth GPON68B3933E ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 11 CLIENTE_067
+  ont add 2 12 sn-auth GPONEEFEF92B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 12 CLIENTE_059
+  ont add 2 13 sn-auth GPONB1ADD9B2 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 13 CLIENTE_081
+  ont add 2 15 sn-auth GPONABACB6D6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 15 CLIENTE_014
+  ont add 2 16 sn-auth GPONA3B8C1F4 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 16 CLIENTE_089
+  ont add 2 18 sn-auth GPONB75835B8 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 18 CLIENTE_010
+  ont add 2 19 sn-auth GPON5B2E5502 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 19 CLIENTE_004
+  ont add 2 22 sn-auth GPON04F7959B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 2 22 CLIENTE_041
+  ont autofind 2 enable
+  ont autoauth 2 enable
+  ont add 3 1 sn-auth GPON02E56AAF ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 1 CLIENTE_078
+  ont add 3 2 sn-auth GPONDB090FB3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 2 CLIENTE_056
+  ont add 3 3 sn-auth GPONC5CBA590 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 3 CLIENTE_054
+  ont add 3 4 sn-auth GPON845F693E ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 4 CLIENTE_031
+  ont add 3 5 sn-auth GPON641F7E83 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 5 CLIENTE_045
+  ont add 3 6 sn-auth GPONC171F0C0 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 6 CLIENTE_008
+  ont add 3 7 sn-auth GPONA0165CC6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 7 CLIENTE_092
+  ont add 3 8 sn-auth GPONDAC66E84 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 8 CLIENTE_046
+  ont add 3 9 sn-auth GPONFC167B0D ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 9 CLIENTE_017
+  ont add 3 10 sn-auth GPON4E64AC1F ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 3 11 sn-auth GPONF5C6584B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 11 CLIENTE_095
+  ont add 3 13 sn-auth GPON6A22ED0C ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 13 CLIENTE_052
+  ont add 3 14 sn-auth VSOLD2398778 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 14 CLIENTE_013
+  ont add 3 15 sn-auth VSOLDEA09258 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 15 CLIENTE_082
+  ont add 3 16 sn-auth GPON91DFD0E7 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 16 CLIENTE_042
+  ont add 3 17 sn-auth GPONCB1A0EDA ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 17 CLIENTE_092
+  ont add 3 18 sn-auth GPON16783C86 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 18 CLIENTE_007
+  ont add 3 19 sn-auth GPONFADD7C45 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 3 19 CLIENTE_028
+  ont add 3 20 sn-auth GPON8CFD1BFF ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont autofind 3 enable
+  ont autoauth 3 enable
+  ont add 4 1 sn-auth GPONFACBF8B6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 1 CLIENTE_088
+  ont add 4 2 sn-auth GPON52FBFC92 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 2 CLIENTE_096
+  ont add 4 3 sn-auth GPON41B7B4C6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 3 CLIENTE_029
+  ont add 4 4 sn-auth GPON89A5E7E1 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 4 CLIENTE_026
+  ont add 4 5 sn-auth GPONF4DF0432 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 4 6 sn-auth GPONE71D5BD6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 6 CLIENTE_003
+  ont add 4 7 sn-auth GPONFD53D2F4 ont-lineprofile-id 11 ont-srvprofile-id 10
+  ont description 4 7 CLIENTE_090
+  ont add 4 8 sn-auth GPONBB198A73 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 4 9 sn-auth GPON98992AAA ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 4 9 CLIENTE_024
+  ont autofind 4 enable
+  ont autoauth 4 enable
+  ont autofind 5 enable
+  ont autoauth 5 enable
+  ont add 6 1 sn-auth GPONF400C4F5 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 1 CLIENTE_055
+  ont add 6 2 sn-auth GPON8E274739 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 2 CLIENTE_080
+  ont add 6 3 sn-auth GPON2318CA1A ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 3 CLIENTE_025
+  ont add 6 4 sn-auth GPONE39C5E55 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 4 CLIENTE_085
+  ont add 6 5 sn-auth GPONA33F7649 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 5 CLIENTE_012
+  ont add 6 6 sn-auth GPONDBDFD9AC ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 6 CLIENTE_053
+  ont add 6 7 sn-auth GPONC7EC3E02 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 7 CLIENTE_079
+  ont add 6 8 sn-auth GPON4FF2351A ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 6 9 sn-auth GPON041EB53F ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 6 19 sn-auth GPON440249A1 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 6 19 CLIENTE_016
+  ont autofind 6 enable
+  ont autoauth 6 enable
+  ont add 7 1 sn-auth GPONF6ED1142 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 1 CLIENTE_005
+  ont add 7 2 sn-auth VSOL9F403909 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 2 CLIENTE_039
+  ont add 7 4 sn-auth GPONFCCDB626 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 4 CLIENTE_074
+  ont add 7 5 sn-auth VSOLBB1991A3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 5 CLIENTE_039
+  ont add 7 7 sn-auth GPON86C308A0 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 7 CLIENTE_071
+  ont add 7 8 sn-auth GPONEA970731 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 8 CLIENTE_002
+  ont add 7 9 sn-auth GPON7DBF4A0F ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 9 CLIENTE_075
+  ont add 7 10 sn-auth GPON51C7CFA2 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 10 CLIENTE_065
+  ont add 7 11 sn-auth VSOL9A9C09C8 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 11 CLIENTE_058
+  ont add 7 13 sn-auth GPON61D54475 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 13 CLIENTE_049
+  ont add 7 14 sn-auth GPON2B92A51F ont-lineprofile-id 10 ont-srvprofile-id 10
+  ont description 7 14 CLIENTE_015
+  ont add 7 15 sn-auth GPON7F82B07C ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 7 16 sn-auth GPON78677A0E ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 16 CLIENTE_061
+  ont add 7 17 sn-auth GPON1ED6431B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 17 CLIENTE_001
+  ont add 7 18 sn-auth GPONB6D8A70A ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 7 19 sn-auth GPONDCB76D10 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 7 20 sn-auth GPONADEFEDE9 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 20 CLIENTE_057
+  ont add 7 21 sn-auth GPOND301A335 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 7 22 sn-auth GPON4EAEF104 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 22 CLIENTE_051
+  ont add 7 23 sn-auth GPON756D596B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 23 CLIENTE_077
+  ont add 7 25 sn-auth GPON573F3D64 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 25 CLIENTE_076
+  ont add 7 27 sn-auth GPONADC0B837 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 7 27 CLIENTE_072
+  ont autofind 7 enable
+  ont autoauth 7 enable
+  ont add 8 1 sn-auth GPONEA73306B ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 1 CLIENTE_069
+  ont add 8 2 sn-auth GPON50E23FD2 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 3 sn-auth GPON018EA8E3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 3 CLIENTE_035
+  ont add 8 4 sn-auth GPONB8A27997 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 4 CLIENTE_020
+  ont add 8 5 sn-auth GPONF999A3C5 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 6 sn-auth GPONAC021A95 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 7 sn-auth GPON1AC75CC6 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 7 CLIENTE_037
+  ont add 8 8 sn-auth GPON092368B1 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 8 CLIENTE_021
+  ont add 8 9 sn-auth GPONE2071153 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 9 CLIENTE_038
+  ont add 8 10 sn-auth GPON9C6C28BA ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 10 CLIENTE_068
+  ont add 8 11 sn-auth GPON4C3F38BA ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 11 CLIENTE_087
+  ont add 8 12 sn-auth GPOND929F00C ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 13 sn-auth VSOLF322D767 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 13 CLIENTE_091
+  ont add 8 14 sn-auth GPON8728E933 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 15 sn-auth GPON02D91156 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont add 8 16 sn-auth GPONEA63E77A ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 16 CLIENTE_033
+  ont add 8 17 sn-auth GPON13E3ADD3 ont-lineprofile-id 10 ont-srvprofile-id 11
+  ont description 8 17 CLIENTE_044
+  ont autofind 8 enable
+  ont autoauth 8 enable
+ exit
+!
+ont autoauth enable
+vlan 90,100,101,103,105,107
+!
+interface ge
+ vlan mode 1 trunk
+ vlan mode 2 trunk
+ vlan mode 3 trunk
+ vlan mode 4 trunk
+ vlan mode 5 trunk
+ vlan mode 6 trunk
+ vlan mode 7 trunk
+ vlan mode 8 hybrid
+ vlan mode 9 hybrid
+ vlan mode 10 hybrid
+ vlan mode 11 hybrid
+ vlan mode 12 trunk
+ vlan trunk 12 90,100,101,103,105,107
+ vlan mode 13 hybrid
+ vlan mode 14 hybrid
+ vlan mode 15 hybrid
+ vlan mode 16 trunk
+ exit
+!
+interface gpon
+ vlan mode 1 trunk
+ vlan trunk 1 90,101
+ vlan mode 2 trunk
+ vlan trunk 2 101
+ vlan mode 3 trunk
+ vlan trunk 3 103
+ vlan mode 4 trunk
+ vlan trunk 4 103
+ vlan mode 5 trunk
+ vlan trunk 5 105
+ vlan mode 6 trunk
+ vlan trunk 6 105
+ vlan mode 7 trunk
+ vlan trunk 7 107
+ vlan mode 8 trunk
+ vlan trunk 8 107
+ statistics port 1 15min enable
+ statistics port 1 24hour enable
+ exit
+!
+interface vlanif 100
+ ip address 172.16.0.2 255.255.255.0
+ exit
+!
+alarm priority critical
+snmp-agent community ****** ******
+snmp-agent community ****** ******
+snmp-agent enable
+!
+end

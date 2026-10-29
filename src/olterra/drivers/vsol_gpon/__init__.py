@@ -66,4 +66,5 @@ VSOL_GPON = Driver(
     capability_rules=RULES,
     parsers=PARSERS,
     label="VSOL GPON",
+    provisioning=True,
 )
