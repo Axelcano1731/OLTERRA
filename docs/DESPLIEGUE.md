@@ -346,17 +346,18 @@ la misma región.
 
    Prueba: desde el servidor, `ping 198.18.0.1` y `wg show olterra` (handshake reciente).
 
-4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik** con su versión de RouterOS y el
-   puerto de su SSH. El script se descarga, se sube al router (Files) y se corre con
-   `/import`, una sola vez. Olterra lo da de alta en el concentrador (o muestra el bloque si su
-   API no está configurada). Si un router se dio de alta con la versión o el puerto
-   equivocados, **Rotar o cambiar** lo corrige.
+4. Cada ISP: en la interfaz, **Túnel → Agregar MikroTik** con su versión de RouterOS. El
+   script se descarga, se sube al router (Files) y se corre con `/import`, una sola vez.
+   Olterra lo da de alta en el concentrador (o muestra el bloque si su API no está
+   configurada). Si un router se dio de alta con la versión equivocada, **Rotar o cambiar** lo
+   corrige.
 
    El script deja en el MikroTik: el usuario `olterra` (grupo `ssh,read`, solo desde
    `198.18.0.0/24`), el reenvío SSH (`/ip ssh forwarding-enabled`, solo si estaba apagado) y una
    regla que acepta el SSH desde la plataforma por el túnel. Si el SSH del router estaba
    apagado, lo enciende solo para la plataforma; si estaba limitado a ciertas IP, le agrega la
-   plataforma; si usa otro puerto que el escrito en Olterra, lo avisa al importar.
+   plataforma. El SSH puede estar en cualquier puerto (Viotá lo tiene en el 52225): desde el
+   túnel, el 22 se redirige al puerto real, así que en Olterra siempre es el 22.
 
 ### 6.1 Clave de fábrica de las OLT VSOL
 

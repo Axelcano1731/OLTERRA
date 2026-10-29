@@ -140,9 +140,24 @@ def test_isp_script_makes_the_mikrotik_a_gateway() -> None:
         ' action=accept comment="olterra:isp-piloto:puerta"'
     ) in script
     # Si el SSH estaba apagado se enciende solo para la plataforma; si estaba limitado, se agrega.
-    assert "/ip service set $svc disabled=no address=198.18.0.0/24" in script
-    assert '/ip service set $svc address=($csv . "198.18.0.0/24")' in script
-    assert ":if ($sshport != 22) do={" in script
+    assert (
+        ':local on [:parse ("/ip service set " . $svc . " disabled=no " . $svcprop'
+        ' . "=198.18.0.0/24")]'
+    ) in script
+    assert (
+        ':local add [:parse ("/ip service set " . $svc . " " . $svcprop . "=" . $csv'
+        ' . "198.18.0.0/24")]'
+    ) in script
+    # RouterOS 7.24: /ip service también lista las conexiones activas (se toma el primero) y la
+    # lista se llama available-from; abierto a todos (0.0.0.0/0) no se toca.
+    assert ':local svc [:pick [/ip service find where name="ssh"] 0]' in script
+    assert 'available-from]")]' in script
+    assert '[:typeof [:find $csv "0.0.0.0/0"]] = "nil"' in script
+    # El SSH puede estar en cualquier puerto: desde el túnel, el 22 se redirige al real.
+    assert (
+        "chain=dstnat in-interface=$ifn src-address=198.18.0.0/24 dst-address-type=local"
+        " protocol=tcp dst-port=22 action=redirect to-ports=$sshport"
+    ) in script
     assert "Las OLT nuevas funcionan solas" in script
 
 
@@ -150,7 +165,7 @@ def test_gateway_ssh_port_and_password_are_validated() -> None:
     script = render_isp_script(
         tunnel(gateway=RouterGateway(password=GATEWAY.password, ssh_port=2222))
     )
-    assert ":if ($sshport != 2222) do={" in script
+    assert "dst-port=2222 action=redirect to-ports=$sshport" in script
     for bad in (
         RouterGateway(password="corta"),
         RouterGateway(password=GATEWAY.password[:-1] + '"'),  # una comilla rompe la cadena
