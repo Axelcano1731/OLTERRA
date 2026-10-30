@@ -1,0 +1,10 @@
+Copyright 2016-2025 by HSGQ
+ Software Version              : HSGQ-G008_IGB_V1.3.12C_Rel
+ System Version                : HSGQ-G008_IGB_V1.0.0_Rel
+ Hardware Version              : HSGQ-G008-hw-version-v2.0
+ Base Mac Address              : 02:14:B6:B2:F2:64
+ Build time                    : 2025/11/18 01:47:06
+ SerialNumber                  : H8GB202203110068
+ Product                       : HSGQ-G008
+ Panel temperature             : 46.000000
+ Main Board temperature        : 45.000000

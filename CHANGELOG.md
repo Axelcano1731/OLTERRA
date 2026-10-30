@@ -2,6 +2,18 @@
 
 ## [Sin publicar]
 
+### Agregado
+
+- **Ver cada ONU en HSGQ y BCD**: `onu.detail` (estado, distancia, serial, nombre, perfiles,
+  última conexión y caída), `onu.version` (fabricante, modelo, software) y, en la BCD,
+  `onu.optical` (Rx, Tx, temperatura, láser). Verificados con capturas de las OLT de Tocaima;
+  en Consultar aparecen como comandos por ONU. Los resultados se muestran con nombres en
+  español.
+- Escrituras de HSGQ (alta con perfiles, nombre, WAN PPPoE y Wi-Fi por OMCI, reinicio,
+  borrado, guardar) y de BCD (alta, descripción, reinicio, borrado, guardar), sacadas de la
+  ayuda de cada OLT y de su configuración. Quedan **sin verificar** (bloqueadas) hasta probarlas
+  con una ONU de prueba. La HSGQ numera las ONU desde 0: los comandos por ONU restan 1.
+
 ### Cambiado
 
 - El script del MikroTik agrega la plataforma al "Available From" del SSH también en

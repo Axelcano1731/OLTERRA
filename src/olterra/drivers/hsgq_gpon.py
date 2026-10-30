@@ -9,8 +9,14 @@ Dos cosas de esta marca:
   parámetro: no hace falta entrar a la interfaz.
 - **Numera las ONU desde 0** (``1/0``). Olterra las cuenta desde 1 (la base reserva el 0
   para "todo el PON" en las alarmas), así que la ONU ``1/0`` de la OLT es la ONU 1 en
-  Olterra, la ``1/1`` es la 2, etc. Los parsers suman 1; si algún día hay comandos por ONU,
-  la plantilla tiene que restarlo.
+  Olterra, la ``1/1`` es la 2, etc. Los parsers suman 1 y los comandos por ONU restan 1 (tipo
+  de parámetro ``onu_from_zero``).
+
+Aprovisionar (2026-10-29, de la ayuda ``?`` y de cómo la OLT guarda sus ONU en
+``show running-config``): dentro de ``interface gpon <pon>``, ``ont add`` con los perfiles de
+línea y de servicio que ya tiene la OLT, ``ont setting ... name``, la WAN PPPoE y el Wi-Fi por
+OMCI (``ont wanconfig``, ``ont wificonfig``) y ``save``. Sin verificar hasta probarlo con una
+ONU de prueba.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ from olterra.drivers.base import (
     Parser,
     UnrecognizedOutput,
 )
+from olterra.drivers.common import OnuDetail, OnuVersion
 from olterra.drivers.textparse import parse_key_values
 from olterra.drivers.vsol_gpon import PROMPT
 from olterra.drivers.vsol_gpon.parsers import (
@@ -42,15 +49,26 @@ from olterra.executor.plan import SessionProfile
 from olterra.identifiers import normalize_gpon_serial
 
 SOURCE = "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)"
+# Escrituras: la ayuda '?' de cada parámetro y las líneas que la OLT guarda en su configuración.
+WRITE_SOURCE = (
+    "OLT HSGQ-G008 V1.3.12C de Tocaima: ayuda '?' y show running-config (2026-10-29), sin probar"
+)
 ONU_OFFSET = 1  # ONU de la OLT (desde 0) + 1 = ONU en Olterra
 
-R = Access.READ
-CONFIG, EXEC = CliMode.CONFIG, CliMode.EXEC
+R, W = Access.READ, Access.WRITE
+CONFIG, EXEC, PON = CliMode.CONFIG, CliMode.EXEC, CliMode.PON
+ONU = {"onu": "onu_from_zero"}
 
 
 def _c(key: str, template: str, mode: CliMode, **kw: Any) -> CommandTemplate:
     return CommandTemplate(
         key=key, template=template, mode=mode, access=R, source=SOURCE, verified=True, **kw
+    )
+
+
+def _w(key: str, template: str, mode: CliMode = PON, **kw: Any) -> CommandTemplate:
+    return CommandTemplate(
+        key=key, template=template, mode=mode, access=W, source=WRITE_SOURCE, **kw
     )
 
 
@@ -69,6 +87,47 @@ COMMANDS: dict[str, CommandTemplate] = {
         _c("onu.state", "show ont-info {pon} all", CONFIG),
         _c("onu.rx_power_all", "show ont-optical gpon {pon}", CONFIG),
         _c("onu.autofind", "show ont-autofind {pon}", CONFIG),
+        _c(
+            "onu.detail",
+            "show ont-info {pon} {onu}",
+            CONFIG,
+            param_types=ONU,
+            notes="Estado, distancia, serial, perfiles y última caída",
+        ),
+        _c("onu.version", "show ont-version {pon} {onu}", CONFIG, param_types=ONU),
+        # --- Escrituras (dentro de interface gpon <pon>) ----------------------------------
+        _w(
+            "onu.authorize",
+            "ont add {onu} sn-auth {serial} omci ont-lineprofile-id {line_profile}"
+            " ont-srvprofile-id {srv_profile}",
+            param_types={**ONU, "line_profile": "profile_id0", "srv_profile": "profile_id0"},
+        ),
+        _w(
+            "onu.set_description",
+            'ont setting {onu} name "{description}"',
+            param_types=ONU,
+        ),
+        _w(
+            "onu.wan_pppoe",
+            "ont wanconfig add {onu} connection-type internet vlan tag {vlan} ipmode pppoe"
+            " {pppoe_user} {pppoe_password} lan_eth {lan_eth} lan_ssid {lan_ssid}",
+            param_types={**ONU, "lan_eth": "port_list", "lan_ssid": "port_list"},
+            secret_params={"pppoe_password": "pppoe_password"},
+            sensitive=True,
+            notes="WAN de la ONU por OMCI; usuario y clave PPPoE de hasta 32 caracteres",
+        ),
+        _w(
+            "onu.wifi",
+            "ont wificonfig {onu} 1 wifiname {ssid} security wpa2psk wpaencrypt aes"
+            " sharekey {wifi_key}",
+            param_types=ONU,
+            secret_params={"wifi_key": "wifi_key"},
+            sensitive=True,
+            notes="Primer SSID de 2,4 GHz, WPA2-PSK AES",
+        ),
+        _w("onu.reboot", "ont reboot {onu}", param_types=ONU),
+        _w("onu.delete", "ont delete {onu}", param_types=ONU),
+        _w("config.save", "save", CONFIG),
     )
 }
 
@@ -237,6 +296,56 @@ def parse_version(text: str) -> VersionInfo:
     return VersionInfo(model=model, firmware=firmware, hardware=kv.get("hardwareversion"))
 
 
+def _int_or_none(text: str | None) -> int | None:
+    match = re.search(r"\d+", text or "")
+    return int(match.group()) if match else None
+
+
+def _blank(text: str | None) -> str | None:
+    value = (text or "").strip()
+    return None if value in ("", "-", "No-description") else value
+
+
+def parse_onu_detail(text: str, params: Mapping[str, Any]) -> OnuDetail:
+    """``show ont-info <pon> <onu>``: una ficha ``Clave : valor`` por ONU."""
+    kv = parse_key_values(text)
+    if "onuid" not in kv or "runstate" not in kv:
+        raise UnrecognizedOutput("hsgq.ont_info_onu", "no hay 'ONU ID' ni 'Run State'", text)
+    run_state = kv["runstate"]
+    return OnuDetail(
+        pon=int(kv.get("ponid") or params["pon"]),
+        onu=int(kv["onuid"]) + ONU_OFFSET,
+        serial=normalize_gpon_serial(kv.get("serialnumber", "")),
+        name=_blank(kv.get("onuname")),
+        phase=_phase(run_state, kv.get("lastdowncause", "")),
+        run_state=run_state,
+        distance_m=_int_or_none(kv.get("distance")),
+        line_profile=_blank(kv.get("lineprofilename")),
+        service_profile=_blank(kv.get("srvprofilename")),
+        last_up=_blank(kv.get("lastuptime")),
+        last_down=_blank(kv.get("lastdowntime")),
+        last_down_cause=_blank(kv.get("lastdowncause")),
+        uptime=_blank(kv.get("ontuptime")),
+    )
+
+
+def parse_onu_version(text: str) -> OnuVersion:
+    """``show ont-version <pon> <onu>``; una ONU apagada sale con los campos vacíos."""
+    kv = parse_key_values(text)
+    if "pononu" not in kv:
+        raise UnrecognizedOutput("hsgq.ont_version", "no hay 'PON/ONU'", text)
+    vendor = _blank(kv.get("vendorid"))
+    model = _blank(kv.get("equipmentid"))
+    software = _blank(kv.get("mainsoftwareversion"))
+    return OnuVersion(
+        online=any((vendor, model, software)),
+        vendor=vendor,
+        model=model,
+        hardware=_blank(kv.get("ontversion")),
+        software=software,
+    )
+
+
 def _pon(params: Mapping[str, Any]) -> int | None:
     value = params.get("pon")
     return int(value) if value is not None else None
@@ -255,6 +364,8 @@ PARSERS: dict[str, Parser] = {
     "onu.state": lambda text, params: parse_onu_state(text, _pon(params)),
     "onu.rx_power_all": lambda text, params: parse_rx_power(text, _pon(params)),
     "onu.autofind": lambda text, params: parse_autofind(text, _pon(params)),
+    "onu.detail": parse_onu_detail,
+    "onu.version": lambda text, params: parse_onu_version(text),
 }
 
 HSGQ_GPON = Driver(
@@ -267,4 +378,5 @@ HSGQ_GPON = Driver(
     label="HSGQ GPON",
     pon_count=pon_count,
     enter_config="configure",
+    enter_pon="interface gpon {pon}",
 )

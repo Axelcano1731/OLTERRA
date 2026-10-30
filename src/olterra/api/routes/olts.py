@@ -75,7 +75,7 @@ async def olt_defaults(ctx: Tenant, state: State) -> OltDefaults:
         DriverOption(
             key=driver.key,
             label=driver.label or driver.vendor,
-            writes=any(c.access is not Access.READ for c in driver.commands.values()),
+            writes=driver.provisioning,
         )
         for driver in DRIVERS.values()
     ]

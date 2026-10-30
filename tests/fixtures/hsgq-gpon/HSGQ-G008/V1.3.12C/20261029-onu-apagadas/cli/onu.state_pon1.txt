@@ -1,0 +1,18 @@
+----------------------------------------------------------------------------------------------------
+PON/ONU  Serial            State     Run        Config    Match     Last Link         ONT
+         Number                      State      State     State     down reason       Name
+----------------------------------------------------------------------------------------------------
+1/0      GPONFC0E183E      Inactive  Initial    initial   Initial                     CLIENTE_025
+1/1      GPON22A96B8E      Inactive  Initial    initial   Initial                     CLIENTE_018
+1/2      GPON353C3895      Inactive  Initial    initial   Initial                     CLIENTE_038
+1/3      GPON78AAAC22      Inactive  Initial    initial   Initial                     CLIENTE_021
+1/4      GPON81AF6A3A      Inactive  Initial    initial   Initial                     CLIENTE_022
+1/5      GPON8946BEA6      Inactive  Initial    initial   Initial                     CLIENTE_010
+1/7      GPON789F374D      Inactive  Initial    initial   Initial                     CLIENTE_024
+1/9      GPON9B56BC86      Inactive  Initial    initial   Initial                     CLIENTE_026
+1/11     GPONBFCE47A6      Inactive  Initial    initial   Initial                     CLIENTE_044
+1/15     GPONFA8650C6      Inactive  Initial    initial   Initial                     CLIENTE_023
+1/16     GPON9D0B4756      Inactive  Initial    initial   Initial                     CLIENTE_033
+----------------------------------------------------------------------------------------------------
+  Total: 11   Online:0  Offline:11
+----------------------------------------------------------------------------------------------------

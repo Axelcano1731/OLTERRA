@@ -1,6 +1,6 @@
 # Drivers HSGQ GPON y BCD GPON
 
-> Última actualización: 2026-10-28 · Código: `src/olterra/drivers/hsgq_gpon.py`,
+> Última actualización: 2026-10-29 · Código: `src/olterra/drivers/hsgq_gpon.py`,
 > `src/olterra/drivers/bcd_gpon.py`
 
 Los dos salieron de las OLT de Tocaima en producción, por Telnet desde la red del ISP: la ayuda
@@ -9,10 +9,16 @@ capturas están en `tests/fixtures/hsgq-gpon/` y `tests/fixtures/bcd-gpon/`, con
 clientes reemplazados por `CLIENTE_NNN`, el operador por `OPERADOR`, seriales y MAC
 anonimizados y las comunidades SNMP tapadas.
 
-**Solo lectura.** Olterra consulta, monitorea (estado y señal de cada ONU, alarmas) y saca
-respaldos de la configuración. Aprovisionar, cambiar la clave de la OLT y las demás escrituras
-todavía no existen en estas marcas: la API responde 400 ("Olterra todavía no sabe hacer …") y
-la interfaz no muestra esos botones.
+Olterra consulta, monitorea (estado y señal de cada ONU, alarmas), saca respaldos y lee el
+detalle de cada ONU (estado, distancia, perfiles, versión, óptica). **Las escrituras** (alta,
+nombre, WAN, Wi-Fi, reinicio, borrado) están en el catálogo con `verified=False`: salieron de la
+ayuda `?` y de cómo cada OLT guarda sus ONU en la configuración, y la API no las deja usar
+hasta probarlas con una ONU de prueba (modo laboratorio, DESPLIEGUE 6.2). Cambiar la clave de
+la OLT y "copiar una ONU" siguen siendo solo de VSOL.
+
+La ayuda de los comandos que escriben se exploró sin riesgo: `comando ?` se manda sin Enter y
+después se borra la línea, porque estas CLI dejan escrito el comando tras la ayuda y un Enter
+lo ejecutaría (`ont modify 60` ya es un comando completo).
 
 Se elige con **Marca** al agregar o editar la OLT (`driver` en la API: `hsgq-gpon`,
 `bcd-gpon`). Las credenciales de fábrica del servidor son las de VSOL, así que en estas marcas
@@ -32,6 +38,24 @@ OLT de 172.17.1.2: 8 PON, 48 ONU en los PON 1, 2, 3 y 5. Entra por Telnet (`User
 | `onu.state` | `show ont-info {pon} all` | `configure` |
 | `onu.rx_power_all` | `show ont-optical gpon {pon}` | `configure` |
 | `onu.autofind` | `show ont-autofind {pon}` | `configure` |
+| `onu.detail` | `show ont-info {pon} {onu}` | `configure` |
+| `onu.version` | `show ont-version {pon} {onu}` | `configure` |
+
+Escrituras, dentro de `interface gpon {pon}` (sin verificar):
+
+| Llave | Comando |
+| --- | --- |
+| `onu.authorize` | `ont add {onu} sn-auth {serial} omci ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}` |
+| `onu.set_description` | `ont setting {onu} name "{description}"` |
+| `onu.wan_pppoe` | `ont wanconfig add {onu} connection-type internet vlan tag {vlan} ipmode pppoe {usuario} {clave} lan_eth {lan_eth} lan_ssid {lan_ssid}` |
+| `onu.wifi` | `ont wificonfig {onu} 1 wifiname {ssid} security wpa2psk wpaencrypt aes sharekey {clave}` |
+| `onu.reboot` | `ont reboot {onu}` |
+| `onu.delete` | `ont delete {onu}` |
+| `config.save` | `save` (en `configure`) |
+
+La OLT de Tocaima tiene un perfil de línea (`0 INTERNET`, VLAN 117/119/121/123/105) y uno de
+servicio (`0 srvprofile_default_0`), y todas sus ONU usan esos dos. La WAN y el Wi-Fi van por
+OMCI desde la OLT; las claves PPPoE y Wi-Fi viajan selladas (`{{secret:...}}`).
 
 - Se configura con `configure` (no `configure terminal`) y el PON va como parámetro: ninguna
   consulta entra a `interface gpon N`.
@@ -40,6 +64,9 @@ OLT de 172.17.1.2: 8 PON, 48 ONU en los PON 1, 2, 3 y 5. Entra por Telnet (`User
   (`ONU_OFFSET`). Si algún día hay comandos por ONU, la plantilla tiene que restar 1.
 - `show ont-info` es una tabla de columnas fijas y el nombre de la ONU (última columna) puede
   llevar espacios: se corta por la posición de cada columna en el encabezado.
+- `show ont-info {pon} {onu}` y `show ont-version` también numeran la ONU desde 0; las
+  plantillas usan el tipo `onu_from_zero`. Una ONU apagada sale en `show ont-version` con los
+  campos vacíos.
 - Los errores empiezan con `vty%` (`vty% Command incomplete.`, `vty% … Unknown command`).
 - `show ont-info all` no lista los PON sin ONU: el número de PON sale del modelo
   (`HSGQ-G008` → 8) para que el monitoreo los recorra todos.
@@ -61,6 +88,26 @@ de C-Data. Prompts `OLT>`, `OLT#`, `OLT(config)#`, `OLT(config-interface-gpon)#`
 | `onu.state` | `show ont info {pon} all` | `config` |
 | `onu.rx_power_all` | `show ont optical-info {pon} all` | `interface gpon` |
 | `onu.autofind` | `show ont autofind {pon}` | `config` |
+| `onu.detail` | `show ont info {pon} {onu}` | `interface gpon` |
+| `onu.version` | `show ont version {pon} {onu}` | `interface gpon` |
+| `onu.optical` | `show ont optical-info {pon} {onu}` | `interface gpon` |
+
+Escrituras, dentro de `interface gpon` (sin verificar):
+
+| Llave | Comando |
+| --- | --- |
+| `onu.authorize` | `ont add {pon} {onu} sn-auth {serial} ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}` |
+| `onu.set_description` | `ont description {pon} {onu} {description}` |
+| `onu.reboot` | `ont reboot {pon} {onu}` |
+| `onu.delete` | `ont delete {pon} {onu}` |
+| `config.save` | `save` (en `config`) |
+
+Este firmware no configura WAN ni Wi-Fi de la ONU desde la OLT: eso lo dan los perfiles de
+línea (VLAN) o la propia ONU. **La OLT de Tocaima tiene `ont autoauth` en sus 8 PON**: autoriza
+sola toda ONU nueva, así que su autofind siempre está vacío y "Autorizar" no aplica ahí
+mientras siga así. `show ont version` y `optical-info` de una ONU apagada responden "The ONT
+does not online"; la óptica de una ONU es una ficha `Clave : valor` (no la tabla de `all`) con
+la corriente del láser en µA.
 
 - Configuración con `config`; la interfaz GPON es una sola (`interface gpon`, sin número) y el
   PON va como parámetro. La potencia óptica solo se consulta dentro de esa interfaz.

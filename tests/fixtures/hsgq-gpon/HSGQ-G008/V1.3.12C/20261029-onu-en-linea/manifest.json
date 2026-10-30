@@ -1,0 +1,112 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "hsgq-gpon",
+  "captured_at": "2026-10-29T16:09:11.189274+00:00",
+  "model": "HSGQ-G008",
+  "firmware": "HSGQ-G008_IGB_V1.3.12C_Rel",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "system.version",
+      "command": "show version",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 715,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/system.version.txt"
+    },
+    {
+      "key": "system.running_config",
+      "command": "show running-config",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 454,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/system.running_config.txt"
+    },
+    {
+      "key": "interfaces.brief",
+      "command": "show ont-info all",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 231,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/interfaces.brief.txt"
+    },
+    {
+      "key": "onu.list",
+      "command": "show ont-info 3 all",
+      "pon": 3,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 264,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.list_pon3.txt"
+    },
+    {
+      "key": "onu.state",
+      "command": "show ont-info 3 all",
+      "pon": 3,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 212,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.state_pon3.txt"
+    },
+    {
+      "key": "onu.rx_power_all",
+      "command": "show ont-optical gpon 3",
+      "pon": 3,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 214,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.rx_power_all_pon3.txt"
+    },
+    {
+      "key": "onu.autofind",
+      "command": "show ont-autofind 3",
+      "pon": 3,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 90,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.autofind_pon3.txt"
+    },
+    {
+      "key": "onu.detail",
+      "command": "show ont-info 3 8",
+      "pon": 3,
+      "onu": 9,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 269,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.detail_pon3_onu9.txt"
+    },
+    {
+      "key": "onu.version",
+      "command": "show ont-version 3 8",
+      "pon": 3,
+      "onu": 9,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 172,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.version_pon3_onu9.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT HSGQ-G008 de Tocaima: lecturas por ONU con una ONU en línea (3/8); nombres de clientes y operador reemplazados (2026-10-29)"
+}

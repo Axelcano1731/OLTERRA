@@ -10,10 +10,18 @@ lectura: aprovisionar todavía no existe para esta marca.
 - No tiene ``terminal length``: la paginación (``--More ( Press 'Q' to quit )--``) la
   atiende el ejecutor.
 - El modelo sale de ``show device`` y el firmware de ``show version``.
+
+Aprovisionar (2026-10-29, de la ayuda ``?`` y de cómo la OLT guarda sus ONU): dentro de
+``interface gpon``, ``ont add <pon> <onu> sn-auth ...`` con los perfiles de línea y de
+servicio de la OLT, ``ont description`` y ``save``. Este firmware no configura WAN ni Wi-Fi de
+la ONU desde la OLT. Ojo: la OLT de Tocaima tiene ``ont autoauth`` en todos los PON, así que
+autoriza sola las ONU nuevas (por eso su autofind siempre está vacío). Sin verificar hasta
+probarlo con una ONU de prueba.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -26,6 +34,7 @@ from olterra.drivers.base import (
     Parser,
     UnrecognizedOutput,
 )
+from olterra.drivers.common import OnuDetail, OnuVersion
 from olterra.drivers.textparse import parse_key_values
 from olterra.drivers.vsol_gpon import PROMPT
 from olterra.drivers.vsol_gpon.parsers import (
@@ -34,24 +43,37 @@ from olterra.drivers.vsol_gpon.parsers import (
     OnuPort,
     OnuRow,
     OnuState,
+    OpticalInfo,
     RxReading,
     VersionInfo,
 )
 from olterra.drivers.vsol_gpon.parsers import (
     parse_autofind as generic_autofind,
 )
+from olterra.drivers.vsol_gpon.parsers import (
+    parse_onu_optical as vsol_optical,
+)
 from olterra.executor.plan import SessionProfile
 from olterra.identifiers import normalize_gpon_serial
 
 SOURCE = "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)"
+WRITE_SOURCE = (
+    "OLT BCD-1508GS V2.1.6 de Tocaima: ayuda '?' y show current-config (2026-10-29), sin probar"
+)
 
-R = Access.READ
+R, W = Access.READ, Access.WRITE
 CONFIG, EXEC, PON = CliMode.CONFIG, CliMode.EXEC, CliMode.PON
 
 
 def _c(key: str, template: str, mode: CliMode, **kw: Any) -> CommandTemplate:
     return CommandTemplate(
         key=key, template=template, mode=mode, access=R, source=SOURCE, verified=True, **kw
+    )
+
+
+def _w(key: str, template: str, mode: CliMode = PON, **kw: Any) -> CommandTemplate:
+    return CommandTemplate(
+        key=key, template=template, mode=mode, access=W, source=WRITE_SOURCE, **kw
     )
 
 
@@ -71,6 +93,25 @@ COMMANDS: dict[str, CommandTemplate] = {
         _c("onu.state", "show ont info {pon} all", CONFIG),
         _c("onu.rx_power_all", "show ont optical-info {pon} all", PON),
         _c("onu.autofind", "show ont autofind {pon}", CONFIG),
+        _c(
+            "onu.detail",
+            "show ont info {pon} {onu}",
+            PON,
+            notes="Estado, distancia, serial, descripción y perfiles",
+        ),
+        _c("onu.version", "show ont version {pon} {onu}", PON),
+        _c("onu.optical", "show ont optical-info {pon} {onu}", PON),
+        # --- Escrituras (dentro de interface gpon) ----------------------------------------
+        _w(
+            "onu.authorize",
+            "ont add {pon} {onu} sn-auth {serial} ont-lineprofile-id {line_profile}"
+            " ont-srvprofile-id {srv_profile}",
+            param_types={"line_profile": "profile_id0", "srv_profile": "profile_id0"},
+        ),
+        _w("onu.set_description", "ont description {pon} {onu} {description}"),
+        _w("onu.reboot", "ont reboot {pon} {onu}"),
+        _w("onu.delete", "ont delete {pon} {onu}"),
+        _w("config.save", "save", CONFIG),
     )
 }
 
@@ -215,6 +256,68 @@ def parse_version(text: str) -> VersionInfo:
     return VersionInfo(model=model, firmware=firmware, hardware=kv.get("hardwareversion"))
 
 
+def _blank(text: str | None) -> str | None:
+    value = (text or "").strip()
+    return None if value in ("", "-", "--") else value
+
+
+_NOT_ONLINE = re.compile(r"(?i)does not online|not online")
+
+
+def parse_onu_detail(text: str, params: Mapping[str, Any]) -> OnuDetail:
+    """``show ont info <pon> <onu>``: ficha de la ONU y después sus perfiles de línea y de
+    servicio (los dos con ``Profile-name``: el primero es el de línea)."""
+    kv = parse_key_values(text)
+    if "ontid" not in kv or "runstate" not in kv:
+        raise UnrecognizedOutput("bcd.ont_info_onu", "no hay 'ONT-ID' ni 'Run state'", text)
+    profiles = re.findall(r"(?im)^\s*Profile-name\s*:\s*(.*?)\s*$", text)
+    serial = re.match(r"\s*([0-9A-Za-z]{12})", kv.get("sn", ""))
+    distance = re.search(r"\d+", kv.get("ontdistancem", ""))
+    run_state = kv["runstate"]
+    return OnuDetail(
+        pon=int(kv.get("portid") or params["pon"]),
+        onu=int(kv["ontid"]),
+        serial=normalize_gpon_serial(serial.group(1)) if serial else None,
+        name=_blank(kv.get("description")),
+        phase=_phase(run_state),
+        run_state=run_state,
+        distance_m=int(distance.group()) if distance else None,
+        line_profile=_blank(profiles[0]) if profiles else None,
+        service_profile=_blank(profiles[1]) if len(profiles) > 1 else None,
+        last_up=_blank(kv.get("lastuptime")),
+        last_down=_blank(kv.get("lastdowntime")),
+        last_down_cause=None,
+        uptime=_blank(kv.get("onlinetime")),
+    )
+
+
+def parse_onu_version(text: str) -> OnuVersion:
+    """``show ont version <pon> <onu>``; "The ONT does not online" si está apagada."""
+    if _NOT_ONLINE.search(text):
+        return OnuVersion(online=False, vendor=None, model=None, hardware=None, software=None)
+    kv = parse_key_values(text)
+    vendor = _blank(kv.get("vendorid") or kv.get("vendor"))
+    model = _blank(kv.get("equipmentid") or kv.get("ontmodel") or kv.get("model"))
+    software = _blank(
+        kv.get("mainsoftwareversion") or kv.get("softwareversion") or kv.get("ontsoftwareversion")
+    )
+    hardware = _blank(kv.get("ontversion") or kv.get("hardwareversion"))
+    if not any((vendor, model, software, hardware)):
+        raise UnrecognizedOutput("bcd.ont_version", "no se reconoció la versión", text)
+    return OnuVersion(online=True, vendor=vendor, model=model, hardware=hardware, software=software)
+
+
+def parse_onu_optical(text: str, params: Mapping[str, Any]) -> OpticalInfo | None:
+    """``show ont optical-info <pon> <onu>``: ficha ``Clave : valor`` como la de VSOL, con la
+    corriente del láser en µA. None si la ONU no está en línea."""
+    if _NOT_ONLINE.search(text):
+        return None
+    info = vsol_optical(text)
+    if info.bias_ma is not None and re.search(r"(?i)bias[^\n]*\(ua\)", text):
+        info = dataclasses.replace(info, bias_ma=round(info.bias_ma / 1000, 3))
+    return info
+
+
 def _pon(params: Mapping[str, Any]) -> int | None:
     value = params.get("pon")
     return int(value) if value is not None else None
@@ -234,6 +337,9 @@ PARSERS: dict[str, Parser] = {
     "onu.state": lambda text, params: parse_onu_state(text, _pon(params)),
     "onu.rx_power_all": lambda text, params: parse_rx_power(text, _pon(params)),
     "onu.autofind": lambda text, params: parse_autofind(text, _pon(params)),
+    "onu.detail": parse_onu_detail,
+    "onu.version": lambda text, params: parse_onu_version(text),
+    "onu.optical": parse_onu_optical,
 }
 
 BCD_GPON = Driver(

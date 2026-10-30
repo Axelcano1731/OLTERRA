@@ -1,0 +1,29 @@
+----------------------------------------------------------------------------------------------------
+ PON ID                        : 3
+ ONU ID                        : 8
+ ONU Name                      : CLIENTE_031
+ State                         : Active
+ Run State                     : Online
+ Config State                  : normal
+ Match State                   : Initial
+ Distance                      : 4786
+ Authorize type                : SN-auth
+ SerialNumber                  : GPOND1A47239
+ Password                      : ******
+ Loid                          : 123456789
+ Loid-Password                 : ******
+ US SD Ber                     : 0
+ DS SD Ber                     : 3
+ ISP                           : 0
+ ISP ONU Type                  : HGU
+ Last up Time                  : 2026/10/29 10:05:49
+ Last down Time                : -
+ Last DyingGasp Time           : -
+ Last down cause               :
+ Ont uptime                    : 0 days 2 hours 46 mins 41 secs
+ Line Profile ID               : 0
+ Line Profile Name             : INTERNET
+ Srv Profile ID                : 0
+ Srv Profile Name              : srvprofile_default_0
+ Ont Description               : No-description
+----------------------------------------------------------------------------------------------------
