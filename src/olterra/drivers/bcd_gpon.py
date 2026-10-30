@@ -34,7 +34,7 @@ from olterra.drivers.base import (
     Parser,
     UnrecognizedOutput,
 )
-from olterra.drivers.common import OnuDetail, OnuVersion
+from olterra.drivers.common import MacEntry, OnuDetail, OnuVersion, mac_of, parse_mac_rows
 from olterra.drivers.textparse import parse_key_values
 from olterra.drivers.vsol_gpon import PROMPT
 from olterra.drivers.vsol_gpon.parsers import (
@@ -101,6 +101,18 @@ COMMANDS: dict[str, CommandTemplate] = {
         ),
         _c("onu.version", "show ont version {pon} {onu}", PON),
         _c("onu.optical", "show ont optical-info {pon} {onu}", PON),
+        _c(
+            "onu.mac",
+            "show ont port learned-mac {pon} {onu} eth 1",
+            PON,
+            notes="MAC aprendidas en el puerto 1 de la ONU; una ONU en modo router no aprende ninguna",
+        ),
+        _c(
+            "mac.by_pon",
+            "show mac-address port gpon {pon}",
+            CONFIG,
+            notes="Las MAC del PON; esta tabla no dice de qué ONU es cada una",
+        ),
         # --- Escrituras (dentro de interface gpon) ----------------------------------------
         _w(
             "onu.authorize",
@@ -318,6 +330,27 @@ def parse_onu_optical(text: str, params: Mapping[str, Any]) -> OpticalInfo | Non
     return info
 
 
+def parse_mac_table(text: str, pon: int | None, onu: int | None = None) -> list[MacEntry]:
+    """``show mac-address port gpon <pon>`` (``MAC VLAN Port Tipo``, sin la ONU) o
+    ``show ont port learned-mac``; "No mac address learned" es una lista vacía."""
+
+    def row(line: str, match: re.Match[str]) -> MacEntry | None:
+        after = line[match.end() :].split()
+        vlan = int(after[0]) if after and after[0].isdigit() else None
+        port = next(
+            (re.fullmatch(r"(?i)pon(\d+)", w) for w in after if w.lower().startswith("pon")), None
+        )
+        return MacEntry(
+            mac=mac_of(match),
+            vlan=vlan,
+            pon=int(port.group(1)) if port else pon,
+            onu=onu,
+            kind=next((w.lower() for w in after if w.lower() in ("dynamic", "static")), None),
+        )
+
+    return parse_mac_rows(text, row)
+
+
 def _pon(params: Mapping[str, Any]) -> int | None:
     value = params.get("pon")
     return int(value) if value is not None else None
@@ -340,6 +373,8 @@ PARSERS: dict[str, Parser] = {
     "onu.detail": parse_onu_detail,
     "onu.version": lambda text, params: parse_onu_version(text),
     "onu.optical": parse_onu_optical,
+    "onu.mac": lambda text, params: parse_mac_table(text, _pon(params), params.get("onu")),
+    "mac.by_pon": lambda text, params: parse_mac_table(text, _pon(params)),
 }
 
 BCD_GPON = Driver(

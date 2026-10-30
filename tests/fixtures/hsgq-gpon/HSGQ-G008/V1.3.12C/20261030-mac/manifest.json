@@ -1,0 +1,35 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "hsgq-gpon",
+  "captured_at": "2026-10-30T16:08:01.809186+00:00",
+  "model": "HSGQ-G008",
+  "firmware": "HSGQ-G008_IGB_V1.3.12C_Rel",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "mac.by_pon",
+      "command": "show mac-address port gpon 3",
+      "pon": 3,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 158,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/mac.by_pon_pon3.txt"
+    },
+    {
+      "key": "onu.mac",
+      "command": "show mac-address ont 3 8",
+      "pon": 3,
+      "onu": 9,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 140,
+      "source": "OLT HSGQ-G008 V1.3.12C de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.mac_pon3_onu9.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT HSGQ-G008 de Tocaima: MAC por ONU y por PON; nombres de clientes reemplazados (2026-10-30)"
+}

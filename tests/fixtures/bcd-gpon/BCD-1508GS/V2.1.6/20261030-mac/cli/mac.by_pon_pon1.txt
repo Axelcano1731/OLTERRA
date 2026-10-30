@@ -1,0 +1,24 @@
+-----------------------------------------------------------------------------
+ Total: 18
+-----------------------------------------------------------------------------
+ MAC                 VLAN   Port   MAC-Type
+-----------------------------------------------------------------------------
+ 02:09:E8:D8:B1:DC   101    pon1   dynamic
+ 02:B6:37:8B:24:0C   101    pon1   dynamic
+ 02:F5:B4:E4:C5:81   101    pon1   dynamic
+ 02:E7:83:16:B0:9A   101    pon1   dynamic
+ 02:18:CC:E1:B2:FF   101    pon1   dynamic
+ 02:BA:F9:23:6C:4B   101    pon1   dynamic
+ 02:C0:2B:4A:FC:0B   101    pon1   dynamic
+ 02:F8:B8:C4:A6:19   101    pon1   dynamic
+ 02:1C:93:56:17:F7   101    pon1   dynamic
+ 02:7F:86:2A:18:E0   101    pon1   dynamic
+ 02:FB:47:35:BE:19   101    pon1   dynamic
+ 02:4C:88:BB:40:E2   101    pon1   dynamic
+ 02:26:77:89:E8:C2   101    pon1   dynamic
+ 02:AA:D4:2F:75:CE   101    pon1   dynamic
+ 02:AA:22:7B:EC:81   101    pon1   dynamic
+ 02:C8:D2:15:0E:F2   101    pon1   dynamic
+ 02:8C:AF:A9:C3:F5   101    pon1   dynamic
+ 02:AC:CF:F7:B6:01   101    pon1   dynamic
+-----------------------------------------------------------------------------

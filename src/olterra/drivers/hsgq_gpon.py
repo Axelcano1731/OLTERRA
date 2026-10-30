@@ -33,7 +33,7 @@ from olterra.drivers.base import (
     Parser,
     UnrecognizedOutput,
 )
-from olterra.drivers.common import OnuDetail, OnuVersion
+from olterra.drivers.common import MacEntry, OnuDetail, OnuVersion, mac_of, parse_mac_rows
 from olterra.drivers.textparse import parse_key_values
 from olterra.drivers.vsol_gpon import PROMPT
 from olterra.drivers.vsol_gpon.parsers import (
@@ -95,6 +95,8 @@ COMMANDS: dict[str, CommandTemplate] = {
             notes="Estado, distancia, serial, perfiles y última caída",
         ),
         _c("onu.version", "show ont-version {pon} {onu}", CONFIG, param_types=ONU),
+        _c("onu.mac", "show mac-address ont {pon} {onu}", CONFIG, param_types=ONU),
+        _c("mac.by_pon", "show mac-address port gpon {pon}", CONFIG),
         # --- Escrituras (dentro de interface gpon <pon>) ----------------------------------
         _w(
             "onu.authorize",
@@ -346,6 +348,27 @@ def parse_onu_version(text: str) -> OnuVersion:
     )
 
 
+def parse_mac_table(text: str) -> list[MacEntry]:
+    """``show mac-address ont|port gpon``: ``SVP MAC VLAN Port Ont Gem Tipo Nombre``; la ONU
+    va desde 0 en la OLT."""
+
+    def row(line: str, match: re.Match[str]) -> MacEntry | None:
+        after = line[match.end() :].split()
+        if len(after) < 3 or not after[0].isdigit():
+            return None
+        port = re.fullmatch(r"(?i)PON0*(\d+)", after[1])
+        onu = int(after[2]) + ONU_OFFSET if after[2].isdigit() else None
+        return MacEntry(
+            mac=mac_of(match),
+            vlan=int(after[0]),
+            pon=int(port.group(1)) if port else None,
+            onu=onu,
+            kind=after[4].lower() if len(after) > 4 else None,
+        )
+
+    return parse_mac_rows(text, row)
+
+
 def _pon(params: Mapping[str, Any]) -> int | None:
     value = params.get("pon")
     return int(value) if value is not None else None
@@ -366,6 +389,8 @@ PARSERS: dict[str, Parser] = {
     "onu.autofind": lambda text, params: parse_autofind(text, _pon(params)),
     "onu.detail": parse_onu_detail,
     "onu.version": lambda text, params: parse_onu_version(text),
+    "onu.mac": lambda text, params: parse_mac_table(text),
+    "mac.by_pon": lambda text, params: parse_mac_table(text),
 }
 
 HSGQ_GPON = Driver(

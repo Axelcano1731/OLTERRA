@@ -80,6 +80,16 @@ _COMMANDS = [
         manual("9.3.1"),
         notes="El manual no muestra la sintaxis completa de la interfaz; confirmar",
     ),
+    # De la ayuda '?' de la OLT de Tocaima (2026-10-30): a diferencia de la tabla por
+    # interfaz, esta dice de qué ONU es cada MAC (GPON0/<pon>:<onu>).
+    _c(
+        "onu.mac",
+        "show mac address-table pon {pon} {onu}",
+        CONFIG,
+        R,
+        LAB_TOCAIMA,
+        notes="MAC que aprendió la ONU (la de su WAN y las de los equipos en modo puente)",
+    ),
     # --- Puerto PON ----------------------------------------------------------------
     _c("pon.info", "show pon info", PON, R, manual("18.3.1")),
     _c("pon.optical", "show pon optical transceiver", PON, R, manual("18.2.2")),
@@ -404,6 +414,7 @@ _LAB_VERIFIED = {
     "onu.autofind", "onu.autofind_detail", "onu.list", "onu.rx_power_all", "onu.detail",
     "onu.capability", "onu.service_config", "onu.state", "onu.distance",
     "profile.list", "pon.statistics", "onu.optical", "onu.description",
+    "onu.mac",  # solo la de Tocaima (2026-10-30); la V1600G0-B no se ha probado
 }  # fmt: skip
 
 COMMANDS: dict[str, CommandTemplate] = {

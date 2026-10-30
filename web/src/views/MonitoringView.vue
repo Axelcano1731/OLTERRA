@@ -19,6 +19,7 @@ import {
   listAlarms,
   listOnuStatus,
   pollOlt,
+  queryOlt,
   setOnuCustomerName,
   type Alarm,
   type OnuFilter,
@@ -43,6 +44,7 @@ import {
   signalLevel,
 } from '@/lib/monitoring'
 import { errorText, useAsync } from '@/lib/useAsync'
+import { usePlan } from '@/lib/usePlan'
 import { can } from '@/session'
 
 const route = useRoute()
@@ -134,6 +136,8 @@ async function toggle(onu: OnuStatus): Promise<void> {
   history.value = null
   historyError.value = null
   editingName.value = false
+  macAsked.value = false
+  macs.stop()
   try {
     const data = await getOnuHistory(onu.olt_id, onu.pon, onu.onu)
     if (openKey.value === k) history.value = data
@@ -174,6 +178,45 @@ async function saveName(): Promise<void> {
     nameError.value = errorText(caught)
   } finally {
     savingName.value = false
+  }
+}
+
+// MAC de los equipos de la ONU: una consulta de solo lectura a la OLT (onu.mac).
+interface MacRow {
+  mac: string
+  vlan: number | null
+  onu: number | null
+}
+const macs = usePlan()
+const macError = ref<string | null>(null)
+const macAsked = ref(false)
+
+const macResult = computed(() => {
+  const output = macs.plan.value?.result?.outputs?.find((item) => item.key === 'onu.mac')
+  if (!output) return null
+  if (!output.ok || output.parse_error) {
+    return {
+      rows: [] as MacRow[],
+      error: output.error ?? output.parse_error ?? 'La OLT no respondió',
+    }
+  }
+  return { rows: (output.data as MacRow[] | undefined) ?? [], error: null }
+})
+
+async function showMacs(): Promise<void> {
+  const current = history.value?.status
+  if (!current) return
+  macError.value = null
+  macAsked.value = true
+  try {
+    const plan = await queryOlt(current.olt_id, {
+      commands: ['onu.mac'],
+      pon: [current.pon],
+      onu: [`${current.pon}:${current.onu}`],
+    })
+    await macs.follow(plan.plan_id)
+  } catch (caught) {
+    macError.value = errorText(caught)
   }
 }
 
@@ -520,6 +563,41 @@ const FILTERS: { value: OnuFilter; label: string }[] = [
                           <dd>{{ timeAgo(history.status.last_online_at) }}</dd>
                         </div>
                       </dl>
+                      <h3 class="mt-3 mb-1 flex items-center gap-2 font-semibold">
+                        MAC de los equipos
+                        <button
+                          type="button"
+                          class="btn-ghost px-1.5 py-0.5 text-xs font-normal"
+                          :disabled="macs.waiting.value"
+                          @click.stop="showMacs"
+                        >
+                          <LoaderCircle v-if="macs.waiting.value" class="size-3 animate-spin" />
+                          {{ macAsked ? 'Consultar de nuevo' : 'Ver MAC' }}
+                        </button>
+                      </h3>
+                      <p v-if="macError || macs.error.value" class="text-xs text-danger">
+                        {{ macError ?? macs.error.value }}
+                      </p>
+                      <p v-else-if="macs.waiting.value" class="text-xs text-muted">
+                        Preguntando a la OLT{{ macs.slow.value ? ' (está tardando)' : '' }}…
+                      </p>
+                      <template v-else-if="macResult">
+                        <p v-if="macResult.error" class="text-xs text-danger">
+                          {{ macResult.error }}
+                        </p>
+                        <p v-else-if="macResult.rows.length === 0" class="text-xs text-muted">
+                          La OLT no tiene MAC aprendidas de esta ONU. Si es un router (HGU), en
+                          algunas marcas su MAC solo se ve en la sesión PPPoE del MikroTik.
+                        </p>
+                        <ul v-else class="space-y-0.5 text-xs">
+                          <li v-for="row in macResult.rows" :key="row.mac" class="font-mono">
+                            {{ row.mac }}
+                            <span v-if="row.vlan" class="font-sans text-muted"
+                              >· VLAN {{ row.vlan }}</span
+                            >
+                          </li>
+                        </ul>
+                      </template>
                       <h3 class="mt-3 mb-1 font-semibold">Alarmas recientes</h3>
                       <p v-if="history.alarms.length === 0" class="text-xs text-muted">
                         Ninguna en estos días.
