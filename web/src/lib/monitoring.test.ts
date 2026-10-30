@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { alarmWhere, duration, formatDbm, signalLevel } from './monitoring'
+import { alarmWhere, duration, formatDbm, onuName, signalLevel } from './monitoring'
 
 describe('monitoreo', () => {
+  it('el nombre puesto en el panel manda sobre el de la OLT', () => {
+    const onu = { pon: 3, onu: 10, description: 'CLIENTE_OLT', customer_name: null }
+    expect(onuName(onu)).toBe('CLIENTE_OLT')
+    expect(onuName({ ...onu, customer_name: 'Cristina Galvis' })).toBe('Cristina Galvis')
+    expect(onuName({ ...onu, description: null })).toBe('ONU 3/10')
+  })
+
   it('nombra la señal según la ventana GPON', () => {
     expect(signalLevel(-19.5)).toEqual({ label: 'Buena', tone: 'success' })
     expect(signalLevel(-25.4).label).toBe('Baja')

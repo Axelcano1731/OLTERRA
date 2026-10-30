@@ -308,6 +308,8 @@ class OnuStatus(Base):
     onu: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     serial: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
+    # El que se pone desde el panel (migración 0013): el sondeo no lo pisa.
+    customer_name: Mapped[str | None] = mapped_column(Text)
     phase: Mapped[str | None] = mapped_column(Text)
     online: Mapped[bool] = mapped_column(Boolean)
     rx_dbm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))

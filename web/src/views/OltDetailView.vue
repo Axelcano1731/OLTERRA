@@ -152,7 +152,7 @@ watch(waiting, (now, before) => {
       </template>
       <template #actions>
         <RouterLink
-          v-if="can('onu:write') && oltWrites(olt.data.value.driver)"
+          v-if="can('onu:write')"
           :to="{ name: 'olt-provision', params: { id } }"
           class="btn-primary"
         >

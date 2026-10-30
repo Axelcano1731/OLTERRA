@@ -46,3 +46,14 @@ export function duration(fromIso: string, now: number = Date.now()): string {
   if (hours < 24) return `${hours} h ${minutes % 60} min`
   return `${Math.floor(hours / 24)} d ${hours % 24} h`
 }
+
+/** Cómo se llama una ONU en pantalla: el nombre puesto en el panel, la descripción de la OLT o su
+ * posición. */
+export function onuName(onu: {
+  customer_name?: string | null
+  description: string | null
+  pon: number
+  onu: number
+}): string {
+  return onu.customer_name || onu.description || `ONU ${onu.pon}/${onu.onu}`
+}

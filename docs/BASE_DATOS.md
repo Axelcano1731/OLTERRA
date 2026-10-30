@@ -38,7 +38,7 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 
 | Tabla | Para qué | La aplicación puede |
 |---|---|---|
-| `tenants` | Un ISP. `net_index` (secuencia) define sus bloques de direcciones del túnel | leer |
+| `tenants` | Un ISP. `net_index` (secuencia) define sus bloques de direcciones del túnel; `name` es el que se muestra y lo cambia su admin (el `slug` no: va en los scripts de los MikroTik) | leer, cambiar `name` |
 | `tenant_keys` | La DEK del tenant, envuelta por la llave maestra | leer |
 | `api_keys` | Llaves de API (solo el SHA-256 del secreto) | leer; actualizar `last_used_at` |
 | `credentials` | Credenciales cifradas con la DEK (AAD = tenant + `credential:<id>`) | leer, crear, cambiar, borrar |
@@ -47,11 +47,11 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `onus` | ONU por OLT/PON/índice: serial, fase, potencias, distancia, cliente | leer, crear, cambiar, borrar |
 | `plan_runs` | Planes enviados al ejecutor y su resultado ya interpretado (salidas enmascaradas). Índice por OLT para el historial de consultas | leer, crear, cambiar, borrar |
 | `provision_templates` | Plantillas de aprovisionamiento de ONU (`body` = perfiles, T-CONT, GEM, VLAN, WAN PPPoE, WiFi, gestión remota). Nada de un cliente. Las claves de las cuentas de la ONU van en `secrets`, cifradas con la DEK del tenant (AAD `provision_template:<id>`); la API solo dice si están guardadas | leer, crear, cambiar, borrar |
-| `users` | Usuarios de la interfaz: usuario único en la plataforma (sin distinguir mayúsculas), hash scrypt, rol, cambio obligatorio de contraseña, intentos fallidos y bloqueo | leer y cambiar (los crea `olterra-admin`) |
+| `users` | Usuarios de la interfaz: usuario único en la plataforma (sin distinguir mayúsculas), hash scrypt, rol, cambio obligatorio de contraseña, intentos fallidos y bloqueo | leer, crear y cambiar (el admin del ISP en Usuarios, o `olterra-admin`) |
 | `user_sessions` | Sesiones de usuario: solo el SHA-256 del secreto del token, vencimiento y cierre | leer, crear, cambiar, borrar |
 | `provision_jobs` | Trabajos que avanzan solos: alta de ONU (`authorize`, `configure`) y cambio de clave de la OLT (`olt_password`). Paso actual, datos sin claves, detalle y bitácora de pasos. Las claves (PPPoE/WiFi, o las nuevas de la OLT) van cifradas con la DEK del tenant (`secrets`) y se borran al terminar | leer, crear, cambiar, borrar |
 | `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después. Se lee en `GET /v1/audit` (permiso `audit:read`) | **solo leer y anexar** |
-| `onu_status` | Monitoreo: lo último de cada ONU (fase, en línea, señal, cliente, desde cuándo). Una fila por ONU; la reescribe cada sondeo | leer, crear, cambiar, borrar |
+| `onu_status` | Monitoreo: lo último de cada ONU (fase, en línea, señal, cliente, desde cuándo). Una fila por ONU; la reescribe cada sondeo, salvo `customer_name` (el nombre puesto en el panel), que se borra si en esa posición aparece otra ONU | leer, crear, cambiar, borrar |
 | `onu_samples` | Historial de señal: una muestra por ONU como máximo cada hora (antes si cambió 1 dB o la ONU cayó o volvió); se borra a los `OLTERRA_MONITOR_RETENTION_DAYS` (30) | leer, crear, borrar |
 | `alarms` | Alarmas del monitoreo, abiertas y cerradas. `pon`/`onu` = 0 para toda la OLT o el PON; un índice único parcial deja una sola abierta por cosa y tipo | leer, crear, cambiar |
 | `map_boxes` | Mapa FTTH: cajas NAP, CEO y ODF (punto PostGIS SRID 4326), puertos, splitter, OLT y PON de los que salen | leer, crear, cambiar, borrar |
@@ -99,6 +99,8 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0009` | Monitoreo: `onu_status`, `onu_samples` y `alarms` (RLS + FORCE, FK compuestas), `olts.monitor_requested_at`, `monitor_plan_id` y `monitored_at`, y la función `olterra_due_monitoring` |
 | `0010` | Mapa FTTH: `map_boxes`, `map_box_ports`, `map_poles` y `map_cables` (RLS + FORCE, FK compuestas, índices GiST) |
 | `0011` | `olts.cli_protocol` (`ssh` por defecto o `telnet`) y `olts.telnet_port` (23): OLT que no aceptan a los usuarios de la CLI por SSH |
+| `0012` | `tunnel_routers.gateway_credential_id` y `ssh_port`: el MikroTik como puerta hacia sus OLT |
+| `0013` | La API crea usuarios (`GRANT INSERT ON users`), cambia `tenants.name` y guarda `onu_status.customer_name` |
 
 ## Correr las migraciones
 

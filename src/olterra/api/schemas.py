@@ -572,7 +572,10 @@ class OnuStatusOut(BaseModel):
     pon: int
     onu: int
     serial: str | None
-    description: str | None
+    description: str | None = Field(description="La descripción que tiene la ONU en la OLT")
+    customer_name: str | None = Field(
+        None, description="El nombre del cliente puesto en el panel; manda sobre la descripción"
+    )
     phase: str | None
     phase_label: str = Field(description="La fase en palabras: En línea, Sin luz (fibra)…")
     online: bool
@@ -580,6 +583,20 @@ class OnuStatusOut(BaseModel):
     status_since: datetime = Field(description="Desde cuándo está en línea o caída")
     last_online_at: datetime | None
     updated_at: datetime
+
+
+class OnuNameIn(BaseModel):
+    """Vacío o null quita el nombre (vuelve a verse la descripción de la OLT)."""
+
+    customer_name: str | None = Field(None, max_length=64)
+
+    @field_validator("customer_name")
+    @classmethod
+    def _clean(cls, value: str | None) -> str | None:
+        text = " ".join((value or "").split())
+        if any(not ch.isprintable() for ch in text):
+            raise ValueError("El nombre lleva caracteres que no se pueden mostrar")
+        return text or None
 
 
 class OnuSampleOut(BaseModel):

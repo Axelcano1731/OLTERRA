@@ -22,7 +22,7 @@ import OnuActions from '@/components/OnuActions.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { fold } from '@/lib/format'
-import { JOB_STATUS } from '@/lib/labels'
+import { JOB_STATUS, oltBrand, oltWrites } from '@/lib/labels'
 import { errorText, useAsync } from '@/lib/useAsync'
 import { usePlan } from '@/lib/usePlan'
 
@@ -32,6 +32,10 @@ const router = useRouter()
 const olt = useAsync(() => getOlt(props.id))
 const olts = useAsync(listOlts)
 const plans = useAsync(listTemplates)
+// HSGQ y BCD: Olterra ya encuentra sus ONU nuevas y sus clientes, pero autorizar se habilita
+// cuando el alta de esa marca esté probada con una ONU de prueba.
+const canProvision = computed(() => !olt.data.value || oltWrites(olt.data.value.driver))
+const brand = computed(() => (olt.data.value ? oltBrand(olt.data.value.driver) : ''))
 
 // Últimas altas: lo que se hizo (o sigue en curso) aunque la ONU ya no esté en "nuevas".
 const recent = useAsync(() => listJobs(props.id))
@@ -187,7 +191,19 @@ function switchOlt(event: Event): void {
   </AlertBox>
 
   <AlertBox
-    v-if="plans.data.value && plans.data.value.length === 0"
+    v-if="!canProvision"
+    tone="info"
+    class="mb-6"
+    :title="`Alta de ONU en OLT ${brand}: por habilitar`"
+  >
+    Olterra ya ve las ONU nuevas y los clientes de esta OLT. Autorizar desde aquí (con los perfiles
+    de la OLT, el nombre del cliente y, en HSGQ, su PPPoE y Wi-Fi) se habilita cuando lo probemos en
+    una ONU de prueba. Si la OLT autoriza sola las ONU nuevas (autoauth), no aparecen como nuevas:
+    entran directo a la lista de clientes.
+  </AlertBox>
+
+  <AlertBox
+    v-if="canProvision && plans.data.value && plans.data.value.length === 0"
     tone="info"
     class="mb-6"
     title="Primero, un plan"
@@ -215,7 +231,7 @@ function switchOlt(event: Event): void {
         No hay ONU nuevas conectadas. Conecta la ONU a la fibra, espera un minuto y pulsa
         <b>Actualizar</b>.
       </div>
-      <ul v-else class="space-y-3">
+      <ul v-else-if="canProvision" class="space-y-3">
         <NewOnuCard
           v-for="row in newOnus"
           :key="row.serial"
@@ -224,6 +240,17 @@ function switchOlt(event: Event): void {
           :plans="plans.data.value ?? []"
           @finished="onFinished"
         />
+      </ul>
+      <ul v-else class="card divide-y divide-line">
+        <li
+          v-for="row in newOnus"
+          :key="row.serial"
+          class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+        >
+          <span class="font-mono">{{ row.serial }}</span>
+          <span class="text-muted">PON {{ row.pon }}</span>
+          <StatusPill tone="warning">Esperando alta</StatusPill>
+        </li>
       </ul>
       <p v-if="unreadPons.length" class="mt-2 text-xs text-muted">
         No se pudo leer el PON {{ unreadPons.join(', ') }}.
@@ -307,7 +334,14 @@ function switchOlt(event: Event): void {
               <ChevronUp v-if="openRow === rowKey(row)" class="size-4 text-muted" />
               <ChevronDown v-else class="size-4 text-muted" />
             </button>
-            <div v-if="openRow === rowKey(row)" class="px-4 pb-4">
+            <div
+              v-if="openRow === rowKey(row) && !canProvision"
+              class="px-4 pb-4 text-xs text-muted"
+            >
+              Reiniciar, borrar y cambiar el plan de esta ONU se habilitan junto con el alta. Su
+              detalle, versión y señal están en la OLT → Consultar (comandos por ONU).
+            </div>
+            <div v-else-if="openRow === rowKey(row)" class="px-4 pb-4">
               <OnuActions
                 :olt-id="id"
                 :onu="row"
@@ -334,7 +368,7 @@ function switchOlt(event: Event): void {
       </div>
     </section>
 
-    <p class="text-xs text-muted">
+    <p v-if="canProvision" class="text-xs text-muted">
       <LayoutTemplate class="mr-1 inline size-3.5" />
       Los planes se manejan en
       <RouterLink :to="{ name: 'templates' }" class="underline">Planes</RouterLink>.

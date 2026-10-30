@@ -76,6 +76,12 @@ export const router = createRouter({
           meta: { title: 'Mapa FTTH' },
         },
         {
+          path: 'usuarios',
+          name: 'users',
+          component: () => import('@/views/UsersView.vue'),
+          meta: { title: 'Usuarios' },
+        },
+        {
           path: 'bitacora',
           name: 'audit',
           component: () => import('@/views/AuditView.vue'),

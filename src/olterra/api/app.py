@@ -28,6 +28,7 @@ from olterra.api.routes import (
     provisioning,
     reconciliation,
     tunnel,
+    users,
 )
 from olterra.api.routes import (
     backups as backup_routes,
@@ -177,6 +178,7 @@ def create_app(
         audit_log,
         tunnel,
         reconciliation,
+        users,
     ):
         app.include_router(module.router)
     return app
