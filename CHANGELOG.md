@@ -4,6 +4,18 @@
 
 ### Agregado
 
+- **Usuarios** (menú, solo admin): el admin del ISP crea los usuarios de su ISP con una
+  contraseña inicial que Olterra genera (se muestra una vez y obliga a cambiarla), les cambia el
+  rol, los deshabilita (cierra sus sesiones) y les restablece la contraseña. Un admin no puede
+  quitarse el rol ni deshabilitarse y el ISP no se queda sin admin activo. En la misma pantalla,
+  el **nombre del ISP** (el "demo" de Tocaima puede llamarse Colombianet; el identificador interno
+  no cambia). Migración `0013`.
+- **Nombre del cliente desde el panel**: en Monitoreo, cada ONU tiene **Editar**; el nombre se
+  guarda en Olterra (la OLT conserva su descripción), manda en la lista, la búsqueda y las
+  alarmas, y se borra solo si en esa posición aparece otra ONU.
+- Aprovisionar muestra también las OLT HSGQ y BCD: sus ONU nuevas y sus clientes, y un aviso de
+  que el alta se habilita al probarla con una ONU de prueba.
+
 - **Ver cada ONU en HSGQ y BCD**: `onu.detail` (estado, distancia, serial, nombre, perfiles,
   última conexión y caída), `onu.version` (fabricante, modelo, software) y, en la BCD,
   `onu.optical` (Rx, Tx, temperatura, láser). Verificados con capturas de las OLT de Tocaima;
@@ -38,6 +50,8 @@
 
 ### Corregido
 
+- Un usuario deshabilitado ya no puede iniciar sesión (antes recibía token y luego cada
+  petición lo rechazaba).
 - Si la OLT no responde al abrir SSH o Telnet, el error dice "no respondió en 15 s" y sugiere
   el router del túnel (antes terminaba en "…:23:" sin explicación). Al agregar una OLT con IP
   privada y "Conexión directa", la interfaz avisa que sin túnel Olterra no llega a ella.

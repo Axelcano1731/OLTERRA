@@ -17,6 +17,9 @@ import type {
   MapOlt,
   MapPole,
   Health,
+  IspUser,
+  IspUserUpdate,
+  IspUserWithPassword,
   Me,
   Olt,
   OltCreate,
@@ -213,3 +216,21 @@ export const listRecons = (limit = 20) => api<ReconSummary[]>(`/v1/reconciliatio
 export const getRecon = (id: string) => api<Recon>(`/v1/reconciliations/${encodeURIComponent(id)}`)
 export const runReconDemo = () => api<Recon>('/v1/reconciliations/demo', { method: 'POST' })
 export const runReconFiles = (form: FormData) => api<Recon>('/v1/reconciliations/files', { form })
+
+export const setOnuCustomerName = (oltId: string, pon: number, onu: number, name: string | null) =>
+  api<OnuStatus>(`/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}/name`, {
+    method: 'PUT',
+    json: { customer_name: name },
+  })
+
+export const listUsers = () => api<IspUser[]>('/v1/users')
+export const createUser = (username: string, displayName: string, role: string) =>
+  api<IspUserWithPassword>('/v1/users', {
+    json: { username, display_name: displayName, role },
+  })
+export const updateUser = (id: string, changes: IspUserUpdate) =>
+  api<IspUser>(`/v1/users/${encodeURIComponent(id)}`, { method: 'PATCH', json: changes })
+export const resetUserPassword = (id: string) =>
+  api<IspUserWithPassword>(`/v1/users/${encodeURIComponent(id)}/password`, { method: 'POST' })
+export const renameTenant = (name: string) =>
+  api<Me['tenant']>('/v1/tenant', { method: 'PATCH', json: { name } })

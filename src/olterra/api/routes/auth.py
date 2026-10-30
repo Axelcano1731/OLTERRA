@@ -84,7 +84,8 @@ async def login(body: LoginIn, request: Request, state: State) -> LoginOut:
     )
     async with tenant_session(state.sessions, tenant_id) as session:
         user = await session.get(User, user_id, with_for_update=True)
-        if user is None:
+        if user is None or user.disabled_at is not None:
+            # Deshabilitado por su admin: mismo mensaje que una clave equivocada.
             outcome = "fail"
         elif user.locked_until is not None and user.locked_until > now:
             outcome = "locked"

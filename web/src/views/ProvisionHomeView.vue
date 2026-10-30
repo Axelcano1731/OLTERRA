@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Server } from '@lucide/vue'
-import { computed, watch } from 'vue'
+import { watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { listOlts } from '@/api'
@@ -8,17 +8,12 @@ import AlertBox from '@/components/AlertBox.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import { oltWrites } from '@/lib/labels'
+import { oltBrand, oltWrites } from '@/lib/labels'
 import { useAsync } from '@/lib/useAsync'
 
 // "Aprovisionar" del menú: con una sola OLT entra directo; con varias, se elige.
 const router = useRouter()
-const all = useAsync(listOlts)
-// Las OLT de marcas de solo lectura todavía no se aprovisionan desde Olterra.
-const olts = {
-  ...all,
-  data: computed(() => all.data.value?.filter((olt) => oltWrites(olt.driver))),
-}
+const olts = useAsync(listOlts)
 
 watch(
   () => olts.data.value,
@@ -50,7 +45,10 @@ watch(
         <Server class="size-5 text-accent" />
         <span>
           <span class="block font-medium">{{ olt.name }}</span>
-          <span class="text-xs text-muted">{{ olt.model ?? 'Modelo sin indicar' }}</span>
+          <span class="text-xs text-muted">
+            {{ oltBrand(olt.driver) }} · {{ olt.model ?? 'Modelo sin indicar' }}
+            <template v-if="!oltWrites(olt.driver)"> · alta por habilitar</template>
+          </span>
         </span>
       </RouterLink>
     </li>

@@ -19,6 +19,7 @@ ONU están caídas a la vez (el ancestro común más probable es el PON, el spli
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
@@ -387,8 +388,15 @@ async def on_result(state: AppState, result: PlanResult) -> None:
             return
         await _sync_alarms(session, result.tenant_id, olt.id, [], now, {"olt_unreachable"})
         readings, complete = merge_readings(outputs)
-        await _store_readings(session, state, result.tenant_id, olt.id, readings, complete, now)
-        await _sync_alarms(session, result.tenant_id, olt.id, evaluate(readings), now, ONU_KINDS)
+        names = await _store_readings(
+            session, state, result.tenant_id, olt.id, readings, complete, now
+        )
+        # Las alarmas dicen el nombre del cliente que se puso en el panel, si lo hay.
+        named = [
+            dataclasses.replace(r, description=names.get((r.pon, r.onu)) or r.description)
+            for r in readings
+        ]
+        await _sync_alarms(session, result.tenant_id, olt.id, evaluate(named), now, ONU_KINDS)
         olt.monitored_at = now
 
 
@@ -400,7 +408,7 @@ async def _store_readings(
     readings: list[Reading],
     complete: bool,
     now: datetime,
-) -> None:
+) -> dict[tuple[int, int], str]:
     current = {
         (s.pon, s.onu): s
         for s in (
@@ -441,6 +449,9 @@ async def _store_readings(
             session.add(status)
         elif status.online != reading.online:
             status.status_since = now
+        if status.serial and reading.serial and status.serial != reading.serial:
+            # Otra ONU en esa posición: el nombre era del cliente anterior.
+            status.customer_name = None
         status.online = reading.online
         status.phase = reading.phase
         status.serial = reading.serial or status.serial
@@ -469,6 +480,7 @@ async def _store_readings(
     await session.execute(
         delete(OnuSample).where(OnuSample.olt_id == olt_id, OnuSample.at < now - keep)
     )
+    return {key: status.customer_name for key, status in current.items() if status.customer_name}
 
 
 async def tick(state: AppState) -> int:

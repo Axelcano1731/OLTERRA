@@ -4,6 +4,7 @@ import {
   CircleAlert,
   CircleCheck,
   LoaderCircle,
+  Pencil,
   RefreshCw,
   Search,
   TriangleAlert,
@@ -18,6 +19,7 @@ import {
   listAlarms,
   listOnuStatus,
   pollOlt,
+  setOnuCustomerName,
   type Alarm,
   type OnuFilter,
   type OnuHistory,
@@ -36,10 +38,12 @@ import {
   alarmWhere,
   duration,
   formatDbm,
+  onuName,
   RX_LOW_WARNING,
   signalLevel,
 } from '@/lib/monitoring'
 import { errorText, useAsync } from '@/lib/useAsync'
+import { can } from '@/session'
 
 const route = useRoute()
 const summary = useAsync(getMonitoringSummary)
@@ -78,7 +82,9 @@ const visible = computed(() => {
       return false
     }
     if (!term) return true
-    return fold(`${onu.description ?? ''} ${onu.serial ?? ''}`).includes(term)
+    return fold(`${onu.customer_name ?? ''} ${onu.description ?? ''} ${onu.serial ?? ''}`).includes(
+      term,
+    )
   })
 })
 
@@ -127,11 +133,47 @@ async function toggle(onu: OnuStatus): Promise<void> {
   openKey.value = k
   history.value = null
   historyError.value = null
+  editingName.value = false
   try {
     const data = await getOnuHistory(onu.olt_id, onu.pon, onu.onu)
     if (openKey.value === k) history.value = data
   } catch (caught) {
     historyError.value = errorText(caught)
+  }
+}
+
+// Nombre del cliente desde el panel: se guarda en Olterra, no cambia nada en la OLT.
+const editingName = ref(false)
+const nameDraft = ref('')
+const savingName = ref(false)
+const nameError = ref<string | null>(null)
+
+function editName(): void {
+  nameDraft.value = history.value?.status.customer_name ?? history.value?.status.description ?? ''
+  nameError.value = null
+  editingName.value = true
+}
+
+async function saveName(): Promise<void> {
+  const current = history.value?.status
+  if (!current) return
+  savingName.value = true
+  nameError.value = null
+  try {
+    const saved = await setOnuCustomerName(
+      current.olt_id,
+      current.pon,
+      current.onu,
+      nameDraft.value.trim() || null,
+    )
+    history.value = { ...history.value!, status: saved }
+    const row = onus.data.value?.find((o) => key(o) === key(saved))
+    if (row) row.customer_name = saved.customer_name
+    editingName.value = false
+  } catch (caught) {
+    nameError.value = errorText(caught)
+  } finally {
+    savingName.value = false
   }
 }
 
@@ -147,7 +189,7 @@ function openAlarm(alarm: Alarm): void {
   )
   if (onu) {
     stateFilter.value = 'all'
-    search.value = onu.description ?? onu.serial ?? ''
+    search.value = onu.customer_name ?? onu.description ?? onu.serial ?? ''
     if (openKey.value !== key(onu)) void toggle(onu)
   }
 }
@@ -372,9 +414,7 @@ const FILTERS: { value: OnuFilter; label: string }[] = [
                 @keydown.enter="toggle(onu)"
               >
                 <td class="px-3 py-2.5 sm:px-4">
-                  <span class="block font-medium">{{
-                    onu.description ?? `ONU ${onu.pon}/${onu.onu}`
-                  }}</span>
+                  <span class="block font-medium">{{ onuName(onu) }}</span>
                   <span class="text-xs text-muted md:hidden">
                     {{ oltNames.get(onu.olt_id) }} · PON {{ onu.pon }}/{{ onu.onu }}
                   </span>
@@ -414,8 +454,63 @@ const FILTERS: { value: OnuFilter; label: string }[] = [
                       <RxChart :samples="history.samples" :hours="168" />
                     </div>
                     <div class="text-sm">
+                      <h3 class="mb-1 font-semibold">Cliente</h3>
+                      <form
+                        v-if="editingName"
+                        class="mb-3 flex flex-wrap items-center gap-1.5"
+                        @submit.prevent="saveName"
+                        @click.stop
+                      >
+                        <input
+                          v-model="nameDraft"
+                          class="input min-w-0 flex-1 py-1 text-xs"
+                          maxlength="64"
+                          placeholder="Nombre del cliente"
+                          aria-label="Nombre del cliente"
+                          @keydown.esc="editingName = false"
+                        />
+                        <button
+                          type="submit"
+                          class="btn-primary px-2 py-1 text-xs"
+                          :disabled="savingName"
+                        >
+                          <LoaderCircle v-if="savingName" class="size-3 animate-spin" />
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-ghost px-2 py-1 text-xs"
+                          @click="editingName = false"
+                        >
+                          Cancelar
+                        </button>
+                        <p class="w-full text-xs text-muted">
+                          Se guarda en Olterra; la OLT conserva su descripción. Vacío la vuelve a
+                          mostrar.
+                        </p>
+                        <p v-if="nameError" class="w-full text-xs text-danger">{{ nameError }}</p>
+                      </form>
+                      <div v-else class="mb-3 flex items-center gap-2">
+                        <span class="font-medium">{{ onuName(history.status) }}</span>
+                        <button
+                          v-if="can('onu:write')"
+                          type="button"
+                          class="btn-ghost px-1.5 py-0.5 text-xs"
+                          @click.stop="editName"
+                        >
+                          <Pencil class="size-3" />
+                          Editar
+                        </button>
+                      </div>
                       <h3 class="mb-1 font-semibold">Datos</h3>
                       <dl class="space-y-1 text-xs">
+                        <div
+                          v-if="history.status.customer_name && history.status.description"
+                          class="flex gap-1"
+                        >
+                          <dt class="text-muted">En la OLT:</dt>
+                          <dd>{{ history.status.description }}</dd>
+                        </div>
                         <div class="flex gap-1">
                           <dt class="text-muted">Serial:</dt>
                           <dd class="font-mono">{{ history.status.serial ?? '—' }}</dd>

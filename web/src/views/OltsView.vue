@@ -11,7 +11,7 @@ import LoadingBlock from '@/components/LoadingBlock.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { formatDateTime, timeAgo } from '@/lib/format'
-import { oltStatus, oltWrites } from '@/lib/labels'
+import { oltStatus } from '@/lib/labels'
 import { useAsync } from '@/lib/useAsync'
 import { can } from '@/session'
 
@@ -115,7 +115,7 @@ async function onDeleted(olt: Olt): Promise<void> {
               Consultar
             </RouterLink>
             <RouterLink
-              v-if="can('onu:write') && oltWrites(olt.driver)"
+              v-if="can('onu:write')"
               :to="{ name: 'olt-provision', params: { id: olt.id } }"
               class="btn-ghost px-2 py-1 text-xs"
               :aria-label="`Aprovisionar ${olt.name}`"

@@ -500,7 +500,10 @@ export interface OnuStatus {
   pon: number
   onu: number
   serial: string | null
+  /** La descripción que tiene la ONU en la OLT. */
   description: string | null
+  /** El nombre del cliente puesto en el panel; manda sobre la descripción. */
+  customer_name: string | null
   phase: string | null
   /** La fase en palabras: En línea, Sin luz (fibra)… */
   phase_label: string
@@ -664,4 +667,33 @@ export interface FeasibilityOption {
 export interface Feasibility {
   radius_m: number
   options: FeasibilityOption[]
+}
+
+export type UserRole = 'admin' | 'tecnico' | 'lectura'
+
+/** Un usuario del ISP (lo administra el admin del ISP en Usuarios). */
+export interface IspUser {
+  id: string
+  username: string
+  display_name: string
+  role: UserRole
+  /** Todavía tiene la contraseña inicial. */
+  must_change_password: boolean
+  disabled: boolean
+  /** Bloqueado 15 minutos por intentos fallidos. */
+  locked: boolean
+  last_login_at: string | null
+  created_at: string
+}
+
+export interface IspUserWithPassword {
+  user: IspUser
+  /** Se muestra una sola vez; hay que cambiarla al entrar. */
+  initial_password: string
+}
+
+export interface IspUserUpdate {
+  display_name?: string
+  role?: UserRole
+  disabled?: boolean
 }

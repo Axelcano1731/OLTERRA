@@ -119,16 +119,16 @@ async def test_users_sessions_and_provision_jobs_are_isolated(world: World) -> N
     from datetime import UTC, datetime, timedelta
 
     name = f"user{uuid4().hex[:8]}"
-    # Los usuarios los crea olterra-admin (rol dueño): la API solo los lee y cambia contadores.
-    async with tenant_session(world.owner, world.b) as session:
+    # Desde la migración 0013 la API crea usuarios (el admin del ISP), pero solo en su ISP.
+    async with tenant_session(world.app, world.b) as session:
         user = User(tenant_id=world.b, username=name, display_name="B", password_hash="scrypt$x")
         session.add(user)
         await session.flush()
         user_id = user.id
-    with pytest.raises(DBAPIError, match="permission denied"):
+    with pytest.raises(DBAPIError, match="row-level security"):
         async with tenant_session(world.app, world.b) as session:
             session.add(
-                User(tenant_id=world.b, username=f"x{name}", display_name="X", password_hash="h")
+                User(tenant_id=world.a, username=f"x{name}", display_name="X", password_hash="h")
             )
 
     async with tenant_session(world.app, world.b) as session:

@@ -20,9 +20,11 @@ from olterra.api.schemas import (
     AlarmOut,
     MonitoringSummary,
     OltHealth,
+    OnuNameIn,
     OnuSampleOut,
     OnuStatusOut,
 )
+from olterra.api.state import audit
 from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus
 from olterra.executor.plan import Priority
 
@@ -38,6 +40,7 @@ def _status_out(row: OnuStatus) -> OnuStatusOut:
         onu=row.onu,
         serial=row.serial,
         description=row.description,
+        customer_name=row.customer_name,
         phase=row.phase,
         phase_label=monitoring.phase_label(row.phase),
         online=row.online,
@@ -130,7 +133,13 @@ async def list_onus(
         query = query.where(OnuStatus.online, OnuStatus.rx_dbm < LOW)
     if q:
         like = f"%{q.strip()}%"
-        query = query.where(or_(OnuStatus.description.ilike(like), OnuStatus.serial.ilike(like)))
+        query = query.where(
+            or_(
+                OnuStatus.customer_name.ilike(like),
+                OnuStatus.description.ilike(like),
+                OnuStatus.serial.ilike(like),
+            )
+        )
     async with ctx.session() as session:
         return [_status_out(row) for row in (await session.execute(query)).scalars()]
 
@@ -186,6 +195,33 @@ async def onu_history(
             samples=[OnuSampleOut.model_validate(s) for s in samples],
             alarms=[AlarmOut.model_validate(a) for a in alarms],
         )
+
+
+@router.put("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/name", response_model=OnuStatusOut)
+async def set_customer_name(
+    olt_id: UUID, pon: int, onu: int, body: OnuNameIn, ctx: Tenant
+) -> OnuStatusOut:
+    """Nombre del cliente de esa ONU en Olterra (no cambia nada en la OLT). Vacío lo quita."""
+    ctx.require("onu:write")
+    async with ctx.session() as session:
+        row = await session.get(OnuStatus, (ctx.tenant_id, olt_id, pon, onu))
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa ONU no está en el monitoreo")
+        before = {"customer_name": row.customer_name}
+        row.customer_name = body.customer_name
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="onu.customer_name",
+            target_type="onu",
+            target_id=f"{olt_id}:{pon}:{onu}",
+            before=before,
+            after={"customer_name": row.customer_name, "serial": row.serial},
+            source_ip=ctx.client_ip,
+        )
+        await session.flush()
+        return _status_out(row)
 
 
 @router.get("/v1/alarms", response_model=list[AlarmOut])

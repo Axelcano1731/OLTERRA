@@ -11,6 +11,7 @@ import {
   Menu,
   Server,
   Smartphone,
+  Users,
   Waypoints,
   X,
 } from '@lucide/vue'
@@ -58,6 +59,13 @@ const NAV: NavItem[] = [
     label: 'Conciliación',
     icon: GitCompareArrows,
     routes: ['recons', 'recon-new', 'recon'],
+  },
+  {
+    to: { name: 'users' },
+    label: 'Usuarios',
+    icon: Users,
+    routes: ['users'],
+    scope: 'users:read',
   },
   {
     to: { name: 'audit' },
