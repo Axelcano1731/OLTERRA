@@ -40,6 +40,8 @@ OLT de 172.17.1.2: 8 PON, 48 ONU en los PON 1, 2, 3 y 5. Entra por Telnet (`User
 | `onu.autofind` | `show ont-autofind {pon}` | `configure` |
 | `onu.detail` | `show ont-info {pon} {onu}` | `configure` |
 | `onu.version` | `show ont-version {pon} {onu}` | `configure` |
+| `onu.mac` | `show mac-address ont {pon} {onu}` | `configure` |
+| `mac.by_pon` | `show mac-address port gpon {pon}` | `configure` |
 
 Escrituras, dentro de `interface gpon {pon}` (sin verificar):
 
@@ -91,6 +93,8 @@ de C-Data. Prompts `OLT>`, `OLT#`, `OLT(config)#`, `OLT(config-interface-gpon)#`
 | `onu.detail` | `show ont info {pon} {onu}` | `interface gpon` |
 | `onu.version` | `show ont version {pon} {onu}` | `interface gpon` |
 | `onu.optical` | `show ont optical-info {pon} {onu}` | `interface gpon` |
+| `onu.mac` | `show ont port learned-mac {pon} {onu} eth 1` | `interface gpon` |
+| `mac.by_pon` | `show mac-address port gpon {pon}` | `config` |
 
 Escrituras, dentro de `interface gpon` (sin verificar):
 
@@ -101,6 +105,11 @@ Escrituras, dentro de `interface gpon` (sin verificar):
 | `onu.reboot` | `ont reboot {pon} {onu}` |
 | `onu.delete` | `ont delete {pon} {onu}` |
 | `config.save` | `save` (en `config`) |
+
+Las MAC: la tabla del PON (`show mac-address port gpon`) **no dice de qué ONU es cada MAC**, y
+por ONU solo están las que aprende en sus puertos Ethernet (`learned-mac`), que en una ONU en
+modo router (HGU) es ninguna. Para esas, la MAC de su WAN se ve en la tabla del PON o en la
+sesión PPPoE del MikroTik.
 
 Este firmware no configura WAN ni Wi-Fi de la ONU desde la OLT: eso lo dan los perfiles de
 línea (VLAN) o la propia ONU. **La OLT de Tocaima tiene `ont autoauth` en sus 8 PON**: autoriza

@@ -1,0 +1,35 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "bcd-gpon",
+  "captured_at": "2026-10-30T16:08:07.537561+00:00",
+  "model": "BCD-1508GS",
+  "firmware": "V2.1.6_181108 (Nov  8 2018 14:54:37)",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "mac.by_pon",
+      "command": "show mac-address port gpon 1",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 240,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/mac.by_pon_pon1.txt"
+    },
+    {
+      "key": "onu.mac",
+      "command": "show ont port learned-mac 1 6 eth 1",
+      "pon": 1,
+      "onu": 6,
+      "ok": true,
+      "error": null,
+      "elapsed_ms": 38,
+      "source": "OLT BCD-1508GS V2.1.6 de Tocaima (ayuda '?' y salida real, 2026-10-27)",
+      "file": "cli/onu.mac_pon1_onu6.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT BCD-1508GS de Tocaima: MAC por PON y aprendidas en el puerto de la ONU (2026-10-30)"
+}

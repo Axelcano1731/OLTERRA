@@ -14,6 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from olterra.drivers.base import UnrecognizedOutput
+from olterra.drivers.common import MacEntry, mac_of, parse_mac_rows
 from olterra.drivers.textparse import (
     Table,
     find_tables,
@@ -550,3 +551,34 @@ def parse_equipment_id(text: str) -> str | None:
     """El ``Equipment ID`` de ``show onu detail-info <n>`` (VSOLV422), o None si no está."""
     match = _EQUIPMENT_ID.search(text)
     return real_equipment_id(match.group(1)) if match else None
+
+
+_VSOL_ONU_REF = re.compile(r"GPON\s*\d+/(\d+):0*(\d+)", re.IGNORECASE)
+
+
+def parse_mac_table(text: str, default_pon: int | None = None) -> list[MacEntry]:
+    """``show mac address-table interface gpon 0/<pon>`` y ``... pon <pon> <onu>``.
+
+    La de interfaz trae ``Vlan Mac Tipo Puerto`` (en la V1.1.9R el puerto dice solo "PON", sin
+    la ONU); la de ``pon`` trae ``Mac Vlan Tipo GPON0/<pon>:<onu> ...``.
+    """
+
+    def row(line: str, match: re.Match[str]) -> MacEntry | None:
+        ref = _VSOL_ONU_REF.search(line)
+        before = line[: match.start()].split()
+        after = line[match.end() :].split()
+        vlan_text = before[-1] if before and before[-1].isdigit() else (after[0] if after else "")
+        return MacEntry(
+            mac=mac_of(match),
+            vlan=int(vlan_text) if vlan_text.isdigit() else None,
+            pon=int(ref.group(1)) if ref else default_pon,
+            onu=int(ref.group(2)) if ref else None,
+            kind=next((w.lower() for w in after if w.lower() in ("dynamic", "static")), None),
+        )
+
+    return parse_mac_rows(text, row)
+
+
+def parse_onu_mac(text: str, pon: int | None, onu: int | None) -> list[MacEntry]:
+    """Las MAC de una ONU: la tabla por PON filtrada (la OLT puede listar el PON entero)."""
+    return [e for e in parse_mac_table(text, pon) if onu is None or e.onu in (None, onu)]

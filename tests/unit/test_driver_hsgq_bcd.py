@@ -272,3 +272,39 @@ def test_bcd_writes() -> None:
 )
 def test_pon_count_from_model(driver: object, model: str | None, pons: int | None) -> None:
     assert driver.pon_count(model) == pons  # type: ignore[attr-defined]
+
+
+# --- MAC de los equipos (capturas del 2026-10-30) -------------------------------------------------
+
+MAC = {
+    "vsol": FIXTURES / "vsol-gpon" / "desconocido-8pon" / "V1.1.9R" / "20261030-mac" / "cli",
+    "hsgq": FIXTURES / "hsgq-gpon" / "HSGQ-G008" / "V1.3.12C" / "20261030-mac" / "cli",
+    "bcd": FIXTURES / "bcd-gpon" / "BCD-1508GS" / "V2.1.6" / "20261030-mac" / "cli",
+}
+
+
+def test_mac_of_one_onu_in_the_three_brands() -> None:
+    from olterra.orchestrator import parsers_for
+
+    vsol = parsers_for("vsol-gpon")["onu.mac"](
+        _read(MAC["vsol"], "onu.mac_pon1_onu2"), {"pon": 1, "onu": 2}
+    )
+    # La VSOL lista el PON entero aunque se le pida una ONU: queda solo la de esa ONU.
+    assert [(e.pon, e.onu, e.vlan) for e in vsol] == [(1, 2, 109)]
+    hsgq = hsgq_gpon.parse_mac_table(_read(MAC["hsgq"], "onu.mac_pon3_onu9"))
+    assert [(e.pon, e.onu, e.vlan, e.kind) for e in hsgq] == [(3, 9, 119, "dynamic")]  # Ont 8 + 1
+    bcd = bcd_gpon.parse_mac_table(_read(MAC["bcd"], "onu.mac_pon1_onu6"), 1, 6)
+    assert bcd == []  # ONU en modo router: no aprende MAC en su puerto
+    for entry in (*vsol, *hsgq):
+        assert re.fullmatch(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}", entry.mac)
+
+
+def test_mac_table_of_a_pon() -> None:
+    from olterra.orchestrator import parsers_for
+
+    vsol = parsers_for("vsol-gpon")["mac.by_pon"](_read(MAC["vsol"], "mac.by_pon_pon1"), {"pon": 1})
+    assert len(vsol) == 26 and all(e.onu is None for e in vsol)  # la V1.1.9R no dice la ONU
+    hsgq = hsgq_gpon.parse_mac_table(_read(MAC["hsgq"], "mac.by_pon_pon3"))
+    assert len(hsgq) == 24 and all(e.pon == 3 and e.onu for e in hsgq)
+    bcd = bcd_gpon.parse_mac_table(_read(MAC["bcd"], "mac.by_pon_pon1"), 1)
+    assert len(bcd) == 18 and all(e.pon == 1 and e.onu is None for e in bcd)

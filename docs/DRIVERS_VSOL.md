@@ -192,7 +192,8 @@ inyectar otro comando en la OLT.
 | `snmp.communities` | `show snmp-server community` | config | lectura | Manual v2.1 §24.4.1 |
 | `snmp.trap_hosts` | `show snmp-server targetaddress` | config | lectura | Manual v2.1 §24.4.2 |
 | `profile.list` | `show profile {kind}` | config | lectura | V1600G0-B y OLT de Tocaima (el manual agrega `all`, que rechazan) |
-| `mac.by_pon` | `show mac address-table interface gpon 0/{pon}` | config | lectura | Manual v2.1 §9.3.1. Sintaxis de la interfaz sin confirmar |
+| `mac.by_pon` | `show mac address-table interface gpon 0/{pon}` | config | lectura | Manual v2.1 §9.3.1. En la V1600G0-B la columna de puertos dice la ONU (`GPON 0/1:008`); en la V1.1.9R de Tocaima solo dice `PON` |
+| `onu.mac` | `show mac address-table pon {pon} {onu}` | config | lectura | Ayuda `?` de Tocaima (2026-10-30). Dice la ONU de cada MAC (`GPON0/1:31`); la OLT lista el PON entero aunque se le pida una ONU, así que se filtra. Sin probar en la V1600G0-B |
 | `pon.info` | `show pon info` | PON | lectura | Manual v2.1 §18.3.1 |
 | `pon.optical` | `show pon optical transceiver` | PON | lectura | Manual v2.1 §18.2.2 |
 | `pon.statistics` | `show pon {pon} statistics` | PON | lectura | V1600G0-B y OLT de Tocaima (en V1.1.9R responde vacío) |

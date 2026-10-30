@@ -1,0 +1,29 @@
+Total mac address learning: 24
+----------------------------------------------------------------------------------------------------
+ SVP   MAC                 VLAN  Port    Ont  Gem   MAC-Type    ONT-Name
+----------------------------------------------------------------------------------------------------
+ 183   02:25:C0:4B:4C:6C   119   PON03   30   1     dynamic     CLIENTE_001
+ 185   02:12:CE:FA:39:0F   119   PON03   5    1     dynamic     CLIENTE_002
+ 169   02:09:70:95:B9:FB   119   PON03   11   1     dynamic     CLIENTE_003
+ 163   02:C8:1F:57:5F:2B   119   PON03   14   1     dynamic     CLIENTE_004
+ 19    02:E6:4E:D0:B5:11   119   PON03   32   1     dynamic     CLIENTE_005
+ 186   02:6B:B6:88:7D:AF   119   PON03   13   1     dynamic     CLIENTE_006
+ 203   02:2A:12:BA:DD:DE   119   PON03   1    1     dynamic     CLIENTE_007
+ 44    02:DA:CF:00:F0:96   119   PON03   28   1     dynamic     CLIENTE_008
+ 199   02:61:6E:A2:4F:0E   119   PON03   25   1     dynamic     CLIENTE_009
+ 139   02:90:CE:67:0B:41   119   PON03   12   1     dynamic     CLIENTE_010
+ 142   02:AC:45:C7:B9:A1   119   PON03   17   1     dynamic     CLIENTE_011
+ 13    02:99:BC:86:55:41   119   PON03   31   1     dynamic     CLIENTE_012
+ 207   02:24:8E:C2:26:C4   119   PON03   8    1     dynamic     CLIENTE_013
+ 152   02:DB:DF:EE:3D:54   119   PON03   7    1     dynamic     CLIENTE_014
+ 206   02:D7:9D:9E:8D:49   119   PON03   27   1     dynamic     CLIENTE_015
+ 160   02:C8:54:3A:9C:81   119   PON03   9    1     dynamic     CLIENTE_016
+ 151   02:E0:12:0D:58:E4   119   PON03   0    1     dynamic     CLIENTE_017
+ 193   02:EB:52:FB:6F:03   119   PON03   15   1     dynamic     CLIENTE_018
+ 180   02:B3:A7:85:14:DD   119   PON03   6    1     dynamic     CLIENTE_019
+ 107   02:31:39:45:40:F3   119   PON03   26   1     dynamic     CLIENTE_020
+ 150   02:91:6D:CE:D5:EB   119   PON03   16   1     dynamic     CLIENTE_021
+ 111   02:2D:36:0D:F5:3E   119   PON03   29   1     dynamic     CLIENTE_022
+ 175   02:39:BC:2F:FC:8B   119   PON03   3    1     dynamic     CLIENTE_023
+ 166   02:8A:18:F6:44:38   119   PON03   23   1     dynamic     CLIENTE_024
+----------------------------------------------------------------------------------------------------

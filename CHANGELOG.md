@@ -4,6 +4,13 @@
 
 ### Agregado
 
+- **Ver la MAC de los equipos** en las 3 marcas: en Monitoreo, el detalle de cada ONU tiene
+  **Ver MAC**, que pregunta a la OLT (`onu.mac`). VSOL: `show mac address-table pon <pon> <onu>`
+  (la OLT lista el PON entero y se filtra); HSGQ: `show mac-address ont`; BCD: las MAC que
+  aprende el puerto de la ONU (una ONU en modo router no aprende ninguna, y la tabla del PON de
+  la BCD no dice de qué ONU es cada MAC). `mac.by_pon` ahora se interpreta en las 3 marcas.
+  Verificado con capturas de Tocaima.
+
 - **Usuarios** (menú, solo admin): el admin del ISP crea los usuarios de su ISP con una
   contraseña inicial que Olterra genera (se muestra una vez y obliga a cambiarla), les cambia el
   rol, los deshabilita (cierra sus sesiones) y les restablece la contraseña. Un admin no puede
