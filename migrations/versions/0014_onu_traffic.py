@@ -39,7 +39,8 @@ def upgrade() -> None:
             olt_id         uuid NOT NULL,
             pon            smallint NOT NULL,
             onu            smallint NOT NULL,
-            hour           timestamptz NOT NULL CHECK (date_trunc('hour', hour) = hour),
+            -- Hora en punto en UTC; date_trunc dependería de la zona horaria de la sesión.
+            hour           timestamptz NOT NULL CHECK (extract(epoch FROM hour)::bigint % 3600 = 0),
             down_bytes     bigint NOT NULL DEFAULT 0 CHECK (down_bytes >= 0),
             up_bytes       bigint NOT NULL DEFAULT 0 CHECK (up_bytes >= 0),
             peak_down_bps  bigint NOT NULL DEFAULT 0 CHECK (peak_down_bps >= 0),
