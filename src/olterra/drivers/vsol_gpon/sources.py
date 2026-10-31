@@ -22,6 +22,10 @@ LAB_TOCAIMA = (
     "rechazan la sintaxis del manual v2.1 y responden a esta"
 )
 INFERRED = "Inferido del patrón 'no onu …' del manual; confirmar en laboratorio"
+TOCAIMA_ONU = (
+    "OLT de producción de Tocaima V1.1.9R (ayuda '?' y salida real, 2026-10-31): consumo, WAN y "
+    "WiFi de cada ONU"
+)
 
 
 def manual(section: str) -> str:

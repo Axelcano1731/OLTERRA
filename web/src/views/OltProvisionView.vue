@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronUp, LayoutTemplate, RefreshCw, Search, Users } from '@lucide/vue'
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  LayoutTemplate,
+  RefreshCw,
+  Search,
+  Users,
+} from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -20,6 +28,7 @@ import JobProgress from '@/components/JobProgress.vue'
 import NewOnuCard from '@/components/NewOnuCard.vue'
 import OnuActions from '@/components/OnuActions.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ProfileAuthorizeCard from '@/components/ProfileAuthorizeCard.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { fold } from '@/lib/format'
 import { JOB_STATUS, oltBrand, oltWrites } from '@/lib/labels'
@@ -32,8 +41,8 @@ const router = useRouter()
 const olt = useAsync(() => getOlt(props.id))
 const olts = useAsync(listOlts)
 const plans = useAsync(listTemplates)
-// HSGQ y BCD: Olterra ya encuentra sus ONU nuevas y sus clientes, pero autorizar se habilita
-// cuando el alta de esa marca esté probada con una ONU de prueba.
+// VSOL autoriza con un plan (VLAN, WAN y WiFi). HSGQ y BCD autorizan con los perfiles de línea
+// y de servicio que ya tiene la OLT (ProfileAuthorizeCard).
 const canProvision = computed(() => !olt.data.value || oltWrites(olt.data.value.driver))
 const brand = computed(() => (olt.data.value ? oltBrand(olt.data.value.driver) : ''))
 
@@ -132,6 +141,18 @@ const customers = computed<OnuPort[]>(() => {
 
 const offline = computed(() => (brief.value?.onus ?? []).filter((row) => !row.up).length)
 
+/** La primera posición libre de un PON, para proponerla en el alta con perfiles. */
+function freeOnu(pon: number): number {
+  const taken = new Set((brief.value?.onus ?? []).filter((r) => r.pon === pon).map((r) => r.onu))
+  let onu = 1
+  while (taken.has(onu) && onu < 128) onu += 1
+  return onu
+}
+
+function onuLink(row: OnuPort) {
+  return { name: 'onu', params: { olt: props.id, pon: String(row.pon), onu: String(row.onu) } }
+}
+
 function rowKey(row: OnuPort): string {
   return `${row.pon}/${row.onu}`
 }
@@ -190,16 +211,11 @@ function switchOlt(event: Event): void {
     }}
   </AlertBox>
 
-  <AlertBox
-    v-if="!canProvision"
-    tone="info"
-    class="mb-6"
-    :title="`Alta de ONU en OLT ${brand}: por habilitar`"
-  >
-    Olterra ya ve las ONU nuevas y los clientes de esta OLT. Autorizar desde aquí (con los perfiles
-    de la OLT, el nombre del cliente y, en HSGQ, su PPPoE y Wi-Fi) se habilita cuando lo probemos en
-    una ONU de prueba. Si la OLT autoriza sola las ONU nuevas (autoauth), no aparecen como nuevas:
-    entran directo a la lista de clientes.
+  <AlertBox v-if="!canProvision" tone="info" class="mb-6" :title="`Alta en una OLT ${brand}`">
+    Se autoriza con los perfiles de línea y de servicio de la OLT (de ahí salen la VLAN y la
+    velocidad) y el nombre del cliente. El Wi‑Fi y el PPPoE se configuran en la ONU. Si la OLT
+    autoriza sola las ONU nuevas (autoauth, como la BCD de Tocaima), no aparecen aquí: entran
+    directo a Clientes.
   </AlertBox>
 
   <AlertBox
@@ -209,8 +225,7 @@ function switchOlt(event: Event): void {
     title="Primero, un plan"
   >
     Un plan dice cómo se configura cada cliente (VLAN, velocidad, si la ONU marca PPPoE). La forma
-    más rápida: en la lista de clientes de abajo, elige uno que ya navega y pulsa
-    <b>Copiar como plan</b>. O
+    más rápida: abre la ficha de un cliente que ya navega y usa <b>⋮ → Copiar como plan</b>. O
     <RouterLink :to="{ name: 'template-new' }" class="font-medium underline"
       >créalo a mano</RouterLink
     >.
@@ -241,16 +256,15 @@ function switchOlt(event: Event): void {
           @finished="onFinished"
         />
       </ul>
-      <ul v-else class="card divide-y divide-line">
-        <li
+      <ul v-else class="space-y-3">
+        <ProfileAuthorizeCard
           v-for="row in newOnus"
           :key="row.serial"
-          class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
-        >
-          <span class="font-mono">{{ row.serial }}</span>
-          <span class="text-muted">PON {{ row.pon }}</span>
-          <StatusPill tone="warning">Esperando alta</StatusPill>
-        </li>
+          :olt-id="id"
+          :row="row"
+          :free-onu="freeOnu(row.pon)"
+          @finished="onFinished()"
+        />
       </ul>
       <p v-if="unreadPons.length" class="mt-2 text-xs text-muted">
         No se pudo leer el PON {{ unreadPons.join(', ') }}.
@@ -292,7 +306,7 @@ function switchOlt(event: Event): void {
 
     <section>
       <div class="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 class="text-lg font-semibold">Clientes</h2>
+        <h2 class="text-lg font-semibold">Clientes de esta OLT</h2>
         <span v-if="brief" class="text-sm text-muted">
           {{ brief.onus.length }} ONU · {{ offline }} sin señal
         </span>
@@ -334,15 +348,17 @@ function switchOlt(event: Event): void {
               <ChevronUp v-if="openRow === rowKey(row)" class="size-4 text-muted" />
               <ChevronDown v-else class="size-4 text-muted" />
             </button>
-            <div
-              v-if="openRow === rowKey(row) && !canProvision"
-              class="px-4 pb-4 text-xs text-muted"
-            >
-              Renombrar, eliminar, cambiar perfiles (HSGQ) y ver su MAC: en Monitoreo, abriendo la
-              ONU. Su detalle, versión y señal: en la OLT → Consultar (comandos por ONU).
-            </div>
-            <div v-else-if="openRow === rowKey(row)" class="px-4 pb-4">
+            <div v-if="openRow === rowKey(row)" class="space-y-3 px-4 pb-4">
+              <RouterLink :to="onuLink(row)" class="btn-secondary px-3 py-1.5 text-sm">
+                Abrir la ficha del cliente
+                <ChevronRight class="size-4" />
+              </RouterLink>
+              <p class="text-xs text-muted">
+                Ahí están su señal, su consumo, el Wi‑Fi y el PPPoE, y renombrar, reiniciar o
+                eliminar.
+              </p>
               <OnuActions
+                v-if="canProvision"
                 :olt-id="id"
                 :onu="row"
                 :plans="plans.data.value ?? []"

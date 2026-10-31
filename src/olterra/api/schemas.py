@@ -342,6 +342,67 @@ class OnuProfiles(OnuRef):
     srv_profile: int = Field(ge=0, le=32767)
 
 
+class AuthorizeProfilesIn(OnuRef):
+    """Alta en las OLT que autorizan con sus perfiles de línea y de servicio (HSGQ, BCD)."""
+
+    serial: str
+    line_profile: int = Field(0, ge=0, le=32767)
+    srv_profile: int = Field(0, ge=0, le=32767)
+    customer: str = Field(
+        min_length=1,
+        max_length=80,
+        description="Nombre del cliente (tildes y espacios se arreglan)",
+    )
+
+    @field_validator("serial")
+    @classmethod
+    def _serial(cls, value: str) -> str:
+        canonical = normalize_gpon_serial(value)
+        if canonical is None:
+            raise ValueError("Serial GPON inválido (HWTC1A2B3C4D o su forma hexadecimal)")
+        return canonical
+
+
+class OnuWifiIn(OnuRef):
+    """Nombre y clave (WPA2) de un SSID de la ONU. La clave viaja sellada y no se guarda."""
+
+    ssid_index: int = Field(1, ge=1, le=8)
+    ssid: str = Field(
+        pattern=r"^[A-Za-z0-9_.\-]{1,32}$",
+        description="Sin espacios (la CLI de la OLT no los acepta)",
+    )
+    wifi_key: SecretStr
+    hidden: bool = False
+
+    @field_validator("wifi_key")
+    @classmethod
+    def _wifi_key(cls, value: SecretStr) -> SecretStr:
+        checked = check_cli_secret(value, low=8, label="Clave WiFi")
+        return checked or value
+
+
+class PppoeWanRef(BaseModel):
+    """La WAN PPPoE como la guarda la OLT (``onu.wan_config``): se reescribe igual, con otro
+    usuario y clave. Cada campo pasa por los tipos del catálogo antes de llegar a la OLT."""
+
+    kind: Literal["wan_conn", "wan_adv"]
+    index: int = Field(ge=1, le=8)
+    route: str = Field(max_length=200)
+    tail: str = Field(max_length=40)
+
+
+class OnuPppoeIn(OnuRef):
+    wan: PppoeWanRef
+    pppoe_user: str = Field(pattern=r"^[A-Za-z0-9_.@\-]{1,64}$")
+    pppoe_password: SecretStr
+
+    @field_validator("pppoe_password")
+    @classmethod
+    def _pppoe_password(cls, value: SecretStr) -> SecretStr:
+        checked = check_cli_secret(value, low=1, label="Clave PPPoE")
+        return checked or value
+
+
 class WritePlanOut(BaseModel):
     plan_id: UUID
     olt_id: UUID
@@ -595,6 +656,11 @@ class OnuStatusOut(BaseModel):
     status_since: datetime = Field(description="Desde cuándo está en línea o caída")
     last_online_at: datetime | None
     updated_at: datetime
+    down_bps: int | None = Field(
+        None, description="Bajada promedio entre las dos últimas lecturas de tráfico (bit/s)"
+    )
+    up_bps: int | None = Field(None, description="Subida promedio, igual (bit/s)")
+    traffic_at: datetime | None = Field(None, description="Cuándo se leyó el tráfico")
 
 
 class OnuNameIn(BaseModel):
@@ -617,6 +683,28 @@ class OnuSampleOut(BaseModel):
     at: datetime
     online: bool
     rx_dbm: float | None
+
+
+class OnuTrafficHourOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    hour: datetime
+    down_bytes: int
+    up_bytes: int
+    peak_down_bps: int = Field(description="El promedio más alto de una lectura en esa hora")
+    peak_up_bps: int
+
+
+class OnuTrafficOut(BaseModel):
+    """Consumo de una ONU: lo que bajó y subió cada hora. ``supported`` es False si la marca de
+    la OLT no da el tráfico por ONU (BCD)."""
+
+    supported: bool
+    every_minutes: float = Field(description="Cada cuánto se lee el tráfico")
+    down_bps: int | None
+    up_bps: int | None
+    traffic_at: datetime | None
+    hours: list[OnuTrafficHourOut]
 
 
 class AlarmOut(BaseModel):

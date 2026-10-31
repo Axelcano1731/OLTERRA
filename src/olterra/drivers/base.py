@@ -140,6 +140,19 @@ PARAM_TYPES: dict[str, Callable[[Any], str]] = {
     "profile_id0": _int_range(0, 32767),
     # Puertos de la ONU como los pide la HSGQ: "1-4", "1,3", "1".
     "port_list": _pattern(r"[1-8](?:[-,][1-8]){0,7}", "puertos como 1-4 o 1,3"),
+    # Cambiar el PPPoE de una WAN que ya guarda la OLT (VSOL): sus opciones se copian tal cual
+    # de la configuración y solo cambian usuario y clave. Minúsculas, números, "_" y espacios
+    # sueltos: nada que pueda cortar la línea o encadenar otro comando.
+    "wan_kind": _pattern(r"wan_conn|wan_adv", "tipo de WAN: wan_conn o wan_adv"),
+    "wan_route": _pattern(
+        r"(?:[a-z0-9_]+ ){0,24}pppoe proxy (?:enable|disable)",
+        "opciones de la WAN como las guarda la OLT, hasta 'pppoe proxy …'",
+    ),
+    "wan_tail": _pattern(
+        r"mode (?:auto|payload)(?: nat (?:enable|disable))?", "modo PPPoE: mode auto o payload"
+    ),
+    "wifi_encrypt": _pattern(r"aes|tkipaes|tkip", "cifrado del WiFi: aes, tkipaes o tkip"),
+    "rekey": _int_range(0, 86400),
 }
 
 

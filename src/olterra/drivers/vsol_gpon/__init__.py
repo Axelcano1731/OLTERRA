@@ -54,6 +54,11 @@ PARSERS: dict[str, Parser] = {
     "onu.capability": lambda text, params: vsol.parse_onu_capability(text),
     "mac.by_pon": lambda text, params: vsol.parse_mac_table(text, params.get("pon")),
     "onu.mac": lambda text, params: vsol.parse_onu_mac(text, params.get("pon"), params.get("onu")),
+    "onu.traffic_all": lambda text, params: vsol.parse_onu_traffic(text, params.get("pon")),
+    "onu.traffic": lambda text, params: vsol.parse_onu_traffic(text, params.get("pon")),
+    "onu.wan_status": lambda text, params: vsol.parse_wan_status(text),
+    "onu.wifi_status": lambda text, params: vsol.parse_wifi_status(text),
+    "onu.wan_config": lambda text, params: vsol.parse_wan_config(text),
     # "Copiar una ONU": la plantilla y lo del cliente, sacados de su configuración.
     "onu.service_config": lambda text, params: vsol_provisioning.parse_onu_running_config(text),
 }

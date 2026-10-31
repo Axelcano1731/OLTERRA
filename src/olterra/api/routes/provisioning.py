@@ -26,13 +26,16 @@ from olterra.api.deps import State, Tenant
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
 from olterra.api.schemas import (
     AuthorizeIn,
+    AuthorizeProfilesIn,
     ConfigureIn,
     JobOut,
     JobStep,
     OltPasswordChangeIn,
+    OnuPppoeIn,
     OnuProfiles,
     OnuRef,
     OnuRename,
+    OnuWifiIn,
     PlanOut,
     TemplateIn,
     TemplateOut,
@@ -723,4 +726,107 @@ async def change_onu_profiles(
         calls=[CommandCall("onu.set_profiles", {**where, **profiles}), CommandCall("config.save")],
         verify=[],
         audit_after={**where, **profiles},
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/wifi",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def change_onu_wifi(olt_id: UUID, body: OnuWifiIn, ctx: Tenant, state: State) -> WritePlanOut:
+    """Cambia el nombre y la clave (WPA2) del WiFi de la ONU desde la OLT y guarda. La clave
+    viaja sellada al ejecutor: ni el plan, ni la bitácora, ni la base la ven.
+
+    VSOL con los comandos privados (la ONU tiene que estar en línea); la HSGQ por habilitar; la
+    BCD no configura el WiFi de la ONU desde la OLT."""
+    where = {"pon": body.pon, "onu": body.onu}
+    wifi = {
+        "ssid_index": body.ssid_index,
+        "ssid": body.ssid,
+        "hide": "enable" if body.hidden else "disable",
+        "encrypt": "aes",
+        "rekey": 0,
+    }
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.wifi",
+        calls=[CommandCall("onu.wifi_set", {**where, **wifi}), CommandCall("config.save")],
+        verify=[],
+        audit_after={**where, "ssid_index": body.ssid_index, "ssid": body.ssid},
+        secrets={"wifi_key": body.wifi_key.get_secret_value()},
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/pppoe",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def change_onu_pppoe(
+    olt_id: UUID, body: OnuPppoeIn, ctx: Tenant, state: State
+) -> WritePlanOut:
+    """Cambia el usuario y la clave PPPoE de una WAN que ya guarda la OLT, y guarda. La línea se
+    reescribe con sus mismas opciones (las que devolvió ``onu.wan_config``); la VLAN no se toca.
+
+    Solo VSOL: la HSGQ y la BCD no reescriben una WAN configurada en la propia ONU."""
+    where = {"pon": body.pon, "onu": body.onu}
+    wan = {
+        "wan_kind": body.wan.kind,
+        "wan": body.wan.index,
+        "route": body.wan.route,
+        "tail": body.wan.tail,
+        "pppoe_user": body.pppoe_user,
+    }
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.pppoe",
+        calls=[CommandCall("onu.pppoe_change", {**where, **wan}), CommandCall("config.save")],
+        verify=[],
+        audit_after={**where, "wan": body.wan.index, "pppoe_user": body.pppoe_user},
+        secrets={"pppoe_password": body.pppoe_password.get_secret_value()},
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/authorize-profiles",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def authorize_with_profiles(
+    olt_id: UUID, body: AuthorizeProfilesIn, ctx: Tenant, state: State
+) -> WritePlanOut:
+    """Autoriza una ONU nueva con los perfiles de la OLT, le pone el nombre del cliente y guarda.
+
+    Para las marcas que autorizan con perfiles de línea y de servicio (HSGQ, BCD): la VLAN y la
+    velocidad salen de esos perfiles, y el Wi-Fi y el PPPoE se configuran en la ONU. En VSOL el
+    alta va con un plan (``/onus/authorize``)."""
+    ctx.require("onu:write")
+    async with ctx.session() as session:
+        olt = await session.get(Olt, olt_id)
+        if olt is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "OLT no encontrada")
+        if get_driver(olt.driver).provisioning:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "En esta OLT el alta va con un plan (Autorizar ONU)"
+            )
+    name = clean_label(body.customer, limit=64)
+    where = {"pon": body.pon, "onu": body.onu}
+    profiles = {"line_profile": body.line_profile, "srv_profile": body.srv_profile}
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.authorize",
+        calls=[
+            CommandCall("onu.authorize", {**where, "serial": body.serial, **profiles}),
+            CommandCall("onu.set_description", {**where, "description": name}),
+            CommandCall("config.save"),
+        ],
+        verify=[],
+        audit_after={**where, "serial": body.serial, "description": name, **profiles},
     )

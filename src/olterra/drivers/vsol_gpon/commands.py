@@ -21,6 +21,7 @@ from olterra.drivers.vsol_gpon.sources import (
     LIBRENMS_19368,
     PUBLIC_GUIDES,
     RUNNING_G0B,
+    TOCAIMA_ONU,
     manual,
 )
 from olterra.executor.plan import PromptReply, secret_marker
@@ -115,6 +116,42 @@ _COMMANDS = [
     # Los dos de abajo no están en el manual v2.1: salieron de la ayuda de la V1600G0-B.
     _c("onu.state", "show onu state", PON, R, LAB_G0B, notes="Estado de todas las ONU del PON"),
     _c("onu.distance", "show onu {onu} distance", PON, R, LAB_G0B),
+    # --- Consumo, WAN y WiFi de cada ONU --------------------------------------------------
+    # "show onu all statistics" sale en la ayuda pero la OLT lo rechaza ("onu_list invalid"):
+    # con la lista 1-128 responde solo las ONU que existen.
+    _c(
+        "onu.traffic_all",
+        "show onu 1-128 statistics",
+        PON,
+        R,
+        TOCAIMA_ONU,
+        notes="Bytes de subida (Input) y de bajada (Output) de cada ONU del PON",
+    ),
+    _c("onu.traffic", "show onu {onu} statistics", PON, R, TOCAIMA_ONU),
+    _c(
+        "onu.wan_status",
+        "show onu {onu} pri wan_conn",
+        PON,
+        R,
+        TOCAIMA_ONU,
+        notes="La WAN como la reporta la ONU: estado, usuario PPPoE y VLAN (la clave sale tapada)",
+    ),
+    _c(
+        "onu.wifi_status",
+        "show onu {onu} pri wifi_ssid 1",
+        PON,
+        R,
+        TOCAIMA_ONU,
+        notes="El primer SSID como lo reporta la ONU (la clave sale tapada)",
+    ),
+    _c(
+        "onu.wan_config",
+        "show running-config onu {onu}",
+        PON,
+        R,
+        TOCAIMA_ONU,
+        notes="La WAN que guarda la OLT: de ahí sale cómo reescribir su PPPoE",
+    ),
     # --- Escrituras sobre ONU --------------------------------------------------------
     _c(
         "onu.authorize",
@@ -268,6 +305,34 @@ _COMMANDS = [
         secret_params={"wifi_key": "wifi_key"},
         notes="WPA2-PSK; el SSID no admite espacios por CLI",
     ),
+    # Cambios desde la ficha del cliente. Tocaima guarda la WAN como "pri wan_conn index 1 route
+    # tr069_internet nat enable pppoe proxy disable user … pwd … mode auto" (la VLAN va en otra
+    # línea); la V1600G0-B como "pri wan_adv index 1 route ipv4 pppoe proxy disable user … pwd …
+    # mode auto nat enable". Se reescribe esa línea con sus mismas opciones y otro usuario/clave.
+    _c(
+        "onu.pppoe_change",
+        "onu {onu} pri {wan_kind} index {wan} route {route} user {pppoe_user} pwd {pppoe_password}"
+        " {tail}",
+        PON,
+        W,
+        TOCAIMA_ONU,
+        sensitive=True,
+        param_types={"route": "wan_route", "tail": "wan_tail"},
+        secret_params={"pppoe_password": "pppoe_password"},
+        notes="Solo para una WAN PPPoE que ya está en la configuración de la OLT",
+    ),
+    _c(
+        "onu.wifi_set",
+        "onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide {hide} auth_mode wpa2psk "
+        "encrypt_type {encrypt} shared_key {wifi_key} rekey_interval {rekey}",
+        PON,
+        W,
+        TOCAIMA_ONU,
+        sensitive=True,
+        param_types={"hide": "on_off", "encrypt": "wifi_encrypt"},
+        secret_params={"wifi_key": "wifi_key"},
+        notes="Nombre y clave (WPA2) de un SSID; la OLT lo guarda y se lo pasa a la ONU",
+    ),
     # Cuentas de la ONU: la de administración y la normal del cliente ("user"). Las claves van
     # por secret_params: el plan lleva el marcador y el ejecutor las pone al escribir.
     _c(
@@ -419,6 +484,11 @@ _LAB_VERIFIED = {
     "onu.mac",  # solo la de Tocaima (2026-10-30); la V1600G0-B no se ha probado
     # Escrituras probadas en producción en la de Tocaima (2026-10-31), ONU restaurada igual.
     "onu.set_description", "onu.delete", "onu.authorize", "config.save",
+    # Consumo, WAN y WiFi: lecturas de la de Tocaima (2026-10-31); la V1600G0-B no se ha probado.
+    "onu.traffic_all", "onu.traffic", "onu.wan_status", "onu.wifi_status", "onu.wan_config",
+    # Ficha del cliente, en producción en Tocaima (2026-10-31): PPPoE y WiFi reescritos con los
+    # mismos valores (quedaron iguales y conectados) y la ONU reiniciada (volvió en 76 s).
+    "onu.pppoe_change", "onu.wifi_set", "onu.reboot",
 }  # fmt: skip
 
 COMMANDS: dict[str, CommandTemplate] = {

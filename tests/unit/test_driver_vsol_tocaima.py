@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from olterra.drivers import get_driver
+from olterra.drivers.base import CommandCall, ParamError
 from olterra.drivers.textparse import OnuRef, parse_onu_ref
 from olterra.drivers.vsol_gpon import parsers
 from olterra.drivers.vsol_gpon.provisioning import parse_onu_running_config
@@ -56,3 +60,56 @@ def test_optical_info_and_list() -> None:
     assert optical.rx_dbm is not None and -30 < optical.rx_dbm < -8
     assert optical.tx_dbm is not None and optical.temperature_c is not None
     assert len(parsers.parse_onu_list(read("onu.list_pon1.txt"), default_pon=1)) == 31
+
+
+def test_pppoe_change_rewrites_the_saved_line_with_another_user() -> None:
+    """Cambiar el PPPoE reescribe la línea que guarda la OLT, con sus mismas opciones."""
+    from olterra.drivers.vsol_gpon.parsers import parse_wan_config
+
+    saved = (
+        "onu 10 pri wan_conn add route\n"
+        "onu 10 pri wan_conn index 1 route tr069_internet bind_lan 1 bind_ssid 1 nat enable"
+        " pppoe proxy disable user CLIENTE_001 pwd ****** mode auto\n"
+        "onu 10 pri wan_conn index 1 vlan enable vid 109 pri 0\n"
+    )
+    [wan] = parse_wan_config(saved)
+    assert (wan.kind, wan.index, wan.vlan, wan.pppoe_user) == ("wan_conn", 1, 109, "CLIENTE_001")
+    steps = get_driver("vsol-gpon").build_cli_steps(
+        [
+            CommandCall(
+                "onu.pppoe_change",
+                {
+                    "pon": 2,
+                    "onu": 10,
+                    "wan_kind": wan.kind,
+                    "wan": wan.index,
+                    "route": wan.route,
+                    "tail": wan.tail,
+                    "pppoe_user": "CLIENTE_NUEVO",
+                },
+            )
+        ]
+    )
+    assert [s.command for s in steps][2] == (
+        "onu 10 pri wan_conn index 1 route tr069_internet bind_lan 1 bind_ssid 1 nat enable"
+        " pppoe proxy disable user CLIENTE_NUEVO pwd {{secret:pppoe_password}} mode auto"
+    )
+
+
+@pytest.mark.parametrize(
+    ("route", "tail"),
+    [
+        ("tr069_internet nat enable\nwrite", "mode auto"),  # otra línea
+        ("tr069_internet nat enable", "mode auto"),  # sin "pppoe proxy …"
+        ("tr069_internet; reboot pppoe proxy disable", "mode auto"),
+        ("ipv4 pppoe proxy disable", "mode auto\nno onu 3"),
+    ],
+)
+def test_pppoe_change_refuses_options_that_are_not_the_olt_s(route: str, tail: str) -> None:
+    call = CommandCall(
+        "onu.pppoe_change",
+        {"pon": 1, "onu": 3, "wan_kind": "wan_conn", "wan": 1, "route": route, "tail": tail,
+         "pppoe_user": "X"},
+    )  # fmt: skip
+    with pytest.raises(ParamError):
+        get_driver("vsol-gpon").build_cli_steps([call])

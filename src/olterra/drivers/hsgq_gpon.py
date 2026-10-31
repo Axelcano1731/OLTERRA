@@ -33,7 +33,14 @@ from olterra.drivers.base import (
     Parser,
     UnrecognizedOutput,
 )
-from olterra.drivers.common import MacEntry, OnuDetail, OnuVersion, mac_of, parse_mac_rows
+from olterra.drivers.common import (
+    MacEntry,
+    OnuDetail,
+    OnuTraffic,
+    OnuVersion,
+    mac_of,
+    parse_mac_rows,
+)
 from olterra.drivers.textparse import parse_key_values
 from olterra.drivers.vsol_gpon import PROMPT
 from olterra.drivers.vsol_gpon.parsers import (
@@ -74,6 +81,7 @@ _VALIDATED = {
     "onu.delete",
     "onu.authorize",
     "config.save",
+    "onu.reboot",  # una ONU en línea, volvió en 62 s
 }
 
 
@@ -114,6 +122,14 @@ COMMANDS: dict[str, CommandTemplate] = {
         _c("onu.version", "show ont-version {pon} {onu}", CONFIG, param_types=ONU),
         _c("onu.mac", "show mac-address ont {pon} {onu}", CONFIG, param_types=ONU),
         _c("mac.by_pon", "show mac-address port gpon {pon}", CONFIG),
+        # De la ayuda '?' dentro de interface gpon (2026-10-31): no hay versión para todo el PON.
+        _c(
+            "onu.traffic",
+            "show ont statistic {onu}",
+            PON,
+            param_types=ONU,
+            notes="Contadores de la ONU: tx_bytes es la bajada del cliente y rx_bytes la subida",
+        ),
         # --- Escrituras (dentro de interface gpon <pon>) ----------------------------------
         _w(
             "onu.authorize",
@@ -143,6 +159,16 @@ COMMANDS: dict[str, CommandTemplate] = {
             secret_params={"wifi_key": "wifi_key"},
             sensitive=True,
             notes="Primer SSID de 2,4 GHz, WPA2-PSK AES",
+        ),
+        # El mismo comando con los parámetros del cambio de WiFi desde la ficha del cliente.
+        _w(
+            "onu.wifi_set",
+            "ont wificonfig {onu} {ssid_index} wifiname {ssid} security wpa2psk wpaencrypt"
+            " {encrypt} sharekey {wifi_key}",
+            param_types={**ONU, "encrypt": "wifi_encrypt"},
+            secret_params={"wifi_key": "wifi_key"},
+            sensitive=True,
+            notes="Solo cambia lo que la OLT configuró; las ONU de Tocaima se configuraron solas",
         ),
         _w(
             "onu.set_profiles",
@@ -392,6 +418,25 @@ def parse_mac_table(text: str) -> list[MacEntry]:
     return parse_mac_rows(text, row)
 
 
+_COUNTER = re.compile(r"(?m)^\s*([rt]x_bytes)\s*:\s*(\d+)\s*$")
+
+
+def parse_onu_traffic(text: str, params: Mapping[str, Any]) -> OnuTraffic:
+    """``show ont statistic <onu>``: ``clave:valor`` sin decir de qué ONU es (va en la llamada).
+
+    ``tx`` es lo que la OLT le mandó a la ONU (la bajada del cliente) y ``rx`` lo que recibió.
+    """
+    counters = {m.group(1): int(m.group(2)) for m in _COUNTER.finditer(text)}
+    if {"rx_bytes", "tx_bytes"} - counters.keys():
+        raise UnrecognizedOutput("hsgq.ont_statistic", "no hay 'rx_bytes' ni 'tx_bytes'", text)
+    return OnuTraffic(
+        pon=int(params["pon"]),
+        onu=int(params["onu"]),
+        down_bytes=counters["tx_bytes"],
+        up_bytes=counters["rx_bytes"],
+    )
+
+
 def _pon(params: Mapping[str, Any]) -> int | None:
     value = params.get("pon")
     return int(value) if value is not None else None
@@ -414,6 +459,7 @@ PARSERS: dict[str, Parser] = {
     "onu.version": lambda text, params: parse_onu_version(text),
     "onu.mac": lambda text, params: parse_mac_table(text),
     "mac.by_pon": lambda text, params: parse_mac_table(text),
+    "onu.traffic": parse_onu_traffic,
 }
 
 HSGQ_GPON = Driver(

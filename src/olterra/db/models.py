@@ -156,6 +156,8 @@ class Olt(Base):
     monitor_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     monitor_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     monitored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Cuándo se pidió la última lectura de tráfico (migración 0014): va en uno de cada pocos sondeos.
+    traffic_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -318,6 +320,32 @@ class OnuStatus(Base):
     )
     last_online_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Consumo (migración 0014): los últimos contadores de la OLT y el promedio desde la lectura
+    # anterior, en bits por segundo.
+    down_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    up_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    down_bps: Mapped[int | None] = mapped_column(BigInteger)
+    up_bps: Mapped[int | None] = mapped_column(BigInteger)
+    traffic_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OnuTrafficHour(Base):
+    """Lo que bajó y subió una ONU en una hora, y el pico de su promedio en esa hora."""
+
+    __tablename__ = "onu_traffic"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE"), primary_key=True
+    )
+    pon: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    onu: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    hour: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    down_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    up_bytes: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    peak_down_bps: Mapped[int] = mapped_column(BigInteger, server_default="0")
+    peak_up_bps: Mapped[int] = mapped_column(BigInteger, server_default="0")
 
 
 class OnuSample(Base):

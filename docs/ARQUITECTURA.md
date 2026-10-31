@@ -508,3 +508,17 @@ de las OLT: la necesita cada consulta.
   ISP pero no cambiar nada del router.
 - Solo TCP: SNMP (UDP) no pasa por el reenvío SSH. Olterra no lo usa en producción (solo la
   herramienta de captura); el monitoreo va por la CLI.
+
+### A.21 Consumo por ONU: contadores de la OLT sumados por hora (2026-10-31)
+
+El consumo sale de los contadores de tráfico que la OLT lleva por ONU, no del MikroTik: así
+Olterra lo tiene solo y sirve igual con ISPWatch, WispHub o Mikrowisp. El sondeo los lee cada 15
+minutos (no en cada sondeo de 5: en la HSGQ es un comando por ONU) y guarda la diferencia con la
+lectura anterior repartida en las horas que tocó, con el pico del promedio de esa lectura.
+
+- Una fila por ONU y hora (`onu_traffic`), no una por lectura: la base no crece con cada
+  sondeo. Dos meses: este y el anterior completos.
+- Si el contador bajó, la ONU se reinició y cuenta desde cero; si entre dos lecturas pasaron más
+  de 3 horas (la OLT no respondió), esa diferencia no se reparte.
+- La BCD no lo entrega por ONU (sus contadores por puerto Ethernet de la ONU salen en cero): la
+  ficha lo dice.

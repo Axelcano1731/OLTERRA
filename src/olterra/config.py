@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     monitor_every_minutes: float = 5.0
     # Días que se guarda el historial de potencia de las ONU.
     monitor_retention_days: int = 30
+    # Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (0 = no). No en todos los
+    # sondeos: en la HSGQ es un comando por ONU.
+    monitor_traffic_every_minutes: float = 15.0
+    # Días que se guarda el consumo por hora (dos meses: este y el anterior completos).
+    monitor_traffic_retention_days: int = 62
     # Estilo de MapLibre del mapa FTTH. OpenFreeMap: gratis, sin llave, de OpenStreetMap. Si se
     # cambia de proveedor, su dominio va también en la CSP de Caddy (OLTERRA_MAPA_ORIGEN).
     map_style_url: str = "https://tiles.openfreemap.org/styles/liberty"

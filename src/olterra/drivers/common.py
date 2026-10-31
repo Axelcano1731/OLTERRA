@@ -41,6 +41,21 @@ class OnuVersion:
 
 
 @dataclass
+class OnuTraffic:
+    """Contadores de tráfico de una ONU (``onu.traffic``, ``onu.traffic_all``).
+
+    ``down_bytes`` es lo que la OLT le mandó a la ONU (la bajada del cliente) y ``up_bytes`` lo
+    que recibió de ella (la subida). Son acumulados: el monitoreo guarda la diferencia entre dos
+    lecturas, y si el contador vuelve a empezar (la ONU se reinició) cuenta desde cero.
+    """
+
+    pon: int
+    onu: int
+    down_bytes: int
+    up_bytes: int
+
+
+@dataclass
 class MacEntry:
     """Una MAC aprendida detrás de una ONU (``onu.mac``, ``mac.by_pon``).
 

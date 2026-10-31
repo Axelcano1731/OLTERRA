@@ -1,23 +1,26 @@
 <script setup lang="ts">
 import {
-  Activity,
+  Bell,
   GitCompareArrows,
+  House,
   LayoutTemplate,
-  RadioTower,
-  LayoutDashboard,
-  ScrollText,
   LogOut,
   MapPin,
   Menu,
+  PlugZap,
+  ScrollText,
+  Search,
   Server,
   Smartphone,
+  UserCog,
   Users,
   Waypoints,
   X,
 } from '@lucide/vue'
-import { computed, ref, watch, type Component } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 
+import { getMonitoringSummary } from '@/api'
 import { can, session, signOut } from '@/session'
 
 import Logo from './Logo.vue'
@@ -29,50 +32,68 @@ interface NavItem {
   routes: string[]
   /** Permiso que hace falta para verlo. */
   scope?: string
+  /** Lleva el número de alarmas abiertas. */
+  alarms?: boolean
 }
 
-const NAV: NavItem[] = [
-  { to: { name: 'panel' }, label: 'Panel', icon: LayoutDashboard, routes: ['panel'] },
+// Primero lo del día a día; la red y los ajustes, que se tocan poco, abajo.
+const GROUPS: { title?: string; items: NavItem[] }[] = [
   {
-    to: { name: 'provision' },
-    label: 'Aprovisionar',
-    icon: RadioTower,
-    routes: ['provision', 'olt-provision'],
+    items: [
+      { to: { name: 'panel' }, label: 'Inicio', icon: House, routes: ['panel'] },
+      { to: { name: 'clients' }, label: 'Clientes', icon: Users, routes: ['clients', 'onu'] },
+      {
+        to: { name: 'provision' },
+        label: 'Autorizar ONU',
+        icon: PlugZap,
+        routes: ['provision', 'olt-provision'],
+      },
+      { to: { name: 'alarms' }, label: 'Alarmas', icon: Bell, routes: ['alarms'], alarms: true },
+      { to: { name: 'map' }, label: 'Mapa FTTH', icon: MapPin, routes: ['map'] },
+    ],
   },
   {
-    to: { name: 'olts' },
-    label: 'OLT',
-    icon: Server,
-    routes: ['olts', 'olt-new', 'olt', 'olt-edit', 'olt-password', 'olt-backups'],
+    title: 'Red',
+    items: [
+      {
+        to: { name: 'olts' },
+        label: 'OLT',
+        icon: Server,
+        routes: ['olts', 'olt-new', 'olt', 'olt-edit', 'olt-password', 'olt-backups'],
+      },
+      { to: { name: 'tunnel' }, label: 'Túnel', icon: Waypoints, routes: ['tunnel'] },
+    ],
   },
   {
-    to: { name: 'templates' },
-    label: 'Planes',
-    icon: LayoutTemplate,
-    routes: ['templates', 'template-new', 'template-edit'],
-  },
-  { to: { name: 'monitoring' }, label: 'Monitoreo', icon: Activity, routes: ['monitoring'] },
-  { to: { name: 'map' }, label: 'Mapa FTTH', icon: MapPin, routes: ['map'] },
-  { to: { name: 'tunnel' }, label: 'Túnel', icon: Waypoints, routes: ['tunnel'] },
-  {
-    to: { name: 'recons' },
-    label: 'Conciliación',
-    icon: GitCompareArrows,
-    routes: ['recons', 'recon-new', 'recon'],
-  },
-  {
-    to: { name: 'users' },
-    label: 'Usuarios',
-    icon: Users,
-    routes: ['users'],
-    scope: 'users:read',
-  },
-  {
-    to: { name: 'audit' },
-    label: 'Bitácora',
-    icon: ScrollText,
-    routes: ['audit'],
-    scope: 'audit:read',
+    title: 'Ajustes',
+    items: [
+      {
+        to: { name: 'templates' },
+        label: 'Planes',
+        icon: LayoutTemplate,
+        routes: ['templates', 'template-new', 'template-edit'],
+      },
+      {
+        to: { name: 'users' },
+        label: 'Usuarios',
+        icon: UserCog,
+        routes: ['users'],
+        scope: 'users:read',
+      },
+      {
+        to: { name: 'recons' },
+        label: 'Conciliación',
+        icon: GitCompareArrows,
+        routes: ['recons', 'recon-new', 'recon'],
+      },
+      {
+        to: { name: 'audit' },
+        label: 'Bitácora',
+        icon: ScrollText,
+        routes: ['audit'],
+        scope: 'audit:read',
+      },
+    ],
   },
 ]
 
@@ -82,7 +103,38 @@ const SOON = [{ label: 'App de campo', icon: Smartphone, phase: 3 }]
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
-const nav = computed(() => NAV.filter((item) => !item.scope || can(item.scope)))
+const groups = computed(() =>
+  GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.scope || can(item.scope)),
+  })).filter((group) => group.items.length),
+)
+
+// Alarmas abiertas en el menú: se ven desde cualquier página.
+const openAlarms = ref({ critical: 0, total: 0 })
+async function loadAlarms(): Promise<void> {
+  try {
+    const summary = await getMonitoringSummary()
+    openAlarms.value = { critical: summary.critical, total: summary.critical + summary.warning }
+  } catch {
+    // Sin el número no pasa nada: la página de alarmas dice lo que haya.
+  }
+}
+let alarmsTimer: number | undefined
+onMounted(() => {
+  void loadAlarms()
+  alarmsTimer = window.setInterval(() => void loadAlarms(), 60_000)
+})
+onBeforeUnmount(() => window.clearInterval(alarmsTimer))
+
+// Buscar un cliente desde cualquier página: lleva a Clientes con la búsqueda puesta.
+const search = ref('')
+function find(): void {
+  const q = search.value.trim()
+  if (!q) return
+  search.value = ''
+  void router.push({ name: 'clients', query: { q } })
+}
 
 watch(
   () => route.fullPath,
@@ -135,22 +187,57 @@ async function logout(): Promise<void> {
         </button>
       </div>
 
-      <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label="Principal">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.label"
-          :to="item.to"
-          :aria-current="isActive(item) ? 'page' : undefined"
-          :class="[
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            isActive(item)
-              ? 'bg-sidebar-active text-white'
-              : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-ink',
-          ]"
-        >
-          <component :is="item.icon" class="size-4.5" />
-          {{ item.label }}
-        </RouterLink>
+      <form class="px-3 pb-2" role="search" @submit.prevent="find">
+        <label class="relative block">
+          <span class="sr-only">Buscar cliente</span>
+          <Search
+            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-sidebar-muted"
+          />
+          <input
+            v-model="search"
+            type="search"
+            class="w-full rounded-lg border border-white/10 bg-sidebar-hover py-2 pr-3 pl-9 text-sm text-white placeholder:text-sidebar-muted focus:border-white/30 focus:outline-none"
+            placeholder="Buscar cliente o serial"
+          />
+        </label>
+      </form>
+
+      <nav class="flex-1 overflow-y-auto px-3 py-2" aria-label="Principal">
+        <div v-for="(group, index) in groups" :key="group.title ?? index" class="mb-3">
+          <p
+            v-if="group.title"
+            class="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-sidebar-muted/70 uppercase"
+          >
+            {{ group.title }}
+          </p>
+          <div class="space-y-1">
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.label"
+              :to="item.to"
+              :aria-current="isActive(item) ? 'page' : undefined"
+              :class="[
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                isActive(item)
+                  ? 'bg-sidebar-active text-white'
+                  : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-ink',
+              ]"
+            >
+              <component :is="item.icon" class="size-4.5" />
+              {{ item.label }}
+              <span
+                v-if="item.alarms && openAlarms.total"
+                :class="[
+                  'ml-auto rounded-full px-1.5 py-0.5 text-[11px] leading-none font-semibold text-white',
+                  openAlarms.critical ? 'bg-red-600' : 'bg-amber-600',
+                ]"
+                :aria-label="`${openAlarms.total} alarmas abiertas`"
+              >
+                {{ openAlarms.total }}
+              </span>
+            </RouterLink>
+          </div>
+        </div>
 
         <p
           class="px-3 pt-6 pb-2 text-[11px] font-semibold tracking-wider text-sidebar-muted/70 uppercase"

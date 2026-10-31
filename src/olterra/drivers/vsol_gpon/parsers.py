@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from olterra.drivers.base import UnrecognizedOutput
-from olterra.drivers.common import MacEntry, mac_of, parse_mac_rows
+from olterra.drivers.common import MacEntry, OnuTraffic, mac_of, parse_mac_rows
 from olterra.drivers.textparse import (
     Table,
     find_tables,
@@ -582,3 +582,177 @@ def parse_mac_table(text: str, default_pon: int | None = None) -> list[MacEntry]
 def parse_onu_mac(text: str, pon: int | None, onu: int | None) -> list[MacEntry]:
     """Las MAC de una ONU: la tabla por PON filtrada (la OLT puede listar el PON entero)."""
     return [e for e in parse_mac_table(text, pon) if onu is None or e.onu in (None, onu)]
+
+
+# --- Consumo, WAN y WiFi de una ONU (OLT de Tocaima V1.1.9R, 2026-10-31) ---------------------
+
+_TRAFFIC_ONU = re.compile(r"GPON\s*\d+/(\d+):0*(\d+)", re.IGNORECASE)
+_TRAFFIC_BYTES = re.compile(r"(?i)^\s*(input|output)\s+bytes\s*:\s*(\d+)\s*$")
+
+
+def parse_onu_traffic(text: str, default_pon: int | None = None) -> list[OnuTraffic]:
+    """``show onu <lista> statistics``: un bloque por ONU que empieza con ``GPON0/1:3``.
+
+    ``Input`` es lo que la OLT recibió de la ONU (la subida del cliente) y ``Output`` lo que le
+    mandó (la bajada). El paginador puede dejar ``--More--`` pegado a la línea del bloque.
+    """
+    rows: list[OnuTraffic] = []
+    current: tuple[int, int] | None = None
+    counters: dict[str, int] = {}
+
+    def close() -> None:
+        if current is not None and {"input", "output"} <= counters.keys():
+            rows.append(OnuTraffic(current[0], current[1], counters["output"], counters["input"]))
+
+    for line in text.splitlines():
+        ref = _TRAFFIC_ONU.search(line)
+        if ref is not None:
+            close()
+            current, counters = (int(ref.group(1)), int(ref.group(2))), {}
+            continue
+        match = _TRAFFIC_BYTES.match(line)
+        if match is not None and current is not None:
+            counters[match.group(1).lower()] = int(match.group(2))
+    close()
+    if not rows and re.search(r"(?i)\bbytes\s*:", text):
+        raise UnrecognizedOutput("vsol.onu.traffic", "hay contadores pero ninguna ONU", text)
+    return rows
+
+
+@dataclass(frozen=True)
+class WanStatus:
+    """Una WAN como la reporta la ONU (``show onu <n> pri wan_conn``). Nunca trae la clave."""
+
+    index: int
+    mode: str | None  # tr069_internet, internet…
+    connection: str | None  # PPPOE, DHCP, STATIC
+    kind: str | None  # route o bridge
+    vlan: int | None
+    nat: bool | None
+    pppoe_user: str | None
+    status: str | None  # connected, disconnected…
+    mtu: int | None
+    ip: str | None
+
+
+_KV_LINE = re.compile(r"^\s*([A-Za-z][\w ]*?)\s*:\s*(.*?)\s*$")
+
+
+def _blocks(text: str, first_key: str) -> list[dict[str, str]]:
+    """Bloques ``clave : valor`` que empiezan cada vez que aparece ``first_key``."""
+    blocks: list[dict[str, str]] = []
+    for line in text.splitlines():
+        match = _KV_LINE.match(line)
+        if match is None:
+            continue
+        key, value = norm_header(match.group(1)), match.group(2)
+        if key == first_key:
+            blocks.append({})
+        if blocks and value:
+            blocks[-1].setdefault(key, value)
+    return blocks
+
+
+def _int(value: str | None) -> int | None:
+    match = re.search(r"\d+", value or "")
+    return int(match.group()) if match else None
+
+
+def parse_wan_status(text: str) -> list[WanStatus]:
+    """``show onu <n> pri wan_conn``: ``wanNumber:1`` y un bloque ``wanIndex : 1`` por WAN."""
+    wans = []
+    for block in _blocks(text, "wanindex"):
+        nat = block.get("wannatenable")
+        wans.append(
+            WanStatus(
+                index=_int(block.get("wanindex")) or 0,
+                mode=block.get("wanmode"),
+                connection=block.get("wanconnmode"),
+                kind=block.get("wanconntype"),
+                vlan=_int(block.get("wanvlanid")),
+                nat=None if nat is None else nat.lower() == "enable",
+                pppoe_user=block.get("pppoeusername"),
+                status=block.get("wanstatus"),
+                mtu=_int(block.get("wanmtu")),
+                ip=_kv_find(block, "ip", exclude=("mode", "proto", "version", "ipv6")),
+            )
+        )
+    if not wans and not re.search(r"(?i)wannumber\s*:\s*0\b", text):
+        raise UnrecognizedOutput("vsol.onu.wan_status", "no hay 'wanNumber' ni 'wanIndex'", text)
+    return wans
+
+
+@dataclass(frozen=True)
+class WifiStatus:
+    """Un SSID como lo reporta la ONU (``show onu <n> pri wifi_ssid <i>``). Sin la clave."""
+
+    index: int | None
+    name: str | None
+    enabled: bool | None
+    hidden: bool | None
+    auth: str | None
+    encrypt: str | None
+    rekey_s: int | None
+
+
+def parse_wifi_status(text: str) -> WifiStatus:
+    kv = parse_key_values(text)
+    if "name" not in kv and "authmode" not in kv:
+        raise UnrecognizedOutput("vsol.onu.wifi_status", "no hay 'Name' ni 'Auth Mode'", text)
+
+    def flag(key: str) -> bool | None:
+        value = kv.get(key)
+        return None if value is None else value.lower() == "enable"
+
+    return WifiStatus(
+        index=_int(kv.get("ssid")),
+        name=kv.get("name"),
+        enabled=flag("status"),
+        hidden=flag("hide"),
+        auth=kv.get("authmode"),
+        encrypt=kv.get("encrypttype"),
+        rekey_s=_int(kv.get("wparekeyinterval")),
+    )
+
+
+@dataclass(frozen=True)
+class PppoeWan:
+    """Una WAN PPPoE que guarda la OLT, con lo necesario para reescribir usuario y clave.
+
+    ``route`` son sus opciones tal cual (``tr069_internet nat enable pppoe proxy disable``) y
+    ``tail`` lo que va después de la clave (``mode auto``): ``onu.pppoe_change`` las repite.
+    """
+
+    kind: str  # wan_conn (Tocaima) o wan_adv (V1600G0-B)
+    index: int
+    route: str
+    tail: str
+    pppoe_user: str
+    vlan: int | None
+
+
+_PPPOE_LINE = re.compile(
+    r"(?im)^\s*onu\s+\d+\s+pri\s+(wan_conn|wan_adv)\s+index\s+(\d+)\s+route\s+(.+?)\s+"
+    r"user\s+(\S+)\s+pwd\s+\S+\s+(mode\s+\S+(?:\s+nat\s+\S+)?)\s*$"
+)
+_WAN_VLAN = re.compile(
+    r"(?im)^\s*onu\s+\d+\s+pri\s+(wan_conn|wan_adv)\s+index\s+(\d+)\s+vlan\s+"
+    r"(?:enable\s+vid|tag\s+wan_vlan)\s+(\d+)"
+)
+
+
+def parse_wan_config(text: str) -> list[PppoeWan]:
+    """Las WAN PPPoE de ``show running-config onu <n>``; vacío si la OLT no guarda ninguna (la
+    WAN se configuró en la propia ONU)."""
+    vlans = {(m.group(1), int(m.group(2))): int(m.group(3)) for m in _WAN_VLAN.finditer(text)}
+    return [
+        PppoeWan(
+            kind=match.group(1),
+            index=int(match.group(2)),
+            route=" ".join(match.group(3).split()),
+            tail=" ".join(match.group(5).split()),
+            pppoe_user=match.group(4),
+            vlan=vlans.get((match.group(1), int(match.group(2)))),
+        )
+        for match in _PPPOE_LINE.finditer(text)
+    ]

@@ -6,10 +6,13 @@ de solo lectura con prioridad de sondeo (lo que pida un usuario va primero):
     show interface brief          todas las ONU con su cliente (descripción)
     show onu state         (PON)  fase de cada ONU: working, LOS, dyingGasp, offline…
     show pon onu all rx-power (PON) potencia recibida de cada ONU
+    show onu 1-128 statistics (PON) cada ``OLTERRA_MONITOR_TRAFFIC_EVERY_MINUTES``: el tráfico
+                                  (en la HSGQ es un comando por ONU en línea; la BCD no lo da)
 
 El resultado se procesa y se borra: el estado queda en ``onu_status``, el historial de potencia en
-``onu_samples`` (sin guardar cada sondeo) y las alarmas en ``alarms``. Ni el historial de consultas
-de la OLT ni la base compartida se llenan con sondeos.
+``onu_samples`` (sin guardar cada sondeo), el consumo sumado por hora en ``onu_traffic`` y las
+alarmas en ``alarms``. Ni el historial de consultas de la OLT ni la base compartida se llenan con
+sondeos.
 
 Las reglas (``evaluate``) son funciones puras: ventana de recepción GPON clase B+ de −8 a −27 dBm
 (ARQUITECTURA, modelo de la red), aviso desde −25 dBm, y una caída de PON cuando la mayoría de sus
@@ -29,15 +32,16 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
 from olterra.api.state import AppState
-from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus, PlanRun
+from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus, OnuTrafficHour, PlanRun
 from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
-from olterra.drivers.base import CommandCall
+from olterra.drivers.base import CommandCall, Driver
 from olterra.executor.plan import PlanResult, Priority
 from olterra.orchestrator import build_read_plan
 
@@ -54,6 +58,9 @@ PON_DOWN_RATIO = 0.7
 
 SAMPLE_EVERY = timedelta(hours=1)
 SAMPLE_DELTA_DB = 1.0
+# Entre dos lecturas de tráfico más separadas que esto no se sabe a qué horas repartir lo que
+# subió el contador (la OLT no respondió un rato): esa diferencia no se cuenta.
+TRAFFIC_MAX_GAP = timedelta(hours=3)
 
 PHASES = {
     "working": "En línea",
@@ -85,6 +92,9 @@ class Reading:
     serial: str | None = None
     description: str | None = None
     rx_dbm: float | None = None
+    # Contadores de tráfico, solo en los sondeos que los leen.
+    down_bytes: int | None = None
+    up_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -110,13 +120,20 @@ def merge_readings(outputs: list[dict[str, Any]]) -> tuple[list[Reading], bool]:
     brief: dict[tuple[int, int], dict[str, Any]] = {}
     states: dict[tuple[int, int], dict[str, Any]] = {}
     powers: dict[tuple[int, int], float | None] = {}
+    traffic: dict[tuple[int, int], tuple[int, int]] = {}
     complete = False
     for output in outputs:
         data = output.get("data")
         if not output.get("ok") or data is None:
             continue
         key = output.get("key")
-        if key == "interfaces.brief" and isinstance(data, dict):
+        if key in ("onu.traffic_all", "onu.traffic"):
+            for row in data if isinstance(data, list) else [data]:
+                traffic[(int(row["pon"]), int(row["onu"]))] = (
+                    int(row["down_bytes"]),
+                    int(row["up_bytes"]),
+                )
+        elif key == "interfaces.brief" and isinstance(data, dict):
             complete = True
             for row in data.get("onus") or []:
                 brief[(int(row["pon"]), int(row["onu"]))] = row
@@ -142,6 +159,7 @@ def merge_readings(outputs: list[dict[str, Any]]) -> tuple[list[Reading], bool]:
             online = bool(port and port.get("up"))
             phase = "working" if online else None
         rx = powers.get((pon, onu))
+        counters = traffic.get((pon, onu))
         readings.append(
             Reading(
                 pon=pon,
@@ -151,6 +169,8 @@ def merge_readings(outputs: list[dict[str, Any]]) -> tuple[list[Reading], bool]:
                 serial=(state or {}).get("serial"),
                 description=(port or {}).get("description"),
                 rx_dbm=float(rx) if rx is not None and online else None,
+                down_bytes=counters[0] if counters else None,
+                up_bytes=counters[1] if counters else None,
             )
         )
     return readings, complete
@@ -247,17 +267,63 @@ def wants_sample(
     return abs(rx - reading.rx_dbm) >= SAMPLE_DELTA_DB
 
 
+def counter_delta(previous: int | None, current: int) -> int | None:
+    """Lo que subió un contador entre dos lecturas. Si bajó, la ONU se reinició (o la OLT borró
+    sus contadores) y empezó de cero: cuenta lo que lleva desde entonces."""
+    if previous is None:
+        return None
+    return current - previous if current >= previous else current
+
+
+def split_by_hour(
+    start: datetime, end: datetime, down: int, up: int
+) -> list[tuple[datetime, int, int]]:
+    """Reparte lo que bajó y subió entre ``start`` y ``end`` en las horas que toca, en proporción
+    al tiempo. La última hora se queda con lo que sobra del redondeo."""
+    total = (end - start).total_seconds()
+    if total <= 0:
+        return []
+    hours: list[tuple[datetime, int, int]] = []
+    hour = start.replace(minute=0, second=0, microsecond=0)
+    given_down = given_up = 0
+    while hour < end:
+        following = hour + timedelta(hours=1)
+        if following >= end:
+            hours.append((hour, down - given_down, up - given_up))
+            break
+        share = (following - max(start, hour)).total_seconds() / total
+        part_down, part_up = round(down * share), round(up * share)
+        hours.append((hour, part_down, part_up))
+        given_down += part_down
+        given_up += part_up
+        hour = following
+    return [entry for entry in hours if entry[1] or entry[2]]
+
+
 # --- Sondeo -----------------------------------------------------------------------------------
 
 
-def poll_calls(pons: int) -> list[CommandCall]:
+def poll_calls(
+    pons: int, driver: Driver | None = None, online: list[tuple[int, int]] | None = None
+) -> list[CommandCall]:
+    """Lo que se le pide a la OLT. Con ``online`` (las ONU en línea) también el tráfico: un
+    comando por PON si la marca lo tiene (VSOL) o uno por ONU (HSGQ)."""
+    per_pon = online is not None and driver is not None and "onu.traffic_all" in driver.commands
     calls = [CommandCall("interfaces.brief")]
     for pon in range(1, pons + 1):
         calls += [
             CommandCall("onu.state", {"pon": pon}),
             CommandCall("onu.rx_power_all", {"pon": pon}),
         ]
+        if per_pon:
+            calls.append(CommandCall("onu.traffic_all", {"pon": pon}))
+    if online and not per_pon and driver is not None and "onu.traffic" in driver.commands:
+        calls += [CommandCall("onu.traffic", {"pon": p, "onu": o}) for p, o in sorted(online)]
     return calls
+
+
+def reads_traffic(driver: Driver) -> bool:
+    return "onu.traffic_all" in driver.commands or "onu.traffic" in driver.commands
 
 
 async def start_poll(state: AppState, tenant_id: UUID, olt_id: UUID, priority: Priority) -> bool:
@@ -267,12 +333,33 @@ async def start_poll(state: AppState, tenant_id: UUID, olt_id: UUID, priority: P
         olt = await session.get(Olt, olt_id)
         if olt is None:
             return False
-        olt.monitor_requested_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        olt.monitor_requested_at = now
         try:
             olt, credential, target = await olt_access(session, tenant_id, state, olt_id)
-            calls = poll_calls(olt.pon_ports or DEFAULT_PONS)
+            driver = get_driver(olt.driver)
+            online = None
+            every = state.settings.monitor_traffic_every_minutes
+            last = olt.traffic_requested_at
+            if (
+                every > 0
+                and reads_traffic(driver)
+                and (last is None or now - last >= timedelta(minutes=every) - timedelta(seconds=30))
+            ):
+                online = [
+                    (row.pon, row.onu)
+                    for row in (
+                        await session.execute(
+                            select(OnuStatus.pon, OnuStatus.onu).where(
+                                OnuStatus.olt_id == olt.id, OnuStatus.online
+                            )
+                        )
+                    ).all()
+                ]
+                olt.traffic_requested_at = now
+            calls = poll_calls(olt.pon_ports or DEFAULT_PONS, driver, online)
             plan = build_read_plan(
-                get_driver(olt.driver),
+                driver,
                 tenant_id=tenant_id,
                 olt_id=olt.id,
                 target=target,
@@ -432,6 +519,7 @@ async def _store_readings(
         ).all()
     }
     seen = set()
+    hourly: list[dict[str, Any]] = []
     for reading in readings:
         key = (reading.pon, reading.onu)
         seen.add(key)
@@ -460,6 +548,9 @@ async def _store_readings(
         status.updated_at = now
         if reading.online:
             status.last_online_at = now
+        if reading.down_bytes is not None and reading.up_bytes is not None:
+            counters = (reading.down_bytes, reading.up_bytes)
+            hourly += _account_traffic(tenant_id, olt_id, status, key, counters, now)
         if wants_sample(last.get(key), reading, now):
             session.add(
                 OnuSample(
@@ -480,7 +571,70 @@ async def _store_readings(
     await session.execute(
         delete(OnuSample).where(OnuSample.olt_id == olt_id, OnuSample.at < now - keep)
     )
+    if hourly:
+        upsert = insert(OnuTrafficHour).values(hourly)
+        await session.execute(
+            upsert.on_conflict_do_update(
+                index_elements=["tenant_id", "olt_id", "pon", "onu", "hour"],
+                set_={
+                    "down_bytes": OnuTrafficHour.down_bytes + upsert.excluded.down_bytes,
+                    "up_bytes": OnuTrafficHour.up_bytes + upsert.excluded.up_bytes,
+                    "peak_down_bps": func.greatest(
+                        OnuTrafficHour.peak_down_bps, upsert.excluded.peak_down_bps
+                    ),
+                    "peak_up_bps": func.greatest(
+                        OnuTrafficHour.peak_up_bps, upsert.excluded.peak_up_bps
+                    ),
+                },
+            )
+        )
+        keep_traffic = timedelta(days=state.settings.monitor_traffic_retention_days)
+        await session.execute(
+            delete(OnuTrafficHour).where(
+                OnuTrafficHour.olt_id == olt_id, OnuTrafficHour.hour < now - keep_traffic
+            )
+        )
     return {key: status.customer_name for key, status in current.items() if status.customer_name}
+
+
+def _account_traffic(
+    tenant_id: UUID,
+    olt_id: UUID,
+    status: OnuStatus,
+    where: tuple[int, int],
+    counters: tuple[int, int],
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """Guarda los contadores nuevos (bajada, subida) en ``status`` y devuelve las filas por hora
+    de lo que pasó desde la lectura anterior (nada si es la primera o si pasó demasiado tiempo)."""
+    down = counter_delta(status.down_bytes, counters[0])
+    up = counter_delta(status.up_bytes, counters[1])
+    previous_at = status.traffic_at
+    status.down_bytes, status.up_bytes, status.traffic_at = counters[0], counters[1], now
+    if (
+        down is None
+        or up is None
+        or previous_at is None
+        or not timedelta(0) < now - previous_at <= TRAFFIC_MAX_GAP
+    ):
+        status.down_bps = status.up_bps = None
+        return []
+    seconds = (now - previous_at).total_seconds()
+    status.down_bps, status.up_bps = round(down * 8 / seconds), round(up * 8 / seconds)
+    return [
+        {
+            "tenant_id": tenant_id,
+            "olt_id": olt_id,
+            "pon": where[0],
+            "onu": where[1],
+            "hour": hour,
+            "down_bytes": part_down,
+            "up_bytes": part_up,
+            "peak_down_bps": status.down_bps,
+            "peak_up_bps": status.up_bps,
+        }
+        for hour, part_down, part_up in split_by_hour(previous_at, now, down, up)
+    ]
 
 
 async def tick(state: AppState) -> int:

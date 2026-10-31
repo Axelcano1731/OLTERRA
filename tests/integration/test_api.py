@@ -1083,3 +1083,115 @@ def test_rename_delete_and_profiles_on_the_three_brands(env: Env) -> None:
         headers=env.headers(),
     )
     assert unsupported.status_code == 400
+
+
+def test_wifi_pppoe_and_authorize_with_profiles(env: Env) -> None:
+    """Desde la ficha del cliente: WiFi y PPPoE (VSOL) y el alta con perfiles (HSGQ, BCD). Las
+    claves no salen en el plan, la bitácora ni la respuesta."""
+    hsgq = create_olt(env, driver="hsgq-gpon", real_ip="10.9.1.1", model="HSGQ-G008")
+    bcd = create_olt(env, driver="bcd-gpon", real_ip="10.9.1.2", model="BCD-1508GS")
+    vsol = create_olt(env, real_ip="10.9.1.3")
+
+    def commands(response: Any) -> list[str]:
+        assert response.status_code == 202, response.text
+        assert response.json()["unverified"] == []
+        plan = env.publisher.plans[-1]
+        assert "Clave" not in plan.model_dump_json()  # las claves van selladas
+        return [s.command for s in plan.steps]
+
+    wifi = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/wifi",
+        json={"pon": 1, "onu": 3, "ssid": "CASA_PEREZ", "wifi_key": "ClaveWifi2026"},
+        headers=env.headers(),
+    )
+    assert commands(wifi)[2:4] == [
+        "onu 3 pri wifi_ssid 1 name CASA_PEREZ hide disable auth_mode wpa2psk encrypt_type aes"
+        " shared_key {{secret:wifi_key}} rekey_interval 0",
+        "end",
+    ]
+    assert "write" in commands(wifi)
+    spaces = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/wifi",
+        json={"pon": 1, "onu": 3, "ssid": "CASA PEREZ", "wifi_key": "ClaveWifi2026"},
+        headers=env.headers(),
+    )
+    assert spaces.status_code == 422  # la CLI no acepta espacios en el SSID
+
+    wan = {
+        "kind": "wan_conn",
+        "index": 1,
+        "route": "tr069_internet nat enable pppoe proxy disable",
+        "tail": "mode auto",
+    }
+    pppoe = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/pppoe",
+        json={
+            "pon": 1,
+            "onu": 3,
+            "wan": wan,
+            "pppoe_user": "CLIENTE_NUEVO",
+            "pppoe_password": "ClavePppoe1",
+        },
+        headers=env.headers(),
+    )
+    assert (
+        "onu 3 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable"
+        " user CLIENTE_NUEVO pwd {{secret:pppoe_password}} mode auto"
+    ) in commands(pppoe)
+    # Las opciones de la WAN pasan por los tipos del catálogo: nada de líneas de más.
+    injected = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/pppoe",
+        json={
+            "pon": 1,
+            "onu": 3,
+            "wan": {**wan, "route": "tr069_internet nat enable\nwrite pppoe proxy disable"},
+            "pppoe_user": "X",
+            "pppoe_password": "ClavePppoe1",
+        },
+        headers=env.headers(),
+    )
+    assert injected.status_code == 400
+    for other in (hsgq, bcd):  # no reescriben una WAN configurada en la ONU
+        refused = env.client.post(
+            f"/v1/olts/{other['id']}/onus/pppoe",
+            json={"pon": 1, "onu": 3, "wan": wan, "pppoe_user": "X", "pppoe_password": "Y1"},
+            headers=env.headers(),
+        )
+        assert refused.status_code == 400
+    no_wifi = env.client.post(
+        f"/v1/olts/{bcd['id']}/onus/wifi",
+        json={"pon": 1, "onu": 3, "ssid": "CASA", "wifi_key": "ClaveWifi2026"},
+        headers=env.headers(),
+    )
+    assert no_wifi.status_code == 400
+    audit = env.client.get("/v1/audit", headers=env.headers()).text
+    assert "ClaveWifi2026" not in audit and "ClavePppoe1" not in audit
+    assert "CLIENTE_NUEVO" in audit  # el usuario PPPoE sí queda: quién cambió qué
+
+    alta = {
+        "pon": 1,
+        "onu": 5,
+        "serial": "HWTC1A2B3C4D",
+        "line_profile": 0,
+        "srv_profile": 0,
+        "customer": "Cristina Gálvis",
+    }
+    hsgq_alta = env.client.post(
+        f"/v1/olts/{hsgq['id']}/onus/authorize-profiles", json=alta, headers=env.headers()
+    )
+    assert commands(hsgq_alta)[2:5] == [
+        "ont add 4 sn-auth HWTC1A2B3C4D omci ont-lineprofile-id 0 ont-srvprofile-id 0",
+        'ont setting 4 name "Cristina_Galvis"',
+        "exit",
+    ]
+    bcd_alta = env.client.post(
+        f"/v1/olts/{bcd['id']}/onus/authorize-profiles", json=alta, headers=env.headers()
+    )
+    assert "ont add 1 5 sn-auth HWTC1A2B3C4D ont-lineprofile-id 0 ont-srvprofile-id 0" in (
+        commands(bcd_alta)
+    )
+    assert "ont description 1 5 Cristina_Galvis" in commands(bcd_alta)
+    vsol_alta = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/authorize-profiles", json=alta, headers=env.headers()
+    )
+    assert vsol_alta.status_code == 400  # en VSOL el alta va con un plan

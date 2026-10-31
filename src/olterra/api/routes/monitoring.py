@@ -23,9 +23,12 @@ from olterra.api.schemas import (
     OnuNameIn,
     OnuSampleOut,
     OnuStatusOut,
+    OnuTrafficHourOut,
+    OnuTrafficOut,
 )
 from olterra.api.state import audit
-from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus
+from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus, OnuTrafficHour
+from olterra.drivers import get_driver
 from olterra.executor.plan import Priority
 
 router = APIRouter(tags=["Monitoreo"])
@@ -48,6 +51,9 @@ def _status_out(row: OnuStatus) -> OnuStatusOut:
         status_since=row.status_since,
         last_online_at=row.last_online_at,
         updated_at=row.updated_at,
+        down_bps=row.down_bps,
+        up_bps=row.up_bps,
+        traffic_at=row.traffic_at,
     )
 
 
@@ -195,6 +201,45 @@ async def onu_history(
             status=_status_out(row),
             samples=[OnuSampleOut.model_validate(s) for s in samples],
             alarms=[AlarmOut.model_validate(a) for a in alarms],
+        )
+
+
+@router.get("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/traffic", response_model=OnuTrafficOut)
+async def onu_traffic(
+    olt_id: UUID,
+    pon: int,
+    onu: int,
+    ctx: Tenant,
+    state: State,
+    days: int = Query(7, ge=1, le=62),
+) -> OnuTrafficOut:
+    """Consumo de una ONU: lo que bajó y subió cada hora (por defecto los últimos 7 días)."""
+    ctx.require("olt:read")
+    since = datetime.now(UTC) - timedelta(days=days)
+    async with ctx.session() as session:
+        row = await session.get(OnuStatus, (ctx.tenant_id, olt_id, pon, onu))
+        olt = await session.get(Olt, olt_id)
+        if row is None or olt is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa ONU no está en el monitoreo")
+        hours = (
+            await session.execute(
+                select(OnuTrafficHour)
+                .where(
+                    OnuTrafficHour.olt_id == olt_id,
+                    OnuTrafficHour.pon == pon,
+                    OnuTrafficHour.onu == onu,
+                    OnuTrafficHour.hour >= since,
+                )
+                .order_by(OnuTrafficHour.hour)
+            )
+        ).scalars()
+        return OnuTrafficOut(
+            supported=monitoring.reads_traffic(get_driver(olt.driver)),
+            every_minutes=state.settings.monitor_traffic_every_minutes,
+            down_bps=row.down_bps,
+            up_bps=row.up_bps,
+            traffic_at=row.traffic_at,
+            hours=[OnuTrafficHourOut.model_validate(h) for h in hours],
         )
 
 

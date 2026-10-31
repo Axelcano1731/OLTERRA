@@ -513,6 +513,67 @@ export interface OnuStatus {
   status_since: string
   last_online_at: string | null
   updated_at: string
+  /** Bajada y subida promedio entre las dos últimas lecturas de tráfico (bit/s). */
+  down_bps?: number | null
+  up_bps?: number | null
+  /** Cuándo se leyó el tráfico (cada 15 minutos; la BCD no lo da). */
+  traffic_at?: string | null
+}
+
+/** Lo que bajó y subió una ONU en una hora, y el pico de su promedio de 15 minutos. */
+export interface OnuTrafficHour {
+  hour: string
+  down_bytes: number
+  up_bytes: number
+  peak_down_bps: number
+  peak_up_bps: number
+}
+
+export interface OnuTraffic {
+  /** False si la marca de la OLT no da el tráfico por ONU (BCD). */
+  supported: boolean
+  every_minutes: number
+  down_bps: number | null
+  up_bps: number | null
+  traffic_at: string | null
+  hours: OnuTrafficHour[]
+}
+
+/** onu.wan_status (VSOL): la WAN como la reporta la ONU. Nunca trae la clave. */
+export interface WanStatus {
+  index: number
+  mode: string | null
+  /** PPPOE, DHCP o STATIC. */
+  connection: string | null
+  kind: string | null
+  vlan: number | null
+  nat: boolean | null
+  pppoe_user: string | null
+  /** connected, disconnected… */
+  status: string | null
+  mtu: number | null
+  ip: string | null
+}
+
+/** onu.wifi_status (VSOL): el primer SSID como lo reporta la ONU, sin la clave. */
+export interface WifiStatus {
+  index: number | null
+  name: string | null
+  enabled: boolean | null
+  hidden: boolean | null
+  auth: string | null
+  encrypt: string | null
+  rekey_s: number | null
+}
+
+/** onu.wan_config (VSOL): una WAN PPPoE que guarda la OLT; se reescribe con otro usuario y clave. */
+export interface PppoeWan {
+  kind: 'wan_conn' | 'wan_adv'
+  index: number
+  route: string
+  tail: string
+  pppoe_user: string
+  vlan: number | null
 }
 
 export interface OnuSample {
