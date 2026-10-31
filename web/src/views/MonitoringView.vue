@@ -18,9 +18,13 @@ import {
   getOnuHistory,
   listAlarms,
   listOnuStatus,
+  changeOnuProfiles,
+  deleteOnu,
   pollOlt,
   queryOlt,
+  renameOnuOnOlt,
   setOnuCustomerName,
+  type WritePlan,
   type Alarm,
   type OnuFilter,
   type OnuHistory,
@@ -138,6 +142,10 @@ async function toggle(onu: OnuStatus): Promise<void> {
   editingName.value = false
   macAsked.value = false
   macs.stop()
+  writes.stop()
+  writeKind.value = null
+  confirmDelete.value = false
+  editingProfiles.value = false
   try {
     const data = await getOnuHistory(onu.olt_id, onu.pon, onu.onu)
     if (openKey.value === k) history.value = data
@@ -149,6 +157,8 @@ async function toggle(onu: OnuStatus): Promise<void> {
 // Nombre del cliente desde el panel: se guarda en Olterra, no cambia nada en la OLT.
 const editingName = ref(false)
 const nameDraft = ref('')
+// Por defecto también se cambia en la OLT (renombrar se probó en las tres marcas).
+const nameOnOlt = ref(true)
 const savingName = ref(false)
 const nameError = ref<string | null>(null)
 
@@ -174,11 +184,90 @@ async function saveName(): Promise<void> {
     const row = onus.data.value?.find((o) => key(o) === key(saved))
     if (row) row.customer_name = saved.customer_name
     editingName.value = false
+    if (nameOnOlt.value && saved.customer_name) {
+      await runWrite('rename', () =>
+        renameOnuOnOlt(current.olt_id, {
+          pon: current.pon,
+          onu: current.onu,
+          description: saved.customer_name!,
+        }),
+      )
+    }
   } catch (caught) {
     nameError.value = errorText(caught)
   } finally {
     savingName.value = false
   }
+}
+
+// Escrituras en la OLT desde el detalle (renombrar, eliminar, perfiles): un plan a la vez.
+type WriteKind = 'rename' | 'delete' | 'profiles'
+const writes = usePlan()
+const writeKind = ref<WriteKind | null>(null)
+const writeError = ref<string | null>(null)
+const confirmDelete = ref(false)
+const editingProfiles = ref(false)
+const profiles = ref({ line: 0, srv: 0 })
+
+const WRITE_LABEL: Record<WriteKind, { busy: string; ok: string }> = {
+  rename: { busy: 'Cambiando el nombre en la OLT…', ok: 'Nombre cambiado en la OLT.' },
+  delete: {
+    busy: 'Eliminando la ONU de la OLT…',
+    ok: 'ONU eliminada de la OLT. Sale del monitoreo en el próximo sondeo.',
+  },
+  profiles: { busy: 'Cambiando los perfiles…', ok: 'Perfiles cambiados en la OLT.' },
+}
+
+const writeState = computed(() => {
+  if (!writeKind.value) return null
+  if (writeError.value || writes.error.value) {
+    return { tone: 'danger', text: writeError.value ?? writes.error.value }
+  }
+  const result = writes.plan.value?.result
+  if (writes.waiting.value || !result)
+    return { tone: 'muted', text: WRITE_LABEL[writeKind.value].busy }
+  if (result.status === 'ok') return { tone: 'success', text: WRITE_LABEL[writeKind.value].ok }
+  const failed = result.outputs?.find((o) => !o.ok)
+  return {
+    tone: 'danger',
+    text: `La OLT no lo hizo: ${failed?.error ?? result.error ?? 'sin respuesta'}`,
+  }
+})
+
+const oltDriver = computed(
+  () => summary.data.value?.olts.find((o) => o.id === history.value?.status.olt_id)?.driver ?? '',
+)
+
+async function runWrite(kind: WriteKind, start: () => Promise<WritePlan>): Promise<void> {
+  writeKind.value = kind
+  writeError.value = null
+  try {
+    const plan = await start()
+    await writes.follow(plan.plan_id)
+  } catch (caught) {
+    writeError.value = errorText(caught)
+  }
+}
+
+async function removeOnu(): Promise<void> {
+  const current = history.value?.status
+  if (!current) return
+  confirmDelete.value = false
+  await runWrite('delete', () => deleteOnu(current.olt_id, { pon: current.pon, onu: current.onu }))
+}
+
+async function saveProfiles(): Promise<void> {
+  const current = history.value?.status
+  if (!current) return
+  editingProfiles.value = false
+  await runWrite('profiles', () =>
+    changeOnuProfiles(current.olt_id, {
+      pon: current.pon,
+      onu: current.onu,
+      line_profile: profiles.value.line,
+      srv_profile: profiles.value.srv,
+    }),
+  )
 }
 
 // MAC de los equipos de la ONU: una consulta de solo lectura a la OLT (onu.mac).
@@ -527,9 +616,12 @@ const FILTERS: { value: OnuFilter; label: string }[] = [
                         >
                           Cancelar
                         </button>
+                        <label class="flex w-full items-center gap-1.5 text-xs">
+                          <input v-model="nameOnOlt" type="checkbox" />
+                          Cambiarlo también en la OLT (sin espacios ni tildes)
+                        </label>
                         <p class="w-full text-xs text-muted">
-                          Se guarda en Olterra; la OLT conserva su descripción. Vacío la vuelve a
-                          mostrar.
+                          Vacío quita el nombre de Olterra y vuelve a mostrar el de la OLT.
                         </p>
                         <p v-if="nameError" class="w-full text-xs text-danger">{{ nameError }}</p>
                       </form>
@@ -544,6 +636,93 @@ const FILTERS: { value: OnuFilter; label: string }[] = [
                           <Pencil class="size-3" />
                           Editar
                         </button>
+                      </div>
+                      <div v-if="can('onu:write')" class="mb-3 space-y-2">
+                        <div class="flex flex-wrap gap-1.5">
+                          <button
+                            v-if="oltDriver === 'hsgq-gpon'"
+                            type="button"
+                            class="btn-ghost px-2 py-1 text-xs"
+                            :disabled="writes.waiting.value"
+                            @click.stop="editingProfiles = !editingProfiles"
+                          >
+                            Cambiar perfiles
+                          </button>
+                          <button
+                            type="button"
+                            class="btn-ghost px-2 py-1 text-xs text-danger"
+                            :disabled="writes.waiting.value"
+                            @click.stop="confirmDelete = true"
+                          >
+                            Eliminar de la OLT
+                          </button>
+                        </div>
+                        <form
+                          v-if="editingProfiles"
+                          class="flex flex-wrap items-end gap-1.5 text-xs"
+                          @submit.prevent="saveProfiles"
+                          @click.stop
+                        >
+                          <label class="flex flex-col">
+                            Perfil de línea
+                            <input
+                              v-model.number="profiles.line"
+                              type="number"
+                              min="0"
+                              class="input w-20 py-1 text-xs"
+                            />
+                          </label>
+                          <label class="flex flex-col">
+                            Perfil de servicio
+                            <input
+                              v-model.number="profiles.srv"
+                              type="number"
+                              min="0"
+                              class="input w-20 py-1 text-xs"
+                            />
+                          </label>
+                          <button type="submit" class="btn-primary px-2 py-1 text-xs">
+                            Aplicar
+                          </button>
+                        </form>
+                        <div
+                          v-if="confirmDelete"
+                          class="rounded-lg border border-danger/40 p-2 text-xs"
+                          @click.stop
+                        >
+                          <p>
+                            ¿Eliminar a <b>{{ onuName(history.status) }}</b> de la OLT? Se
+                            desautoriza y pierde su servicio; para volver hay que autorizarla de
+                            nuevo.
+                          </p>
+                          <div class="mt-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              class="btn-primary bg-danger px-2 py-1 text-xs"
+                              @click="removeOnu"
+                            >
+                              Sí, eliminar
+                            </button>
+                            <button
+                              type="button"
+                              class="btn-ghost px-2 py-1 text-xs"
+                              @click="confirmDelete = false"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                        <p
+                          v-if="writeState"
+                          :class="[
+                            'text-xs',
+                            writeState.tone === 'danger' && 'text-danger',
+                            writeState.tone === 'success' && 'text-success',
+                            writeState.tone === 'muted' && 'text-muted',
+                          ]"
+                        >
+                          {{ writeState.text }}
+                        </p>
                       </div>
                       <h3 class="mb-1 font-semibold">Datos</h3>
                       <dl class="space-y-1 text-xs">

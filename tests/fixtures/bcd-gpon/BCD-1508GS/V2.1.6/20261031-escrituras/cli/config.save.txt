@@ -1,0 +1,31 @@
+ The percentage of saved data is: 0%
+
+ The percentage of saved data is: 4%
+
+ The percentage of saved data is: 8%
+
+ The percentage of saved data is: 12%
+
+ The percentage of saved data is: 16%
+
+ The percentage of saved data is: 20%
+
+ The percentage of saved data is: 25%
+
+ The percentage of saved data is: 29%
+
+ The percentage of saved data is: 33%
+
+ The percentage of saved data is: 37%
+
+ The percentage of saved data is: 41%
+
+ The percentage of saved data is: 45%
+
+ The percentage of saved data is: 65%
+
+ The percentage of saved data is: 81%
+
+ The percentage of saved data is: 95%
+
+ The percentage of saved data is: 100%

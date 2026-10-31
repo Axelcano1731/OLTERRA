@@ -338,8 +338,8 @@ function switchOlt(event: Event): void {
               v-if="openRow === rowKey(row) && !canProvision"
               class="px-4 pb-4 text-xs text-muted"
             >
-              Reiniciar, borrar y cambiar el plan de esta ONU se habilitan junto con el alta. Su
-              detalle, versión y señal están en la OLT → Consultar (comandos por ONU).
+              Renombrar, eliminar, cambiar perfiles (HSGQ) y ver su MAC: en Monitoreo, abriendo la
+              ONU. Su detalle, versión y señal: en la OLT → Consultar (comandos por ONU).
             </div>
             <div v-else-if="openRow === rowKey(row)" class="px-4 pb-4">
               <OnuActions

@@ -128,7 +128,9 @@ _COMMANDS = [
     _c("onu.reboot", "onu {onu} reboot", PON, W, manual("19.3.4")),
     _c("onu.activate", "onu {onu} activate", PON, W, manual("19.2.5")),
     _c("onu.deactivate", "onu {onu} deactivate", PON, W, manual("19.2.5")),
-    _c("onu.set_description", "onu {onu} description {description}", PON, W, manual("19.2.7")),
+    # El manual dice "description"; las dos OLT reales (V1600G0-B y la V1.1.9R de Tocaima) solo
+    # aceptan "desc" ("% Unknown command" con la otra, 2026-10-31).
+    _c("onu.set_description", "onu {onu} desc {description}", PON, W, LAB_TOCAIMA),
     _c(
         "onu.bind_line_profile",
         "onu {onu} profile line {profile}",
@@ -415,6 +417,8 @@ _LAB_VERIFIED = {
     "onu.capability", "onu.service_config", "onu.state", "onu.distance",
     "profile.list", "pon.statistics", "onu.optical", "onu.description",
     "onu.mac",  # solo la de Tocaima (2026-10-30); la V1600G0-B no se ha probado
+    # Escrituras probadas en producción en la de Tocaima (2026-10-31), ONU restaurada igual.
+    "onu.set_description", "onu.delete", "onu.authorize", "config.save",
 }  # fmt: skip
 
 COMMANDS: dict[str, CommandTemplate] = {
@@ -426,9 +430,6 @@ COMMANDS: dict[str, CommandTemplate] = {
 
 OVERRIDES = [
     # Aprovisionamiento: la V1600G0-B guarda sus ONU con estas palabras (RUNNING_G0B).
-    CommandOverride(
-        "V1600G0*", "*", "onu.set_description", "onu {onu} desc {description}", RUNNING_G0B
-    ),
     CommandOverride(
         "V1600G0*",
         "*",

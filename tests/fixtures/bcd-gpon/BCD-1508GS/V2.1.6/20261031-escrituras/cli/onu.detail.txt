@@ -1,0 +1,61 @@
+-----------------------------------------------------------------------------
+  PORT-ID           : 1
+  ONT-ID            : 4
+  Control flag      : Active
+  Run state         : Offline
+  Config state      : Initial
+  Match state       : Initial
+  Authenticate type : SN-auth
+  SN                : GPON0A11B002 (47504F4E0A11B002)
+  ONT distance(m)   : 0
+  Description       : OLTERRA_PRUEBA
+  Last up time      : -
+  Last down time    : -
+  On  line  time    : -
+ ----------------------------------------------------------------------------
+  Profile-ID    : 10
+  Profile-name  : lineprofile_10
+  Binding times : 115
+ ----------------------------------------------------------------------------
+  Mapping mode  : VLAN
+ ----------------------------------------------------------------------------
+  <T-CONT  0>     DBA-Profile ID : 0
+  <T-CONT  1>     DBA-Profile ID : 10
+    <Gem ID 13>   GEM-CAR-UP:-    GEM-CAR-DOWN:-    DS-ENCRYPT-MODE : off
+      Mapping-ID  VLAN  Priority
+      1           101   -
+      2           90    -
+      3           103   -
+      5           105   -
+      7           107   -
+ ----------------------------------------------------------------------------
+  Profile-ID    : 11
+  Profile-name  : srvprofile_11
+  Binding times : 114
+ ----------------------------------------------------------------------------
+  Port-type       Port-number
+  ---------------------------------------------------------------------------
+  ETH             2
+  POTS            0
+  CATV            0
+ ----------------------------------------------------------------------------
+  MAC learning switch                 : Enable
+  MAC aging time(s)                   : 300
+  Multicast mode                      : IGMP snooping
+  Multicast forward mode              : Transparent
+  Multicast forward VLAN              : -
+  Upstream IGMP packet forward mode   : Transparent
+  Upstream IGMP packet forward VLAN   : -
+  Upstream IGMP packet priority       : -
+ ----------------------------------------------------------------------------
+  Port  Port Service-type Index S-VLAN S-PRI C-VLAN C-PRI ENCAP S-PRI
+  type  ID                                                      POLICY
+  ---------------------------------------------------------------------------
+  ETH   1    Translation  1     1      -     1      -     -     -
+  ETH   2    Translation  1     1      -     1      -     -     -
+ ----------------------------------------------------------------------------
+  Port-type  Port-ID  Max-MAC-Count
+  ---------------------------------------------------------------------------
+  ETH        1        unlimited
+  ETH        2        unlimited
+-----------------------------------------------------------------------------

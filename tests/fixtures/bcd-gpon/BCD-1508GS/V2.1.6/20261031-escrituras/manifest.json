@@ -1,0 +1,62 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "bcd-gpon",
+  "captured_at": "2026-10-31T00:00:00+00:00",
+  "model": "BCD-1508GS",
+  "firmware": "V2.1.6_181108 (Nov  8 2018 14:54:37)",
+  "anonymized": true,
+  "host_key": null,
+  "note": "Escrituras probadas en producción en una ONU apagada; cada una se dejó como estaba",
+  "commands": [
+    {
+      "key": "onu.set_description",
+      "command": "ont description 1 4 OLTERRA_PRUEBA",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.set_description.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.detail",
+      "command": "show ont info 1 4",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.detail.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.delete",
+      "command": "ont delete 1 4",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.delete.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.authorize",
+      "command": "ont add 1 4 sn-auth GPON0A11B002 ont-lineprofile-id 10 ont-srvprofile-id 11",
+      "pon": 1,
+      "onu": 4,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.authorize.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "config.save",
+      "command": "save",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "file": "cli/config.save.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    }
+  ]
+}

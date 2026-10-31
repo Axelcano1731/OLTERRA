@@ -30,7 +30,9 @@ from olterra.api.schemas import (
     JobOut,
     JobStep,
     OltPasswordChangeIn,
+    OnuProfiles,
     OnuRef,
+    OnuRename,
     PlanOut,
     TemplateIn,
     TemplateOut,
@@ -673,4 +675,52 @@ async def delete_onu(olt_id: UUID, body: OnuRef, ctx: Tenant, state: State) -> W
         calls=[CommandCall("onu.delete", where), CommandCall("config.save")],
         verify=[],
         audit_after=where,
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/description",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def rename_onu(olt_id: UUID, body: OnuRename, ctx: Tenant, state: State) -> WritePlanOut:
+    """Cambia el nombre de la ONU en la OLT y guarda en flash (las tres marcas)."""
+    name = clean_label(body.description, limit=64)
+    if not name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El nombre no tiene letras ni números")
+    where = {"pon": body.pon, "onu": body.onu}
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.set_description",
+        calls=[
+            CommandCall("onu.set_description", {**where, "description": name}),
+            CommandCall("config.save"),
+        ],
+        verify=[],
+        audit_after={**where, "description": name},
+    )
+
+
+@router.post(
+    "/v1/olts/{olt_id}/onus/profiles",
+    response_model=WritePlanOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def change_onu_profiles(
+    olt_id: UUID, body: OnuProfiles, ctx: Tenant, state: State
+) -> WritePlanOut:
+    """Cambia los perfiles de línea y de servicio de la ONU (HSGQ; las otras marcas responden
+    que no lo tienen: la BCD lo hace borrando y autorizando, VSOL con un plan)."""
+    where = {"pon": body.pon, "onu": body.onu}
+    profiles = {"line_profile": body.line_profile, "srv_profile": body.srv_profile}
+    return await _write(
+        olt_id,
+        ctx,
+        state,
+        action="onu.set_profiles",
+        calls=[CommandCall("onu.set_profiles", {**where, **profiles}), CommandCall("config.save")],
+        verify=[],
+        audit_after={**where, **profiles},
     )

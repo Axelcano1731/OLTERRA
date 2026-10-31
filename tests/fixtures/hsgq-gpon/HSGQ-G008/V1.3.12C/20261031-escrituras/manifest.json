@@ -1,0 +1,72 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "hsgq-gpon",
+  "captured_at": "2026-10-31T00:00:00+00:00",
+  "model": "HSGQ-G008",
+  "firmware": "HSGQ-G008_IGB_V1.3.12C_Rel",
+  "anonymized": true,
+  "host_key": null,
+  "note": "Escrituras probadas en producción en una ONU apagada; cada una se dejó como estaba",
+  "commands": [
+    {
+      "key": "onu.set_description",
+      "command": "ont setting 27 name \"OLTERRA_PRUEBA\"",
+      "pon": 3,
+      "onu": 28,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.set_description.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.detail",
+      "command": "show ont-info 3 27",
+      "pon": 3,
+      "onu": 28,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.detail.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.set_profiles",
+      "command": "ont modify 27 ont-lineprofile-id 0 ont-srvprofile-id 0",
+      "pon": 3,
+      "onu": 28,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.set_profiles.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.delete",
+      "command": "ont delete 27",
+      "pon": 3,
+      "onu": 28,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.delete.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.authorize",
+      "command": "ont add 27 sn-auth GPON0A11B001 omci ont-lineprofile-id 0 ont-srvprofile-id 0",
+      "pon": 3,
+      "onu": 28,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.authorize.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "config.save",
+      "command": "save",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "file": "cli/config.save.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    }
+  ]
+}

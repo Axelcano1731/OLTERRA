@@ -109,6 +109,14 @@ export const rebootOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/reboot`, { json: body })
 export const deleteOnu = (oltId: string, body: OnuRef) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/delete`, { json: body })
+/** Cambia el nombre en la OLT (sin espacios ni tildes) y guarda. */
+export const renameOnuOnOlt = (oltId: string, body: OnuRef & { description: string }) =>
+  api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/description`, { json: body })
+/** Perfiles de línea y de servicio (solo HSGQ). */
+export const changeOnuProfiles = (
+  oltId: string,
+  body: OnuRef & { line_profile: number; srv_profile: number },
+) => api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/profiles`, { json: body })
 
 export const listBackups = (oltId: string) =>
   api<Backup[]>(`/v1/olts/${encodeURIComponent(oltId)}/backups`)

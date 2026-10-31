@@ -66,9 +66,26 @@ def _c(key: str, template: str, mode: CliMode, **kw: Any) -> CommandTemplate:
     )
 
 
+# Probadas en producción el 2026-10-31 con una ONU apagada que quedó como estaba
+# (tests/fixtures/.../20261031-escrituras). Las demás siguen sin verificar.
+_VALIDATED = {
+    "onu.set_description",
+    "onu.set_profiles",
+    "onu.delete",
+    "onu.authorize",
+    "config.save",
+}
+
+
 def _w(key: str, template: str, mode: CliMode = PON, **kw: Any) -> CommandTemplate:
     return CommandTemplate(
-        key=key, template=template, mode=mode, access=W, source=WRITE_SOURCE, **kw
+        key=key,
+        template=template,
+        mode=mode,
+        access=W,
+        source=WRITE_SOURCE,
+        verified=key in _VALIDATED,
+        **kw,
     )
 
 
@@ -126,6 +143,12 @@ COMMANDS: dict[str, CommandTemplate] = {
             secret_params={"wifi_key": "wifi_key"},
             sensitive=True,
             notes="Primer SSID de 2,4 GHz, WPA2-PSK AES",
+        ),
+        _w(
+            "onu.set_profiles",
+            "ont modify {onu} ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}",
+            param_types={**ONU, "line_profile": "profile_id0", "srv_profile": "profile_id0"},
+            notes="Editar: cambia los perfiles de línea y de servicio de la ONU",
         ),
         _w("onu.reboot", "ont reboot {onu}", param_types=ONU),
         _w("onu.delete", "ont delete {onu}", param_types=ONU),

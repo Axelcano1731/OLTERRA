@@ -542,6 +542,8 @@ export interface Alarm {
 export interface OltHealth {
   id: string
   name: string
+  /** Marca: vsol-gpon, hsgq-gpon o bcd-gpon. */
+  driver: string
   status: string
   monitored_at: string | null
   onus: number

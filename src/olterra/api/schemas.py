@@ -330,6 +330,18 @@ class OnuRef(BaseModel):
     onu: int = Field(ge=1, le=128)
 
 
+class OnuRename(OnuRef):
+    """El nombre se guarda en la OLT sin espacios ni tildes (``Cristina Galvis`` →
+    ``Cristina_Galvis``), como lo aceptan las tres marcas."""
+
+    description: str = Field(min_length=1, max_length=64)
+
+
+class OnuProfiles(OnuRef):
+    line_profile: int = Field(ge=0, le=32767)
+    srv_profile: int = Field(ge=0, le=32767)
+
+
 class WritePlanOut(BaseModel):
     plan_id: UUID
     olt_id: UUID
@@ -626,6 +638,7 @@ class AlarmOut(BaseModel):
 class OltHealth(BaseModel):
     id: UUID
     name: str
+    driver: str = "vsol-gpon"
     status: str
     monitored_at: datetime | None = Field(description="Último sondeo que salió bien")
     onus: int

@@ -89,6 +89,7 @@ async def summary(ctx: Tenant, state: State) -> MonitoringSummary:
             OltHealth(
                 id=olt.id,
                 name=olt.name,
+                driver=olt.driver,
                 status=olt.status,
                 monitored_at=olt.monitored_at,
                 onus=total,

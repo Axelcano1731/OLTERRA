@@ -140,15 +140,17 @@ def test_bcd_rx_power_runs_inside_the_gpon_interface() -> None:
 # --- Lo que todavía no existe -----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("key", ["hsgq-gpon", "bcd-gpon"])
-def test_writes_exist_but_are_not_verified(key: str) -> None:
-    """El alta salió de la ayuda y la configuración: queda bloqueada hasta probarla."""
+@pytest.mark.parametrize("key", ["hsgq-gpon", "bcd-gpon", "vsol-gpon"])
+def test_writes_tested_in_production_are_verified(key: str) -> None:
+    """Renombrar, eliminar, autorizar y guardar se probaron en Tocaima (2026-10-31); reiniciar no."""
     driver = get_driver(key)
-    for name in ("onu.authorize", "onu.set_description", "onu.reboot", "onu.delete", "config.save"):
+    for name in ("onu.authorize", "onu.set_description", "onu.delete", "config.save"):
         template = driver.command(name)
-        assert template.access.value == "write" and not template.verified, name
+        assert template.access.value == "write" and template.verified, name
+    assert not driver.command("onu.reboot").verified
     with pytest.raises(UnsupportedCommand):
-        driver.command("onu.service_config")  # "copiar una ONU" es solo de VSOL
+        get_driver("bcd-gpon").command("onu.set_profiles")  # la BCD no cambia perfiles en caliente
+    assert get_driver("hsgq-gpon").command("onu.set_profiles").verified
 
 
 # --- Lecturas por ONU (capturas del 2026-10-29) -----------------------------------------------
