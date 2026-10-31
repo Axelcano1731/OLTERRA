@@ -42,6 +42,9 @@ class SimOnu:
     config: list[str] = field(default_factory=list)
     ethernet_ports: int = 4
     equipment_id: str = "VSOLV824"
+    # Contadores de "show onu <lista> statistics": bajada (Output) y subida (Input).
+    down_bytes: int = 0
+    up_bytes: int = 0
 
 
 @dataclass
@@ -368,6 +371,27 @@ class _Cli:
             lines.append(f"{f'GPON0/{o.pon}:{o.onu}':<13}{o.description:<20}{status:<28}GPON-ONUID")
         return "\n".join(lines)
 
+    def _statistics(self, which: str) -> str:
+        """Como la OLT de Tocaima: una lista (1-128, 3, 1,4-6) y un bloque por ONU que existe."""
+        wanted: set[int] = set()
+        for part in which.split(","):
+            low, _, high = part.partition("-")
+            if not low.isdigit() or (high and not high.isdigit()):
+                return "Error: onu_list invalid, ignore input!."
+            wanted.update(range(int(low), int(high or low) + 1))
+        blocks = [
+            f"GPON0/{o.pon}:{o.onu}\n"
+            f"Input  bytes:      {o.up_bytes}\n"
+            "Input  packets:    0\n"
+            f"Output bytes:      {o.down_bytes}\n"
+            "Output packets:      0\n"
+            "rx omci:           0\n"
+            "ber reported:      0\n"
+            for o in self._onus()
+            if o.onu in wanted
+        ]
+        return "\n".join(blocks) if blocks else "Error: onu_list invalid, ignore input!."
+
     def _onu(self, onu: int) -> SimOnu | None:
         return next((o for o in self._onus() if o.onu == onu), None)
 
@@ -411,6 +435,9 @@ class _Cli:
         match = re.fullmatch(r"show onu (\d+) optical[-_]info", cmd)
         if match:
             return self._optical(int(match.group(1))) or "Error: onu is not exist"
+        match = re.fullmatch(r"show onu (\S+) statistics", cmd)
+        if match:
+            return self._statistics(match.group(1))
         match = re.fullmatch(r"onu add (\d+) profile (\S+) sn (\S+)", cmd)
         if match:
             onu, profile, serial = int(match.group(1)), match.group(2), match.group(3)

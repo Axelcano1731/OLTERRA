@@ -141,6 +141,21 @@ def test_redact_known_secrets_and_keywords() -> None:
     assert "gpon-olt# show onu info" in out
 
 
+def test_redact_vsol_onu_service_reports() -> None:
+    """Lo que reporta la ONU por los comandos privados trae las claves en claro."""
+    wan = redact(
+        "pppoeUserName       : CLIENTE_001\n"
+        "pppoePassword       : Clave2017\n"
+        "onu 3 pri wan_conn index 1 route tr069_internet nat enable mtu 1492 pppoe proxy"
+        " disable user CLIENTE_001 pwd Clave2017 server  mode auto"
+    )
+    wifi = redact("Name                : RED_CASA\nPreshared Key       : clave12345\n")
+    hsgq = redact("ont wificonfig 0 1 wifiname RED security wpaencrypt aes sharekey k1234567")
+    assert "Clave2017" not in wan and "clave12345" not in wifi and "k1234567" not in hsgq
+    assert "CLIENTE_001" in wan and "RED_CASA" in wifi  # el usuario y el SSID sí se ven
+    assert wan.count(MASK) == 2
+
+
 def test_redact_ignores_short_known_values() -> None:
     # Un "secreto" de 1-3 caracteres taparía medio texto; no se reemplaza.
     assert redact("ONU 1 activa", ["1"]) == "ONU 1 activa"

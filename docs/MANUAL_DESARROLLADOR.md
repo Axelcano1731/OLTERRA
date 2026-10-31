@@ -66,6 +66,8 @@ Ver `.env.example`. Las importantes:
 | `OLTERRA_MAP_STYLE_URL` | API | Estilo de MapLibre del mapa FTTH (OpenFreeMap "liberty"). Otro proveedor va también en `OLTERRA_MAPA_ORIGEN` de Caddy |
 | `OLTERRA_MONITOR_EVERY_MINUTES` | API | Cada cuántos minutos se sondea cada OLT para el monitoreo (5; `0` lo apaga) |
 | `OLTERRA_MONITOR_RETENTION_DAYS` | API | Días de historial de señal de las ONU (30) |
+| `OLTERRA_MONITOR_TRAFFIC_EVERY_MINUTES` | API | Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (15; `0` lo apaga). En la HSGQ es un comando por ONU en línea |
+| `OLTERRA_MONITOR_TRAFFIC_RETENTION_DAYS` | API | Días de consumo por hora (62: este mes y el anterior completos) |
 | `OLTERRA_BACKUP_EVERY_HOURS` | API | Cada cuántas horas se respalda sola la configuración de cada OLT (24; `0` apaga el reloj) |
 | `OLTERRA_MASTER_KEY` | API, `olterra-admin` | Llave maestra de la bóveda (`olterra-admin generar-llave-maestra`) |
 | `OLTERRA_EXECUTOR_PUBLIC_KEY` | API | Para sellar credenciales |

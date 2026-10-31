@@ -64,11 +64,26 @@ export const router = createRouter({
           meta: { title: 'Respaldos' },
         },
         {
-          path: 'monitoreo',
-          name: 'monitoring',
-          component: () => import('@/views/MonitoringView.vue'),
-          meta: { title: 'Monitoreo' },
+          path: 'clientes',
+          name: 'clients',
+          component: () => import('@/views/ClientsView.vue'),
+          meta: { title: 'Clientes' },
         },
+        {
+          path: 'clientes/:olt/:pon(\\d+)/:onu(\\d+)',
+          name: 'onu',
+          component: () => import('@/views/OnuView.vue'),
+          props: true,
+          meta: { title: 'Cliente' },
+        },
+        {
+          path: 'alarmas',
+          name: 'alarms',
+          component: () => import('@/views/AlarmsView.vue'),
+          meta: { title: 'Alarmas' },
+        },
+        // La lista de clientes se llamaba "Monitoreo": los enlaces viejos siguen sirviendo.
+        { path: 'monitoreo', redirect: (to) => ({ name: 'clients', query: to.query }) },
         {
           path: 'mapa',
           name: 'map',
@@ -105,14 +120,14 @@ export const router = createRouter({
           path: 'aprovisionar',
           name: 'provision',
           component: () => import('@/views/ProvisionHomeView.vue'),
-          meta: { title: 'Aprovisionar' },
+          meta: { title: 'Autorizar ONU' },
         },
         {
           path: 'olts/:id/aprovisionar',
           name: 'olt-provision',
           component: () => import('@/views/OltProvisionView.vue'),
           props: true,
-          meta: { title: 'Aprovisionar' },
+          meta: { title: 'Autorizar ONU' },
         },
         {
           path: 'plantillas',

@@ -1,0 +1,7 @@
+GPON0/1:3
+Input  bytes:      98808404
+Input  packets:    345031
+Output bytes:      962974465
+Output packets:      873458
+rx omci:           602
+ber reported:      1

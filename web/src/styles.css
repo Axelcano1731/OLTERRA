@@ -35,6 +35,10 @@
 
   /* Línea de los gráficos: validada contra la superficie de cada modo (lightness y contraste). */
   --color-chart-line: #4f5bd5;
+  /* Consumo: bajada y subida. Ranuras 1 y 2 de la paleta de referencia de dataviz, validadas
+     contra cada superficie (daltonismo ΔE 24,7 en claro y 26,8 en oscuro; contraste ≥ 3:1). */
+  --color-chart-down: #2a78d6;
+  --color-chart-up: #eb6834;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -64,6 +68,8 @@
     --color-success: #34d399;
     --color-success-soft: #123227;
     --color-chart-line: #7d85f7;
+    --color-chart-down: #3987e5;
+    --color-chart-up: #d95926;
   }
 }
 

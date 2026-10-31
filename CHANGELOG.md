@@ -4,6 +4,38 @@
 
 ### Agregado
 
+- **Ficha del cliente** (`/clientes/:olt/:pon/:onu`): una página por ONU con **Renombrar**,
+  **Reiniciar** y **Eliminar** a la vista (con confirmación) y pestañas **Resumen**, **Señal**
+  (24 h, 7 o 30 días), **Consumo**, **Internet y Wi‑Fi**, **Equipos** (MAC), **Alarmas** y
+  **Técnico** (óptica, distancia, versión y detalle según la marca). La pestaña va en la URL
+  (`?pestana=consumo`).
+- **Consumo de cada cliente**: el sondeo lee los contadores de tráfico de la OLT cada 15 minutos
+  (VSOL: `show onu 1-128 statistics`, un comando por PON; HSGQ: `show ont statistic`, uno por ONU
+  en línea; la BCD no lo entrega) y guarda lo que bajó y subió cada hora, con el pico, dos meses.
+  En la ficha: hoy, 7 días, el mes y la velocidad ahora, con un gráfico por hora o por día (tabla
+  incluida); en Clientes, la velocidad de bajada de cada uno. Migración `0014`. API:
+  `GET /v1/monitoring/onus/{olt}/{pon}/{onu}/traffic`.
+- **Wi‑Fi y PPPoE desde la OLT (VSOL)**: la ficha muestra lo que reporta la ONU (usuario PPPoE,
+  VLAN, si está conectada; nombre de la red y seguridad, sin las claves) y deja cambiar el nombre
+  y la clave del Wi‑Fi y el usuario y la clave PPPoE. El PPPoE reescribe la línea que guarda la
+  OLT con sus mismas opciones (la VLAN no se toca). Probado en producción con un cliente de
+  Tocaima reescribiendo sus mismos valores: todo quedó igual y conectado. API:
+  `POST /v1/olts/{id}/onus/wifi` y `/onus/pppoe`; las claves viajan selladas.
+- **Reiniciar** probado en producción en las 3 marcas (la ONU volvió en 61 a 76 s).
+- **Autorizar ONU en HSGQ y BCD**: con los perfiles de línea y de servicio de la OLT, el nombre
+  del cliente y la primera posición libre. API: `POST /v1/olts/{id}/onus/authorize-profiles`.
+- **Menú nuevo**: Inicio, Clientes, Autorizar ONU, Alarmas (con el número de abiertas) y Mapa;
+  OLT y Túnel bajo **Red**; Planes, Usuarios, Conciliación y Bitácora bajo **Ajustes**; y un
+  buscador de clientes. **Clientes** reemplaza a Monitoreo (`/monitoreo` redirige) y cada fila
+  abre la ficha; **Alarmas** tiene su página (abiertas e historial, por OLT); el **Inicio**
+  muestra la red de un vistazo.
+
+### Seguridad
+
+- La VSOL devuelve en claro la clave PPPoE (`pppoePassword`) y la del Wi‑Fi (`Preshared Key`)
+  cuando se le pregunta por la ONU: el ejecutor las tapa antes de que salgan, igual que
+  `sharekey` de la HSGQ. La ficha nunca las muestra.
+
 - **Gestión de ONU en las 3 marcas, probada en producción** (2026-10-31, con una ONU apagada por
   OLT que quedó exactamente como estaba): renombrar, eliminar (desautorizar), autorizar y guardar
   en VSOL, HSGQ y BCD; cambiar perfiles en la HSGQ (`ont modify`). En Monitoreo, el detalle de cada

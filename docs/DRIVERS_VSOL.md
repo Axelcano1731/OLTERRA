@@ -26,9 +26,17 @@ la etiqueta del equipo. Los 34 comandos de lectura responden; lo distinto:
   usuarios internos del sistema; el de la web/Telnet (y los de fábrica) los rechaza. Olterra
   entra a esta OLT por Telnet (`cli_protocol = telnet`, ver DESPLIEGUE 6.1.1). Además traía
   `Deny ssh 0.0.0.0 0.0.0.0` en `show login-access-list`, que no sale en la configuración.
-- La WAN de las ONU se guarda como `pri wan_conn index … pppoe … user … pwd … mode auto`, no
-  como `pri wan_adv` de la V1600G0-B: el alta con WAN en esta OLT necesita su propia sintaxis
-  (sin validar; las escrituras siguen bloqueadas).
+- La WAN de las ONU se guarda como `pri wan_conn index … route tr069_internet nat enable pppoe
+  proxy disable user … pwd … mode auto` (la VLAN en otra línea, `vlan enable vid 109 pri 0`), no
+  como `pri wan_adv` de la V1600G0-B. Cambiar el PPPoE reescribe esa línea con sus mismas
+  opciones (`onu.pppoe_change`); el WiFi se pone con `onu.wifi_set` y desde ahí lo guarda la OLT.
+  Los dos se probaron en producción el 2026-10-31 reescribiendo los mismos valores de un cliente
+  (quedó conectado y con su misma red) y siguieron iguales después de reiniciar la ONU.
+- **La ONU devuelve las claves en claro** por los comandos privados (`show onu N pri wan_conn`
+  trae `pppoePassword` y la línea `… pwd <clave>`; `show onu N pri wifi_ssid 1`, `Preshared Key`):
+  el ejecutor las tapa (`security/masking.py`) antes de que salgan; la configuración de la OLT
+  las guarda tapadas (`pwd ******`). Una ONU que no es VSOL responde `Unsupport private
+  protocol`.
 - La sintaxis que el manual da para `onu.optical`, `onu.description`, `pon.statistics` y
   `profile.list` la rechazan esta OLT y la V1600G0-B; la que aceptan las dos pasó a ser la del
   catálogo para todos los modelos.
@@ -209,12 +217,17 @@ inyectar otro comando en la OLT.
 | `onu.description` | `show onu {onu} desc` | PON | lectura | V1600G0-B y OLT de Tocaima (el manual dice `description`) |
 | `onu.state` | `show onu state` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
 | `onu.distance` | `show onu {onu} distance` | PON | lectura | Laboratorio V1600G0-B (no está en el manual) |
+| `onu.traffic_all` | `show onu 1-128 statistics` | PON | lectura | OLT de Tocaima (2026-10-31). Bytes de subida (`Input`) y bajada (`Output`) de cada ONU del PON; `show onu all statistics` sale en la ayuda pero responde `onu_list invalid`. El monitoreo lo lee cada 15 minutos |
+| `onu.traffic` | `show onu {onu} statistics` | PON | lectura | OLT de Tocaima (2026-10-31). Lo mismo para una ONU |
+| `onu.wan_status` | `show onu {onu} pri wan_conn` | PON | lectura | OLT de Tocaima (2026-10-31). La WAN como la reporta la ONU (estado, usuario PPPoE, VLAN, MTU). **La ONU devuelve la clave PPPoE en claro**: el ejecutor la tapa (`pppoePassword`, `pwd`) antes de que salga |
+| `onu.wifi_status` | `show onu {onu} pri wifi_ssid 1` | PON | lectura | OLT de Tocaima (2026-10-31). El primer SSID (nombre, estado, seguridad). **La clave sale en claro** (`Preshared Key`): el ejecutor la tapa |
+| `onu.wan_config` | `show running-config onu {onu}` | PON | lectura | OLT de Tocaima (2026-10-31). Las WAN PPPoE que guarda la OLT (`pri wan_conn` o `pri wan_adv`): de ahí sale cómo reescribirlas |
 | `onu.authorize` | `onu add {onu} profile {profile} sn {serial}` | PON | escritura | Manual v2.1 §19.2.6 y ejemplo §19.4.7 |
 | `onu.delete` | `no onu {onu}` | PON | escritura | Inferido del patrón `no onu …`; confirmar |
-| `onu.reboot` | `onu {onu} reboot` | PON | escritura | Manual v2.1 §19.3.4 |
+| `onu.reboot` | `onu {onu} reboot` | PON | escritura | Manual v2.1 §19.3.4. Probado en producción en Tocaima (2026-10-31): responde `set onu 3 reboot OK.` y la ONU volvió en 76 s con su WAN y su WiFi |
 | `onu.activate` | `onu {onu} activate` | PON | escritura | Manual v2.1 §19.2.5 |
 | `onu.deactivate` | `onu {onu} deactivate` | PON | escritura | Manual v2.1 §19.2.5 |
-| `onu.set_description` | `onu {onu} description {description}` | PON | escritura | Manual v2.1 §19.2.7 |
+| `onu.set_description` | `onu {onu} desc {description}` | PON | escritura | Probada en producción en Tocaima (2026-10-31); el manual dice `description` y las dos OLT reales lo rechazan |
 | `onu.bind_line_profile` | `onu {onu} profile line {profile}` | PON | escritura | Manual v2.1 §20.2 |
 | `onu.bind_srv_profile` | `onu {onu} profile srv {profile}` | PON | escritura | Manual v2.1 §20.2 |
 | `onu.tcont` | `onu {onu} tcont {tcont} dba {profile}` | PON | escritura | Manual v2.1 §19.3.5 |
@@ -232,6 +245,8 @@ inyectar otro comando en la OLT.
 | `onu.wan_vlan` | `onu {onu} pri wan_adv index {wan} vlan tag wan_vlan {vlan} {cos}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wan_bind` | `onu {onu} pri wan_adv index {wan} bind {binds}` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún) |
 | `onu.wifi_ssid` | `onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide disable auth_mode wpa2psk encrypt_type tkipaes shared_key {wifi_key} rekey_interval 0` | PON | escritura | Configuración guardada de ONU reales en la V1600G0-B (sin ejecutar aún). Clave en `{{secret:wifi_key}}` |
+| `onu.pppoe_change` | `onu {onu} pri {wan_kind} index {wan} route {route} user {pppoe_user} pwd {pppoe_password} {tail}` | PON | escritura | OLT de Tocaima (2026-10-31). Cambia usuario y clave de una WAN PPPoE que ya guarda la OLT: `route` y `tail` se copian tal cual de `onu.wan_config` (`tr069_internet nat enable pppoe proxy disable` … `mode auto` en Tocaima; `ipv4 pppoe proxy disable` … `mode auto nat enable` en la V1600G0-B). La VLAN va en otra línea y no se toca. Clave en `{{secret:pppoe_password}}` |
+| `onu.wifi_set` | `onu {onu} pri wifi_ssid {ssid_index} name {ssid} hide {hide} auth_mode wpa2psk encrypt_type {encrypt} shared_key {wifi_key} rekey_interval {rekey}` | PON | escritura | Ayuda `?` de Tocaima (2026-10-31): `encrypt_type` acepta `tkip`, `aes` y `tkipaes`, y después de la clave va `rekey_interval`. Olterra usa `aes` y `0`. Clave en `{{secret:wifi_key}}` |
 | `onu.account_admin` | `onu {onu} pri username admin_control enable {admin_user} {admin_password} user_control disable` | PON | escritura | Ayuda '?' de la V1600G0-B (2026-10-08). Clave en `{{secret:onu_admin_password}}` |
 | `onu.account_admin_user` | `onu {onu} pri username admin_control enable {admin_user} {admin_password} user_control enable {user_name} {user_password}` | PON | escritura | Ídem. Claves en `{{secret:onu_admin_password}}` y `{{secret:onu_user_password}}` |
 | `onu.firewall` | `onu {onu} pri firewall level {level}` | PON | escritura | Configuración guardada de ONU reales y ayuda de la V1600G0-B. `level`: disable, low, middle o high |

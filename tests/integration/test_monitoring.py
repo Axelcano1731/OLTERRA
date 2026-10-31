@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select, update
 
 from olterra.api import monitoring
-from olterra.db.models import Olt, PlanRun
+from olterra.db.models import Olt, OnuStatus, PlanRun
 from olterra.db.session import create_engine, session_factory
 from tests.integration.test_api import (  # noqa: F401 - fixtures y ayudas compartidas
     Env,
@@ -139,3 +139,59 @@ def test_monitoring_end_to_end(env: Env) -> None:  # noqa: F811
     assert env.client.get("/v1/alarms", headers=other).json() == []
     assert env.client.get("/v1/monitoring/onus", headers=other).json() == []
     assert env.client.get(f"/v1/monitoring/onus/{olt['id']}/1/1", headers=other).status_code == 404
+
+
+def test_traffic_end_to_end(env: Env) -> None:  # noqa: F811
+    """El sondeo lee los contadores cada tanto y guarda lo que bajó y subió cada hora."""
+    done: set[UUID] = set()
+    with SimulatorThread() as simulator:
+        olt = create_olt(env, real_ip="127.0.0.1", ssh_port=simulator.port)
+        first = next(o for o in simulator.sim.config.onus if (o.pon, o.onu) == (1, 1))
+        first.down_bytes, first.up_bytes = 5_000_000_000, 400_000_000
+        poll(env, olt["id"], done)  # primera lectura: solo guarda los contadores
+        url = f"/v1/monitoring/onus/{olt['id']}/1/1/traffic"
+        traffic = env.client.get(url, headers=env.headers()).json()
+        assert traffic["supported"] is True and traffic["hours"] == []
+
+        async def fifteen_minutes_ago(session: Any) -> None:
+            await session.execute(
+                update(Olt)
+                .where(Olt.id == UUID(olt["id"]))
+                .values(traffic_requested_at=Olt.traffic_requested_at - timedelta(minutes=15))
+            )
+            await session.execute(
+                update(OnuStatus)
+                .where(OnuStatus.olt_id == UUID(olt["id"]))
+                .values(traffic_at=OnuStatus.traffic_at - timedelta(minutes=15))
+            )
+
+        # 15 minutos después bajó 900 MB y subió 100 MB: 8 Mbps de bajada en promedio.
+        first.down_bytes += 900_000_000
+        first.up_bytes += 100_000_000
+        asyncio.run(_owner(env, fifteen_minutes_ago))
+        poll(env, olt["id"], done)
+        traffic = env.client.get(url, headers=env.headers()).json()
+        assert sum(h["down_bytes"] for h in traffic["hours"]) == 900_000_000
+        assert sum(h["up_bytes"] for h in traffic["hours"]) == 100_000_000
+        assert 7_800_000 < traffic["down_bps"] < 8_100_000
+        assert max(h["peak_down_bps"] for h in traffic["hours"]) == traffic["down_bps"]
+        listed = env.client.get(
+            "/v1/monitoring/onus", params={"olt_id": olt["id"]}, headers=env.headers()
+        ).json()
+        assert next(o for o in listed if (o["pon"], o["onu"]) == (1, 1))["down_bps"] > 0
+
+        # Sin que toque leer el tráfico (pasaron menos de 15 minutos) no se suma nada.
+        first.down_bytes += 1_000
+        poll(env, olt["id"], done)
+        again = env.client.get(url, headers=env.headers()).json()
+        assert sum(h["down_bytes"] for h in again["hours"]) == 900_000_000
+
+        # La ONU se reinició: el contador volvió a empezar y cuenta desde cero.
+        first.down_bytes, first.up_bytes = 50_000_000, 0
+        asyncio.run(_owner(env, fifteen_minutes_ago))
+        poll(env, olt["id"], done)
+        after = env.client.get(url, headers=env.headers()).json()
+        assert sum(h["down_bytes"] for h in after["hours"]) == 950_000_000
+
+    # Otro ISP no ve el consumo de este.
+    assert env.client.get(url, headers=env.headers(env.key_b)).status_code == 404

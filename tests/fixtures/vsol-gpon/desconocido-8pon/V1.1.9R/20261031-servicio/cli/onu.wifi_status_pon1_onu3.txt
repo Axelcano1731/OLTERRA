@@ -1,0 +1,8 @@
+SSID                : 1
+Name                : RED_CLIENTE
+Status              : Enable
+Hide                : Disable
+Auth Mode           : WPA2PSK
+Encrypt Type        : AES
+Preshared Key       : ******
+WPA Rekey Interval  : -2142174976 s

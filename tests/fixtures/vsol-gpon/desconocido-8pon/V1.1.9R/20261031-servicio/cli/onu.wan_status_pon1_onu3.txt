@@ -1,0 +1,22 @@
+wanNumber:1
+********************************
+wanIndex            : 1
+bindingLan          :
+bindingSsid         :
+wanMode             : tr069_internet
+wanConnType         : route
+wanVlanId           : 109
+wanCos              : 0
+wanNatEnable        : enable
+wanConnMode         : PPPOE
+pppoeProxy          : disable
+pppoeUserName       : CLIENTE_001
+pppoePassword       : ******
+pppoeServName       :
+pppoeMode           : Auto connect
+wanMTU              : 1492
+qosEnable           : disable
+wanName             : 1_TR069_INTERNET_R_VID_109
+wanStatus           : connected
+onu 3 pri wan_conn add route
+onu 3 pri wan_conn index 1 route tr069_internet nat enable mtu 1492 pppoe proxy disable user CLIENTE_001 pwd ****** server  mode auto

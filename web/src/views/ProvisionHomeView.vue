@@ -27,7 +27,10 @@ watch(
 </script>
 
 <template>
-  <PageHeader title="Aprovisionar" description="Elige la OLT donde conectaste la ONU." />
+  <PageHeader
+    title="Autorizar ONU"
+    description="Elige la OLT donde conectaste la ONU nueva: ahí aparece para darle de alta."
+  />
   <AlertBox v-if="olts.error.value" tone="danger">{{ olts.error.value }}</AlertBox>
   <LoadingBlock v-else-if="olts.loading.value || olts.data.value?.length === 1" />
   <EmptyState
@@ -47,7 +50,7 @@ watch(
           <span class="block font-medium">{{ olt.name }}</span>
           <span class="text-xs text-muted">
             {{ oltBrand(olt.driver) }} · {{ olt.model ?? 'Modelo sin indicar' }}
-            <template v-if="!oltWrites(olt.driver)"> · alta por habilitar</template>
+            <template v-if="!oltWrites(olt.driver)"> · alta con perfiles</template>
           </span>
         </span>
       </RouterLink>

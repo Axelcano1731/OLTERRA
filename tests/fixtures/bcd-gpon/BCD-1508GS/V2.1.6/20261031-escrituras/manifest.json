@@ -57,6 +57,16 @@
       "error": null,
       "file": "cli/config.save.txt",
       "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.reboot",
+      "command": "ont reboot 1 1",
+      "pon": 1,
+      "onu": 1,
+      "ok": true,
+      "error": null,
+      "source": "Prueba en producción con un cliente, mismos valores y la ONU volvió sola (2026-10-31)",
+      "file": "cli/onu.reboot_pon1_onu1.txt"
     }
   ]
 }

@@ -142,12 +142,14 @@ def test_bcd_rx_power_runs_inside_the_gpon_interface() -> None:
 
 @pytest.mark.parametrize("key", ["hsgq-gpon", "bcd-gpon", "vsol-gpon"])
 def test_writes_tested_in_production_are_verified(key: str) -> None:
-    """Renombrar, eliminar, autorizar y guardar se probaron en Tocaima (2026-10-31); reiniciar no."""
+    """Renombrar, eliminar, autorizar, guardar y reiniciar se probaron en Tocaima (2026-10-31)."""
     driver = get_driver(key)
-    for name in ("onu.authorize", "onu.set_description", "onu.delete", "config.save"):
+    for name in ("onu.authorize", "onu.set_description", "onu.delete", "config.save", "onu.reboot"):
         template = driver.command(name)
         assert template.access.value == "write" and template.verified, name
-    assert not driver.command("onu.reboot").verified
+    # El WiFi y el PPPoE desde la OLT, solo en VSOL; la HSGQ los tiene sin probar.
+    assert driver.key != "vsol-gpon" or driver.command("onu.wifi_set").verified
+    assert driver.key != "hsgq-gpon" or not driver.command("onu.wifi_set").verified
     with pytest.raises(UnsupportedCommand):
         get_driver("bcd-gpon").command("onu.set_profiles")  # la BCD no cambia perfiles en caliente
     assert get_driver("hsgq-gpon").command("onu.set_profiles").verified

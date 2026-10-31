@@ -1,0 +1,33 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "hsgq-gpon",
+  "captured_at": "2026-10-31T19:00:00+00:00",
+  "model": "HSGQ-G008",
+  "firmware": "HSGQ-G008_IGB_V1.3.12C_Rel",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "onu.traffic",
+      "command": "show ont statistic 1",
+      "pon": 1,
+      "onu": 2,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.traffic_pon1_onu2.txt"
+    },
+    {
+      "key": "onu.traffic",
+      "command": "show ont statistic 0",
+      "pon": 3,
+      "onu": 1,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.traffic_pon3_onu1.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT HSGQ-G008 de Tocaima: contadores de tráfico por ONU (2026-10-31)"
+}

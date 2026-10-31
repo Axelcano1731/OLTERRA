@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from olterra.api.monitoring import Reading, evaluate, merge_readings, wants_sample
+from olterra.api.monitoring import (
+    Reading,
+    counter_delta,
+    evaluate,
+    merge_readings,
+    poll_calls,
+    split_by_hour,
+    wants_sample,
+)
+from olterra.drivers import get_driver
 
 
 def outputs(*, brief_ok: bool = True) -> list[dict[str, object]]:
@@ -97,3 +106,68 @@ def test_samples_are_hourly_unless_something_changes() -> None:
     assert wants_sample((now - timedelta(minutes=10), True, -21.2), reading, now)  # 1,2 dB
     assert wants_sample((now - timedelta(minutes=10), False, None), reading, now)  # volvió
     assert wants_sample((now - timedelta(minutes=61), True, -20.0), reading, now)
+
+
+def test_traffic_counters_join_the_readings() -> None:
+    readings, _ = merge_readings(
+        [
+            *outputs(),
+            {
+                "key": "onu.traffic_all",
+                "params": {"pon": 1},
+                "ok": True,
+                "data": [
+                    {"pon": 1, "onu": 1, "down_bytes": 900, "up_bytes": 100},
+                    {"pon": 1, "onu": 9, "down_bytes": 5, "up_bytes": 5},  # no está en el brief
+                ],
+            },
+            # HSGQ: un comando por ONU, una ficha por salida.
+            {
+                "key": "onu.traffic",
+                "params": {"pon": 2, "onu": 1},
+                "ok": True,
+                "data": {"pon": 2, "onu": 1, "down_bytes": 70, "up_bytes": 7},
+            },
+        ]
+    )
+    counters = {(x.pon, x.onu): (x.down_bytes, x.up_bytes) for x in readings}
+    assert counters == {(1, 1): (900, 100), (1, 2): (None, None), (2, 1): (70, 7)}
+
+
+def test_counter_restart_counts_from_zero() -> None:
+    assert counter_delta(None, 500) is None  # primera lectura: nada que restar
+    assert counter_delta(1_000, 1_500) == 500
+    assert counter_delta(1_000, 300) == 300  # la ONU se reinició
+
+
+def test_traffic_is_split_by_hour() -> None:
+    start = datetime(2026, 10, 31, 9, 50, tzinfo=UTC)
+    parts = split_by_hour(start, start + timedelta(minutes=20), 2_000, 200)
+    assert parts == [
+        (datetime(2026, 10, 31, 9, tzinfo=UTC), 1_000, 100),
+        (datetime(2026, 10, 31, 10, tzinfo=UTC), 1_000, 100),
+    ]
+    # Lo que sobra del redondeo va a la última hora: nunca se pierde un byte.
+    odd = split_by_hour(start, start + timedelta(minutes=30), 1_001, 0)
+    assert sum(part[1] for part in odd) == 1_001
+    assert split_by_hour(start, start, 10, 10) == []
+
+
+def test_poll_reads_traffic_per_pon_or_per_onu() -> None:
+    vsol = poll_calls(2, get_driver("vsol-gpon"), [(1, 3)])
+    assert [(c.key, dict(c.params)) for c in vsol] == [
+        ("interfaces.brief", {}),
+        ("onu.state", {"pon": 1}),
+        ("onu.rx_power_all", {"pon": 1}),
+        ("onu.traffic_all", {"pon": 1}),
+        ("onu.state", {"pon": 2}),
+        ("onu.rx_power_all", {"pon": 2}),
+        ("onu.traffic_all", {"pon": 2}),
+    ]
+    hsgq = poll_calls(1, get_driver("hsgq-gpon"), [(3, 2), (1, 5)])
+    assert [(c.key, dict(c.params)) for c in hsgq][-2:] == [
+        ("onu.traffic", {"pon": 1, "onu": 5}),
+        ("onu.traffic", {"pon": 3, "onu": 2}),
+    ]
+    # Sin lista de ONU en línea (no toca leer el tráfico) o en la BCD: el sondeo de siempre.
+    assert len(poll_calls(2)) == len(poll_calls(2, get_driver("bcd-gpon"), [(1, 1)])) == 5

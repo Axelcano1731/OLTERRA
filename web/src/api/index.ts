@@ -37,6 +37,8 @@ import type {
   OnuFilter,
   OnuHistory,
   OnuStatus,
+  OnuTraffic,
+  PppoeWan,
   ProvisionJob,
   WritePlan,
   Plan,
@@ -112,6 +114,25 @@ export const deleteOnu = (oltId: string, body: OnuRef) =>
 /** Cambia el nombre en la OLT (sin espacios ni tildes) y guarda. */
 export const renameOnuOnOlt = (oltId: string, body: OnuRef & { description: string }) =>
   api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/description`, { json: body })
+/** Alta con los perfiles de línea y de servicio de la OLT (HSGQ, BCD), nombre y guardar. */
+export const authorizeWithProfiles = (
+  oltId: string,
+  body: OnuRef & { serial: string; line_profile: number; srv_profile: number; customer: string },
+) => api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/authorize-profiles`, { json: body })
+/** Nombre y clave del WiFi desde la OLT (VSOL). La clave viaja sellada y no se guarda. */
+export const changeOnuWifi = (
+  oltId: string,
+  body: OnuRef & { ssid: string; wifi_key: string; ssid_index?: number; hidden?: boolean },
+) => api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/wifi`, { json: body })
+/** Usuario y clave PPPoE de una WAN que ya guarda la OLT (VSOL), con sus mismas opciones. */
+export const changeOnuPppoe = (
+  oltId: string,
+  body: OnuRef & {
+    wan: Pick<PppoeWan, 'kind' | 'index' | 'route' | 'tail'>
+    pppoe_user: string
+    pppoe_password: string
+  },
+) => api<WritePlan>(`/v1/olts/${encodeURIComponent(oltId)}/onus/pppoe`, { json: body })
 /** Perfiles de línea y de servicio (solo HSGQ). */
 export const changeOnuProfiles = (
   oltId: string,
@@ -140,6 +161,11 @@ export const listOnuStatus = (query: { olt_id?: string; filter?: OnuFilter; q?: 
 }
 export const getOnuHistory = (oltId: string, pon: number, onu: number, hours = 168) =>
   api<OnuHistory>(`/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}?hours=${hours}`)
+/** Consumo por hora de una ONU (lo lee el monitoreo cada 15 minutos). */
+export const getOnuTraffic = (oltId: string, pon: number, onu: number, days = 7) =>
+  api<OnuTraffic>(
+    `/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}/traffic?days=${days}`,
+  )
 export const listAlarms = (state: 'open' | 'all' = 'open', oltId?: string) =>
   api<Alarm[]>(`/v1/alarms?state=${state}` + (oltId ? `&olt_id=${encodeURIComponent(oltId)}` : ''))
 /** Sondea ya la OLT (estado y potencia de sus ONU). */

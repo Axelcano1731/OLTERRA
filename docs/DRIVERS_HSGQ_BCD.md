@@ -48,8 +48,19 @@ OLT de 172.17.1.2: 8 PON, 48 ONU en los PON 1, 2, 3 y 5. Entra por Telnet (`User
 | `onu.version` | `show ont-version {pon} {onu}` | `configure` |
 | `onu.mac` | `show mac-address ont {pon} {onu}` | `configure` |
 | `mac.by_pon` | `show mac-address port gpon {pon}` | `configure` |
+| `onu.traffic` | `show ont statistic {onu}` | `interface gpon {pon}` |
 
-Escrituras, dentro de `interface gpon {pon}` (sin verificar):
+`onu.traffic` (2026-10-31) da contadores por ONU (`rx_bytes` es la subida del cliente y
+`tx_bytes` la bajada) y no tiene versión para todo el PON: el monitoreo lo pide para cada ONU en
+línea cada 15 minutos. `show statistic` y `show perf-monitor` dentro de la interfaz son del PON
+entero.
+
+Escrituras, dentro de `interface gpon {pon}`. Probadas en producción (2026-10-31, una ONU
+cada una): `onu.authorize`, `onu.set_description`, `onu.set_profiles`, `onu.delete`,
+`onu.reboot` (volvió en 62 s) y `config.save`. La WAN y el Wi-Fi siguen sin verificar: las ONU de
+Tocaima se configuraron en la propia ONU y la OLT no las ve (`show ont-wificonfig` y
+`show ont-wanconfig` responden que no hay configuración), así que no hay cómo probarlas sin
+cambiarle algo a un cliente.
 
 | Llave | Comando |
 | --- | --- |
@@ -58,6 +69,7 @@ Escrituras, dentro de `interface gpon {pon}` (sin verificar):
 | `onu.set_profiles` | `ont modify {onu} ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}` |
 | `onu.wan_pppoe` | `ont wanconfig add {onu} connection-type internet vlan tag {vlan} ipmode pppoe {usuario} {clave} lan_eth {lan_eth} lan_ssid {lan_ssid}` |
 | `onu.wifi` | `ont wificonfig {onu} 1 wifiname {ssid} security wpa2psk wpaencrypt aes sharekey {clave}` |
+| `onu.wifi_set` | `ont wificonfig {onu} {ssid_index} wifiname {ssid} security wpa2psk wpaencrypt {encrypt} sharekey {clave}` (el de la ficha del cliente) |
 | `onu.reboot` | `ont reboot {onu}` |
 | `onu.delete` | `ont delete {onu}` |
 | `config.save` | `save` (en `configure`) |
@@ -103,7 +115,9 @@ de C-Data. Prompts `OLT>`, `OLT#`, `OLT(config)#`, `OLT(config-interface-gpon)#`
 | `onu.mac` | `show ont port learned-mac {pon} {onu} eth 1` | `interface gpon` |
 | `mac.by_pon` | `show mac-address port gpon {pon}` | `config` |
 
-Escrituras, dentro de `interface gpon` (sin verificar):
+Escrituras, dentro de `interface gpon`. Probadas en producción (2026-10-31, una ONU cada
+una): `onu.authorize`, `onu.set_description`, `onu.delete`, `onu.reboot` (volvió en 61 s) y
+`config.save`:
 
 | Llave | Comando |
 | --- | --- |
@@ -117,6 +131,11 @@ Las MAC: la tabla del PON (`show mac-address port gpon`) **no dice de qué ONU e
 por ONU solo están las que aprende en sus puertos Ethernet (`learned-mac`), que en una ONU en
 modo router (HGU) es ninguna. Para esas, la MAC de su WAN se ve en la tabla del PON o en la
 sesión PPPoE del MikroTik.
+
+Tampoco da el tráfico por ONU: `show statistics ont-eth-performance {pon} {onu} {puerto}
+current-15minutes` existe pero sale en cero en todas las ONU de Tocaima (2026-10-31), y
+`show statistics port {pon}` es del PON entero. En la ficha del cliente el consumo dice que esta
+marca no lo entrega.
 
 Este firmware no configura WAN ni Wi-Fi de la ONU desde la OLT: eso lo dan los perfiles de
 línea (VLAN) o la propia ONU. **La OLT de Tocaima tiene `ont autoauth` en sus 8 PON**: autoriza
@@ -138,7 +157,8 @@ la corriente del láser en µA.
 
 ## Qué falta
 
-- Aprovisionar (alta de ONU, perfiles, WAN/Wi-Fi), cambiar la clave de la OLT y reiniciar ONU:
-  hay que explorar la ayuda de esos modos y validar cada escritura en una ONU de prueba.
-- Comandos por ONU (`onu.optical`, distancia, descripción, configuración de servicio).
+- WAN y Wi-Fi de la HSGQ desde la OLT: probar `ont wanconfig`/`ont wificonfig` con una ONU de
+  prueba (en una de cliente cambiaría su red).
+- Cambiar la clave de la OLT en estas marcas.
+- `onu.optical` y la distancia por ONU en la HSGQ.
 - Otros modelos y firmwares de estas marcas: cada uno necesita su captura.

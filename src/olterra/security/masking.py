@@ -22,7 +22,10 @@ _KEYWORD_VALUE = re.compile(
     r"(?i)\b(login-password|enable-password|password|passwd|community|key-string"
     r"|pre-shared-key|psk|passphrase|wpa-?key|secret|private-key"
     # VSOL en la configuración de la ONU: clave WiFi (shared_key) y PPPoE (pwd).
-    r"|shared_key|pwd)"
+    r"|shared_key|pwd"
+    # VSOL, lo que reporta la ONU (pri wan_conn, pri wifi_ssid): ahí las claves salen en claro.
+    # HSGQ escribe la del WiFi como "sharekey".
+    r"|pppoepassword|preshared[ \t]+key|sharekey)"
     r"([ \t]*[=:]?[ \t]+|=)"
     r"(\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s]+)"
 )

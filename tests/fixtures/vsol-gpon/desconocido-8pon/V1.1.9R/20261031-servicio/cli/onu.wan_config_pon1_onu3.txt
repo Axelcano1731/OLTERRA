@@ -1,0 +1,13 @@
+----------onu 3 running-config----------
+onu 3 desc CLIENTE_001
+onu 3 profile onu default
+onu 3 tcont 1 name INTERNET dba default1
+onu 3 gemport 1 tcont 1 gemport_name INTERNET portid 147
+onu 3 gemport 1 traffic-limit downstream default
+onu 3 service ser_1 gemport 1 vlan 109 cos N/A
+onu 3 service-port 1 gemport 1 uservlan 109 vlan 109 new_cos 0
+onu 3 pri equid VSOLV212
+onu 3 pri wan_conn add route
+onu 3 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_001 pwd ****** mode auto
+onu 3 pri wan_conn index 1 vlan enable vid 109 pri 0
+onu 3 pri username admin_control enable admin ****** user_control disable

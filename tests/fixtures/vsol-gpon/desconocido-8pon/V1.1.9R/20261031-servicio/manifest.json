@@ -1,0 +1,93 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "vsol-gpon",
+  "captured_at": "2026-10-31T19:00:00+00:00",
+  "model": null,
+  "firmware": "V1.1.9R",
+  "anonymized": true,
+  "host_key": null,
+  "commands": [
+    {
+      "key": "onu.traffic_all",
+      "command": "show onu 1-128 statistics",
+      "pon": 1,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.traffic_all_pon1.txt"
+    },
+    {
+      "key": "onu.traffic",
+      "command": "show onu 3 statistics",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.traffic_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.wan_status",
+      "command": "show onu 3 pri wan_conn",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.wan_status_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.wifi_status",
+      "command": "show onu 3 pri wifi_ssid 1",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.wifi_status_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.wan_config",
+      "command": "show running-config onu 3",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Lectura en producción por el ejecutor real, con las claves tapadas (2026-10-31)",
+      "file": "cli/onu.wan_config_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.pppoe_change",
+      "command": "onu 3 pri wan_conn index 1 route tr069_internet nat enable pppoe proxy disable user CLIENTE_001 pwd {{secret:pppoe_password}} mode auto",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Prueba en producción con un cliente, mismos valores y la ONU volvió sola (2026-10-31)",
+      "file": "cli/onu.pppoe_change_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.wifi_set",
+      "command": "onu 3 pri wifi_ssid 1 name RED_CLIENTE hide disable auth_mode wpa2psk encrypt_type aes shared_key {{secret:wifi_key}} rekey_interval 0",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Prueba en producción con un cliente, mismos valores y la ONU volvió sola (2026-10-31)",
+      "file": "cli/onu.wifi_set_pon1_onu3.txt"
+    },
+    {
+      "key": "onu.reboot",
+      "command": "onu 3 reboot",
+      "pon": 1,
+      "onu": 3,
+      "ok": true,
+      "error": null,
+      "source": "Prueba en producción con un cliente, mismos valores y la ONU volvió sola (2026-10-31)",
+      "file": "cli/onu.reboot_pon1_onu3.txt"
+    }
+  ],
+  "snmp": [],
+  "note": "OLT VSOL de 8 PON de Tocaima (V1.1.9R): consumo, WAN y WiFi de una ONU (2026-10-31)"
+}

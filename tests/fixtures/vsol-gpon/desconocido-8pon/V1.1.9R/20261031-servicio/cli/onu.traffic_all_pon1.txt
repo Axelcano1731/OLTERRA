@@ -1,0 +1,247 @@
+GPON0/1:1
+Input  bytes:      1161885214
+Input  packets:    5141132
+Output bytes:      13699943691
+Output packets:      9974416
+rx omci:           606
+ber reported:      2
+
+GPON0/1:2
+Input  bytes:      554988601
+Input  packets:    1492539
+Output bytes:      5490349652
+Output packets:      4619732
+rx omci:           761
+ber reported:      1
+
+GPON0/1:3
+Input  bytes:      98808404
+Input  packets:    345031
+Output bytes:      962974465
+Output packets:      873458
+rx omci:           602
+ber reported:      1
+
+GPON0/1:4
+Input  bytes:      220064379
+Input  packets:    291110
+Output bytes:      31526325
+Output packets:      262886
+rx omci:           581
+ber reported:      1
+
+GPON0/1:5
+Input  bytes:      63288151
+Input  packets:    280266
+Output bytes:      279943876
+Output packets:      417000
+rx omci:           583
+ber reported:      1
+
+GPON0/1:6
+Input  bytes:      17909419801
+Input  packets:    23681921
+Output bytes:      29647606456
+Output packets:      28082173
+rx omci:           1145
+ber reported:      1
+
+GPON0/1:7
+Input  bytes:      2692750483
+Input  packets:    12390571
+Output bytes:      60883281943
+Output packets:      46004485
+rx omci:           760
+ber reported:      1
+
+GPON0/1:8
+Input  bytes:      144778416
+Input  packets:    884259
+Output bytes:      4147055552
+Output packets:      3131029
+rx omci:           388
+ber reported:      2
+
+GPON0/1:9
+Input  bytes:      3754515
+Input  packets:    47811
+Output bytes:      13200645
+Output packets:      109387
+rx omci:           577
+ber reported:      1
+
+GPON0/1:10
+Input  bytes:      1911487619
+Input  packets:    5857336
+Output bytes:      22798991174
+Output packets:      18944525
+rx omci:           581
+ber reported:      1
+
+GPON0/1:11
+Input  bytes:      190003091
+Input  packets:    805033
+Output bytes:      2014121732
+Output packets:      1738879
+rx omci:           575
+ber reported:      1
+
+GPON0/1:12
+Input  bytes:      288279992
+Input  packets:    957201
+Output bytes:      883613923
+Output packets:      1230057
+rx omci:           759
+ber reported:      1
+
+GPON0/1:13
+Input  bytes:      1504334017
+Input  packets:    1513548
+Output bytes:      340851007
+Output packets:      1003490
+rx omci:           575
+ber reported:      1
+
+GPON0/1:14
+Input  bytes:      1544905600
+Input  packets:    1648784
+Output bytes:      694398875
+Output packets:      1156722
+rx omci:           738
+ber reported:      0
+
+GPON0/1:15
+Input  bytes:      0
+Input  packets:    0
+Output bytes:      0
+Output packets:      0
+rx omci:           0
+ber reported:      0
+
+GPON0/1:16
+Input  bytes:      249958630
+Input  packets:    946241
+Output bytes:      4342670364
+Output packets:      3566231
+rx omci:           1142
+ber reported:      1
+
+GPON0/1:17
+Input  bytes:      4025889974
+Input  packets:    5690006
+Output bytes:      17722406834
+Output packets:      14674248
+rx omci:           580
+ber reported:      1
+
+GPON0/1:18
+Input  bytes:      0
+Input  packets:    0
+Output bytes:      0
+Output packets:      0
+rx omci:           0
+ber reported:      0
+
+GPON0/1:19
+Input  bytes:      2664456746
+Input  packets:    22843528
+Output bytes:      80547001206
+Output packets:      55994190
+rx omci:           576
+ber reported:      2
+
+GPON0/1:20
+Input  bytes:      2511614
+Input  packets:    37321
+Output bytes:      12062139
+Output packets:      99979
+rx omci:           575
+ber reported:      1
+
+GPON0/1:21
+Input  bytes:      0
+Input  packets:    0
+Output bytes:      0
+Output packets:      0
+rx omci:           0
+ber reported:      0
+
+GPON0/1:22
+Input  bytes:      2516160
+Input  packets:    37390
+Output bytes:      12114087
+Output packets:      100915
+rx omci:           591
+ber reported:      1
+
+GPON0/1:23
+Input  bytes:      29309184
+Input  packets:    112005
+Output bytes:      23012231
+Output packets:      161300
+rx omci:           594
+ber reported:      1
+
+GPON0/1:24
+Input  bytes:      34485123
+Input  packets:    102570
+Output bytes:      94325599
+Output packets:      213340
+rx omci:           1143
+ber reported:      1
+
+GPON0/1:25
+Input  bytes:      3000371515
+Input  packets:    7482589
+Output bytes:      33294382989
+Output packets:      27074662
+rx omci:           811
+ber reported:      1
+
+GPON0/1:26
+Input  bytes:      178378578
+Input  packets:    824821
+Output bytes:      1507401923
+Output packets:      1304859
+rx omci:           884
+ber reported:      1
+
+GPON0/1:27
+Input  bytes:      619287540
+Input  packets:    2308161
+Output bytes:      9626781687
+Output packets:      7948346
+rx omci:           1164
+ber reported:      1
+
+GPON0/1:28
+Input  bytes:      0
+Input  packets:    0
+Output bytes:      0
+Output packets:      0
+rx omci:           0
+ber reported:      0
+
+GPON0/1:29
+Input  bytes:      454670609
+Input  packets:    1753602
+Output bytes:      5906058486
+Output packets:      4645995
+rx omci:           760
+ber reported:      1
+
+GPON0/1:30
+Input  bytes:      2362850
+Input  packets:    37457
+Output bytes:      12083280
+Output packets:      100907
+rx omci:           760
+ber reported:      1
+
+GPON0/1:31
+Input  bytes:      2353956
+Input  packets:    37323
+Output bytes:      12096673
+Output packets:      100664
+rx omci:           761
+ber reported:      1
