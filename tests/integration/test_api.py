@@ -815,7 +815,9 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
     url = f"/v1/olts/{olt['id']}/onus/authorize"
     # Sin captura de laboratorio, la API se niega de entrada y dice qué falta validar.
     refused = env.client.post(url, json=alta, headers=env.headers())
-    assert refused.status_code == 400 and "onu.authorize" in refused.text
+    assert (
+        refused.status_code == 400 and "onu.tcont" in refused.text
+    )  # el alta ya se probó, el servicio no
     assert env.publisher.plans == []
 
     env.client.app.state.olterra.settings.allow_unverified_writes = True  # type: ignore[attr-defined]
@@ -825,7 +827,7 @@ def test_provision_templates_and_authorize_without_leaking_keys(env: Env) -> Non
         env.client.app.state.olterra.settings.allow_unverified_writes = False  # type: ignore[attr-defined]
     assert response.status_code == 202, response.text
     job = response.json()
-    assert "onu.authorize" in job["unverified"]
+    assert "onu.tcont" in job["unverified"]
     assert job["status"] == "running" and job["steps"][0]["status"] == "running"
     assert job["description"] == "Cliente_Nuevo" and job["wifi_ssid"] == "Casa_Nueva"
     # El primer paso solo lee (qué posiciones están libres); escribir viene después.
@@ -1024,3 +1026,60 @@ def test_router_ssh_port_changes_without_rotating(env: Env) -> None:
         f"/v1/tunnel/routers/{router['id']}", json={"ssh_port": 22}, headers=env.headers(env.key_b)
     )
     assert other.status_code == 404
+
+
+def test_rename_delete_and_profiles_on_the_three_brands(env: Env) -> None:
+    """Probado en producción el 2026-10-31: renombrar, eliminar y (HSGQ) cambiar perfiles."""
+    hsgq = create_olt(env, driver="hsgq-gpon", real_ip="10.9.0.1", model="HSGQ-G008")
+    bcd = create_olt(env, driver="bcd-gpon", real_ip="10.9.0.2", model="BCD-1508GS")
+    vsol = create_olt(env, real_ip="10.9.0.3")
+
+    def commands(response: Any) -> list[str]:
+        assert response.status_code == 202, response.text
+        assert response.json()["unverified"] == []
+        plan = env.publisher.plans[-1]
+        return [s.command for s in plan.steps]
+
+    renamed = env.client.post(
+        f"/v1/olts/{hsgq['id']}/onus/description",
+        json={"pon": 3, "onu": 28, "description": "Cristina Gálvis"},
+        headers=env.headers(),
+    )
+    assert 'ont setting 27 name "Cristina_Galvis"' in commands(renamed)  # ONU desde 0
+    assert "save" in commands(renamed)
+    renamed = env.client.post(
+        f"/v1/olts/{bcd['id']}/onus/description",
+        json={"pon": 1, "onu": 4, "description": "Cristina Gálvis"},
+        headers=env.headers(),
+    )
+    assert "ont description 1 4 Cristina_Galvis" in commands(renamed)
+    renamed = env.client.post(
+        f"/v1/olts/{vsol['id']}/onus/description",
+        json={"pon": 1, "onu": 8, "description": "Cristina Gálvis"},
+        headers=env.headers(),
+    )
+    assert "onu 8 desc Cristina_Galvis" in commands(renamed)
+
+    for olt, expected in ((hsgq, "ont delete 27"), (bcd, "ont delete 1 4"), (vsol, "no onu 8")):
+        deleted = env.client.post(
+            f"/v1/olts/{olt['id']}/onus/delete",
+            json={
+                "pon": 3 if olt is hsgq else 1,
+                "onu": 28 if olt is hsgq else (4 if olt is bcd else 8),
+            },
+            headers=env.headers(),
+        )
+        assert expected in commands(deleted)
+
+    profiles = env.client.post(
+        f"/v1/olts/{hsgq['id']}/onus/profiles",
+        json={"pon": 3, "onu": 28, "line_profile": 0, "srv_profile": 0},
+        headers=env.headers(),
+    )
+    assert "ont modify 27 ont-lineprofile-id 0 ont-srvprofile-id 0" in commands(profiles)
+    unsupported = env.client.post(
+        f"/v1/olts/{bcd['id']}/onus/profiles",
+        json={"pon": 1, "onu": 4, "line_profile": 10, "srv_profile": 11},
+        headers=env.headers(),
+    )
+    assert unsupported.status_code == 400

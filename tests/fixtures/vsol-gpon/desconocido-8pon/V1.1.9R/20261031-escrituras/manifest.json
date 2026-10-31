@@ -1,0 +1,62 @@
+{
+  "olterra_version": "0.1.0",
+  "driver": "vsol-gpon",
+  "captured_at": "2026-10-31T00:00:00+00:00",
+  "model": null,
+  "firmware": "V1.1.9R",
+  "anonymized": true,
+  "host_key": null,
+  "note": "Escrituras probadas en producción en una ONU apagada; cada una se dejó como estaba",
+  "commands": [
+    {
+      "key": "onu.set_description",
+      "command": "onu 8 desc OLTERRA_PRUEBA",
+      "pon": 1,
+      "onu": 8,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.set_description.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.description",
+      "command": "show onu 8 desc",
+      "pon": 1,
+      "onu": 8,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.description.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "config.save",
+      "command": "write",
+      "pon": null,
+      "onu": null,
+      "ok": true,
+      "error": null,
+      "file": "cli/config.save.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.delete",
+      "command": "no onu 8",
+      "pon": 1,
+      "onu": 8,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.delete.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    },
+    {
+      "key": "onu.authorize",
+      "command": "onu add 8 profile default sn GPON0A11B003",
+      "pon": 1,
+      "onu": 8,
+      "ok": true,
+      "error": null,
+      "file": "cli/onu.authorize.txt",
+      "source": "Prueba en producción con una ONU apagada, restaurada igual (2026-10-31)"
+    }
+  ]
+}

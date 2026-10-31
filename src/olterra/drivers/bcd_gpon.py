@@ -71,9 +71,20 @@ def _c(key: str, template: str, mode: CliMode, **kw: Any) -> CommandTemplate:
     )
 
 
+# Probadas en producción el 2026-10-31 con una ONU apagada que quedó como estaba
+# (tests/fixtures/.../20261031-escrituras). Las demás siguen sin verificar.
+_VALIDATED = {"onu.set_description", "onu.delete", "onu.authorize", "config.save"}
+
+
 def _w(key: str, template: str, mode: CliMode = PON, **kw: Any) -> CommandTemplate:
     return CommandTemplate(
-        key=key, template=template, mode=mode, access=W, source=WRITE_SOURCE, **kw
+        key=key,
+        template=template,
+        mode=mode,
+        access=W,
+        source=WRITE_SOURCE,
+        verified=key in _VALIDATED,
+        **kw,
     )
 
 

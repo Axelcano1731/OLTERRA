@@ -319,7 +319,8 @@ def test_write_plan_is_refused_until_the_lab_validates_it() -> None:
         "model": MODEL,
         "firmware": FIRMWARE,
     }
-    with pytest.raises(PlanBuildError, match=r"onu.authorize"):
+    # onu.authorize ya se probó (2026-10-31); las líneas de servicio todavía no.
+    with pytest.raises(PlanBuildError, match=r"onu.tcont"):
         build_write_plan(VSOL_GPON, **common)  # type: ignore[arg-type]
     plan = build_write_plan(VSOL_GPON, allow_unverified=True, **common)  # type: ignore[arg-type]
     assert plan.access == "write" and plan.on_error == "stop"

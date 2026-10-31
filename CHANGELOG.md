@@ -4,6 +4,13 @@
 
 ### Agregado
 
+- **Gestión de ONU en las 3 marcas, probada en producción** (2026-10-31, con una ONU apagada por
+  OLT que quedó exactamente como estaba): renombrar, eliminar (desautorizar), autorizar y guardar
+  en VSOL, HSGQ y BCD; cambiar perfiles en la HSGQ (`ont modify`). En Monitoreo, el detalle de cada
+  ONU tiene **Eliminar de la OLT** (con confirmación), **Cambiar perfiles** (HSGQ) y, al editar el
+  nombre, **cambiarlo también en la OLT** (sin espacios ni tildes). API:
+  `POST /v1/olts/{id}/onus/description` y `/onus/profiles`.
+
 - **Ver la MAC de los equipos** en las 3 marcas: en Monitoreo, el detalle de cada ONU tiene
   **Ver MAC**, que pregunta a la OLT (`onu.mac`). VSOL: `show mac address-table pon <pon> <onu>`
   (la OLT lista el PON entero y se filtra); HSGQ: `show mac-address ont`; BCD: las MAC que
@@ -57,6 +64,8 @@
 
 ### Corregido
 
+- VSOL: renombrar una ONU usa `onu N desc …`; `description` (la del manual) da "Unknown command"
+  en las dos OLT reales.
 - Un usuario deshabilitado ya no puede iniciar sesión (antes recibía token y luego cada
   petición lo rechazaba).
 - Si la OLT no responde al abrir SSH o Telnet, el error dice "no respondió en 15 s" y sugiere

@@ -9,6 +9,12 @@ capturas están en `tests/fixtures/hsgq-gpon/` y `tests/fixtures/bcd-gpon/`, con
 clientes reemplazados por `CLIENTE_NNN`, el operador por `OPERADOR`, seriales y MAC
 anonimizados y las comunidades SNMP tapadas.
 
+**2026-10-31:** renombrar, eliminar, autorizar y guardar (y en la HSGQ cambiar perfiles) se
+probaron en producción con una ONU apagada por OLT (HSGQ 3/27, BCD 1/4) que quedó exactamente
+como estaba; quedan `verified=True` (evidencia en `tests/fixtures/.../20261031-escrituras`).
+WAN, Wi-Fi y reiniciar siguen sin probar. La BCD no tiene comando para cambiar perfiles: se
+borra y se vuelve a autorizar.
+
 Olterra consulta, monitorea (estado y señal de cada ONU, alarmas), saca respaldos y lee el
 detalle de cada ONU (estado, distancia, perfiles, versión, óptica). **Las escrituras** (alta,
 nombre, WAN, Wi-Fi, reinicio, borrado) están en el catálogo con `verified=False`: salieron de la
@@ -49,6 +55,7 @@ Escrituras, dentro de `interface gpon {pon}` (sin verificar):
 | --- | --- |
 | `onu.authorize` | `ont add {onu} sn-auth {serial} omci ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}` |
 | `onu.set_description` | `ont setting {onu} name "{description}"` |
+| `onu.set_profiles` | `ont modify {onu} ont-lineprofile-id {line_profile} ont-srvprofile-id {srv_profile}` |
 | `onu.wan_pppoe` | `ont wanconfig add {onu} connection-type internet vlan tag {vlan} ipmode pppoe {usuario} {clave} lan_eth {lan_eth} lan_ssid {lan_ssid}` |
 | `onu.wifi` | `ont wificonfig {onu} 1 wifiname {ssid} security wpa2psk wpaencrypt aes sharekey {clave}` |
 | `onu.reboot` | `ont reboot {onu}` |
