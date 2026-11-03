@@ -64,7 +64,7 @@ Ver `.env.example`. Las importantes:
 | `OLTERRA_MIGRATIONS_DATABASE_URL` | migraciones, `olterra-admin` | Con el rol `olterra_owner` |
 | `OLTERRA_DB_POOL_SIZE`, `OLTERRA_DB_MAX_OVERFLOW` | API | Conexiones por proceso (3 y 2): la base de producción es compartida y tiene un tope |
 | `OLTERRA_MAP_STYLE_URL` | API | Estilo de MapLibre del mapa FTTH (OpenFreeMap "liberty"). Otro proveedor va también en `OLTERRA_MAPA_ORIGEN` de Caddy |
-| `OLTERRA_MONITOR_EVERY_MINUTES` | API | Cada cuántos minutos se sondea cada OLT para el monitoreo (5; `0` lo apaga) |
+| `OLTERRA_MONITOR_EVERY_MINUTES` | API | Cada cuántos minutos se sondea cada OLT para el monitoreo (1; `0` lo apaga) |
 | `OLTERRA_MONITOR_RETENTION_DAYS` | API | Días de historial de señal de las ONU (30) |
 | `OLTERRA_MONITOR_TRAFFIC_EVERY_MINUTES` | API | Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (5, como MRTG; `0` lo apaga). En la HSGQ es un comando por ONU en línea |
 | `OLTERRA_MONITOR_RATE_RETENTION_DAYS` | API | Días de velocidad cada 5 minutos (8) |

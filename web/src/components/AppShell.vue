@@ -123,7 +123,7 @@ async function loadAlarms(): Promise<void> {
 let alarmsTimer: number | undefined
 onMounted(() => {
   void loadAlarms()
-  alarmsTimer = window.setInterval(() => void loadAlarms(), 60_000)
+  alarmsTimer = window.setInterval(() => void loadAlarms(), 30_000)
 })
 onBeforeUnmount(() => window.clearInterval(alarmsTimer))
 

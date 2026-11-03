@@ -312,3 +312,16 @@ def test_mac_table_of_a_pon() -> None:
     assert len(hsgq) == 24 and all(e.pon == 3 and e.onu for e in hsgq)
     bcd = bcd_gpon.parse_mac_table(_read(MAC["bcd"], "mac.by_pon_pon1"), 1)
     assert len(bcd) == 18 and all(e.pon == 1 and e.onu is None for e in bcd)
+
+
+def test_empty_pon_is_not_a_failure() -> None:
+    """Un PON sin ONU (2026-11-03): la BCD dice "There is no ONT available" y la HSGQ "the
+    total of ONTs are: 0". Son PON vacíos, no fallas que dejen el sondeo a medias."""
+    import re
+
+    assert hsgq_gpon.parse_onu_state("In port 4 , the total of ONTs are: 0, online: 0\n", 4) == []
+    assert bcd_gpon.parse_onu_state("Error: There is no ONT available.\n", 5) == []
+    assert bcd_gpon.parse_rx_power("Error: There is no ONT available.\n", 5) == []
+    errors = get_driver("bcd-gpon").session.error_patterns
+    assert not any(re.search(p, "Error: There is no ONT available.", re.M) for p in errors)
+    assert any(re.search(p, "Error: Parameter error", re.M) for p in errors)

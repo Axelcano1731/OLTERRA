@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # Cada cuántas horas se respalda sola la configuración de cada OLT que ya respondió (0 = no).
     backup_every_hours: float = 24.0
     # Cada cuántos minutos se sondea el estado y la potencia de las ONU de cada OLT (0 = no).
-    monitor_every_minutes: float = 5.0
+    monitor_every_minutes: float = 1.0
     # Días que se guarda el historial de potencia de las ONU.
     monitor_retention_days: int = 30
     # Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (0 = no). 5, como MRTG:

@@ -148,7 +148,8 @@ COMMANDS: dict[str, CommandTemplate] = {
 # ONU nuevas. El resto de "Error:" sí.
 ERRORS = (
     r"(?i)^\s*(?:unknown command|command incomplete|too many parameters|ambiguous command)",
-    r"(?i)^\s*error:(?!.*automatically found)",
+    # Un PON sin ONU tampoco es una falla: "Error: There is no ONT available."
+    r"(?i)^\s*error:(?!.*automatically found)(?!.*there is no ont available)",
 )
 
 SESSION = SessionProfile(
@@ -169,7 +170,8 @@ _DESC_ROW = re.compile(r"^\s*(\d+)\s+(\d+)(?:\s+(.*?))?\s*$")
 _OPTICAL_ROW = re.compile(
     r"^\s*(\d+)\s+(\d+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*$"
 )
-_NOTHING = re.compile(r"(?i)do(?:es)? not exist")
+# "does not exist" y, en un PON sin ONU, "There is no ONT available" (2026-11-03).
+_NOTHING = re.compile(r"(?i)do(?:es)? not exist|there is no ont available")
 
 
 def _ont_info(text: str) -> list[dict[str, Any]]:
@@ -264,7 +266,11 @@ def parse_rx_power(text: str, default_pon: int | None = None) -> list[RxReading]
             readings.append(
                 RxReading(int(match.group(1)), int(match.group(2)), None if rx == 0 else rx)
             )
-    if not readings and text.strip() and not re.search(r"(?i)optical|do(?:es)? not exist", text):
+    if (
+        not readings
+        and text.strip()
+        and not (re.search(r"(?i)optical", text) or _NOTHING.search(text))
+    ):
         raise UnrecognizedOutput("bcd.ont_optical", "no se reconoció ninguna fila", text)
     return readings
 

@@ -20,7 +20,7 @@ const alarms = useAsync(() => listAlarms(state.value, oltFilter.value || undefin
 watch([state, oltFilter], () => void alarms.reload())
 
 let timer: number | undefined
-onMounted(() => (timer = window.setInterval(() => void alarms.reload(), 60_000)))
+onMounted(() => (timer = window.setInterval(() => void alarms.reload(), 20_000)))
 onBeforeUnmount(() => window.clearInterval(timer))
 
 /** Una alarma de una ONU lleva a su ficha; la de un PON o la OLT, a sus clientes. */
