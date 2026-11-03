@@ -60,7 +60,7 @@ onMounted(() => {
   timer = window.setInterval(() => {
     void history.reload()
     void traffic.reload()
-  }, 60_000)
+  }, 20_000)
 })
 onBeforeUnmount(() => window.clearInterval(timer))
 

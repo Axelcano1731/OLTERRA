@@ -206,7 +206,8 @@ _OPTICAL_ROW = re.compile(
     r"^\s*(\d+)/(\d+)\s+(\S+)\s+(-?[\d.]+)\s*C\s+(-?[\d.]+)\s*V\s+(-?[\d.]+)\s*mA\s+"
     r"(-?[\d.]+)\s*dBm\s+(-?[\d.]+)\s*dBm(?:\s+(.*?))?\s*$"
 )
-_NOTHING = re.compile(r"(?i)do(?:es)? not exist")
+# "does not exist" y, en un PON sin ONU, "the total of ONTs are: 0" (2026-11-03).
+_NOTHING = re.compile(r"(?i)do(?:es)? not exist|total of onts are:\s*0(?!\d)")
 
 
 def _phase(run_state: str, reason: str) -> str:

@@ -91,7 +91,7 @@ function link(onu: OnuStatus) {
 // Se refresca solo: el servidor sondea cada pocos minutos.
 let timer: number | undefined
 onMounted(() => {
-  timer = window.setInterval(() => void Promise.all([summary.reload(), onus.reload()]), 30_000)
+  timer = window.setInterval(() => void Promise.all([summary.reload(), onus.reload()]), 15_000)
 })
 onBeforeUnmount(() => window.clearInterval(timer))
 

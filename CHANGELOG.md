@@ -2,6 +2,17 @@
 
 ## [Sin publicar]
 
+### Cambiado
+
+- **Casi en vivo**: el estado y la potencia de cada ONU se leen cada minuto (antes 5); el tráfico
+  sigue cada 5. Clientes se refresca cada 15 s, la ficha y Alarmas cada 20 s. Un PON que se cae o
+  vuelve se ve en un minuto.
+
+### Arreglado
+
+- Un PON sin ONU ya no deja el sondeo "parcial": la BCD responde "There is no ONT available" y la
+  HSGQ "the total of ONTs are: 0", y ahora se toman como PON vacíos.
+
 ### Agregado
 
 - **Velocidad de cada cliente, como MRTG**: en la ficha, Consumo → **Velocidad** muestra la bajada
