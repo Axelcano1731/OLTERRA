@@ -257,6 +257,13 @@ export const setOnuCustomerName = (oltId: string, pon: number, onu: number, name
     json: { customer_name: name },
   })
 
+/** Velocidad del plan del cliente (Mbps) para la raya de la gráfica; null la quita. */
+export const setOnuPlan = (oltId: string, pon: number, onu: number, planMbps: number | null) =>
+  api<OnuStatus>(`/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}/plan`, {
+    method: 'PUT',
+    json: { plan_mbps: planMbps },
+  })
+
 export const listUsers = () => api<IspUser[]>('/v1/users')
 export const createUser = (username: string, displayName: string, role: string) =>
   api<IspUserWithPassword>('/v1/users', {

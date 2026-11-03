@@ -338,6 +338,7 @@ const recentAlarms = computed(() => (history.data.value?.alarms ?? []).slice(0, 
           :traffic="traffic.data.value"
           :loading="traffic.loading.value"
           :error="traffic.error.value"
+          :status="status"
           :driver="driver"
         />
       </section>

@@ -145,3 +145,62 @@ export function niceCeiling(value: number): number {
   const step = [1, 2, 5, 10].find((factor) => factor * power >= value) ?? 10
   return step * power
 }
+
+/** Un punto de la gráfica de velocidad: el promedio de bajada y subida en ese momento (bit/s). */
+export interface RatePoint {
+  t: number
+  down: number
+  up: number
+}
+
+/** Promedia los puntos en ventanas de `minutes` (como MRTG: 5 min el día, 30 la semana). */
+export function averageEvery(points: RatePoint[], minutes: number): RatePoint[] {
+  const size = minutes * 60_000
+  const groups = new Map<number, RatePoint[]>()
+  for (const point of points) {
+    const key = Math.floor(point.t / size) * size
+    groups.set(key, [...(groups.get(key) ?? []), point])
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([t, group]) => ({
+      t: t + size / 2,
+      down: group.reduce((sum, p) => sum + p.down, 0) / group.length,
+      up: group.reduce((sum, p) => sum + p.up, 0) / group.length,
+    }))
+}
+
+/** El promedio de cada hora a partir de lo que bajó y subió (para el mes). */
+export function hourlyRates(hours: OnuTrafficHour[]): RatePoint[] {
+  return hours.map((row) => ({
+    t: Date.parse(row.hour) + 1800_000,
+    down: (row.down_bytes * 8) / 3600,
+    up: (row.up_bytes * 8) / 3600,
+  }))
+}
+
+export interface RateStats {
+  max: { down: number; up: number }
+  average: { down: number; up: number }
+  current: { down: number; up: number }
+  /** Qué parte del tiempo la bajada estuvo al 90 % del plan o más (null sin plan). */
+  atPlan: number | null
+}
+
+export function rateStats(points: RatePoint[], planBps: number | null): RateStats | null {
+  const last = points.at(-1)
+  if (!last) return null
+  const sum = points.reduce((acc, p) => ({ down: acc.down + p.down, up: acc.up + p.up }), {
+    down: 0,
+    up: 0,
+  })
+  return {
+    max: {
+      down: Math.max(...points.map((p) => p.down)),
+      up: Math.max(...points.map((p) => p.up)),
+    },
+    average: { down: sum.down / points.length, up: sum.up / points.length },
+    current: { down: last.down, up: last.up },
+    atPlan: planBps ? points.filter((p) => p.down >= planBps * 0.9).length / points.length : null,
+  }
+}

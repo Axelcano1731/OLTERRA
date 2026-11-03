@@ -179,8 +179,20 @@ def test_traffic_end_to_end(env: Env) -> None:  # noqa: F811
             "/v1/monitoring/onus", params={"olt_id": olt["id"]}, headers=env.headers()
         ).json()
         assert next(o for o in listed if (o["pon"], o["onu"]) == (1, 1))["down_bps"] > 0
+        # La velocidad de esa lectura queda como un punto de la gráfica (estilo MRTG).
+        assert [r["down_bps"] for r in traffic["rates"]] == [traffic["down_bps"]]
 
-        # Sin que toque leer el tráfico (pasaron menos de 15 minutos) no se suma nada.
+        # El plan del cliente: la raya de la gráfica. Se guarda en Olterra y se puede quitar.
+        plan_url = f"/v1/monitoring/onus/{olt['id']}/1/1/plan"
+        saved = env.client.put(plan_url, json={"plan_mbps": 20}, headers=env.headers())
+        assert saved.status_code == 200 and saved.json()["plan_mbps"] == 20
+        assert env.client.get(url, headers=env.headers()).json()["plan_mbps"] == 20
+        bad = env.client.put(plan_url, json={"plan_mbps": 0}, headers=env.headers())
+        assert bad.status_code == 422
+        other = env.client.put(plan_url, json={"plan_mbps": 30}, headers=env.headers(env.key_b))
+        assert other.status_code == 404
+
+        # Sin que toque leer el tráfico (pasaron menos de 5 minutos) no se suma nada.
         first.down_bytes += 1_000
         poll(env, olt["id"], done)
         again = env.client.get(url, headers=env.headers()).json()

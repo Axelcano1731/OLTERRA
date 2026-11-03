@@ -516,8 +516,17 @@ export interface OnuStatus {
   /** Bajada y subida promedio entre las dos últimas lecturas de tráfico (bit/s). */
   down_bps?: number | null
   up_bps?: number | null
-  /** Cuándo se leyó el tráfico (cada 15 minutos; la BCD no lo da). */
+  /** Cuándo se leyó el tráfico (cada 5 minutos; la BCD no lo da). */
   traffic_at?: string | null
+  /** Velocidad del plan del cliente (Mbps), puesta en la ficha. */
+  plan_mbps?: number | null
+}
+
+/** Bajada y subida promedio entre dos lecturas de tráfico (cada 5 minutos). */
+export interface OnuRate {
+  at: string
+  down_bps: number
+  up_bps: number
 }
 
 /** Lo que bajó y subió una ONU en una hora, y el pico de su promedio de 15 minutos. */
@@ -536,7 +545,10 @@ export interface OnuTraffic {
   down_bps: number | null
   up_bps: number | null
   traffic_at: string | null
+  plan_mbps: number | null
   hours: OnuTrafficHour[]
+  /** Velocidad cada 5 minutos, hasta 8 días. */
+  rates: OnuRate[]
 }
 
 /** onu.wan_status (VSOL): la WAN como la reporta la ONU. Nunca trae la clave. */

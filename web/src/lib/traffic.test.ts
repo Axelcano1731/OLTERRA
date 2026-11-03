@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import type { OnuTrafficHour } from '@/api'
 
-import { byDay, byHour, formatBps, formatBytes, niceCeiling, totals } from './traffic'
+import {
+  averageEvery,
+  byDay,
+  byHour,
+  formatBps,
+  formatBytes,
+  hourlyRates,
+  niceCeiling,
+  rateStats,
+  totals,
+} from './traffic'
 
 function hour(at: Date, down: number, up = 0, peak = 0): OnuTrafficHour {
   return {
@@ -69,5 +79,38 @@ describe('consumo', () => {
     expect(niceCeiling(3_200_000_000)).toBe(5_000_000_000)
     expect(niceCeiling(120)).toBe(200)
     expect(niceCeiling(1000)).toBe(1000)
+  })
+})
+
+describe('velocidad', () => {
+  const at = (minutes: number, down: number, up = 0) => ({ t: minutes * 60_000, down, up })
+
+  it('promedia en ventanas, como MRTG', () => {
+    const points = [at(0, 10), at(5, 20), at(30, 40)]
+    expect(averageEvery(points, 30).map((p) => p.down)).toEqual([15, 40])
+  })
+
+  it('pasa lo que bajó cada hora a un promedio', () => {
+    const [point] = hourlyRates([
+      {
+        hour: '2026-11-03T10:00:00Z',
+        down_bytes: 450_000_000,
+        up_bytes: 0,
+        peak_down_bps: 0,
+        peak_up_bps: 0,
+      },
+    ])
+    expect(point?.down).toBe(1_000_000) // 450 MB en una hora = 1 Mbps
+  })
+
+  it('máximo, promedio, actual y cuánto estuvo al tope del plan', () => {
+    const stats = rateStats(
+      [at(0, 19_000_000), at(5, 5_000_000), at(10, 20_000_000, 1)],
+      20_000_000,
+    )
+    expect(stats?.max.down).toBe(20_000_000)
+    expect(stats?.current).toEqual({ down: 20_000_000, up: 1 })
+    expect(stats?.atPlan).toBeCloseTo(2 / 3)
+    expect(rateStats([], null)).toBeNull()
   })
 })

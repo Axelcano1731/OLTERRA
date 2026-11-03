@@ -513,8 +513,11 @@ de las OLT: la necesita cada consulta.
 
 El consumo sale de los contadores de tráfico que la OLT lleva por ONU, no del MikroTik: así
 Olterra lo tiene solo y sirve igual con ISPWatch, WispHub o Mikrowisp. El sondeo los lee cada 15
-minutos (no en cada sondeo de 5: en la HSGQ es un comando por ONU) y guarda la diferencia con la
-lectura anterior repartida en las horas que tocó, con el pico del promedio de esa lectura.
+minutos, como MRTG (2026-11-03; antes 15: con promedios más largos un plan al tope no se ve al
+tope), y guarda la diferencia con la lectura anterior repartida en las horas que tocó, con el
+pico del promedio de esa lectura. Cada lectura queda además como un punto de velocidad
+(`onu_rates`, 8 días) y la gráfica la compara con el plan del cliente, que por ahora se pone en
+la ficha (la OLT no lo sabe: el límite lo pone el MikroTik).
 
 - Una fila por ONU y hora (`onu_traffic`), no una por lectura: la base no crece con cada
   sondeo. Dos meses: este y el anterior completos.
