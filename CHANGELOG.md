@@ -4,6 +4,14 @@
 
 ### Agregado
 
+- **Velocidad de cada cliente, como MRTG**: en la ficha, Consumo → **Velocidad** muestra la bajada
+  (área) y la subida (línea) en Mbps, con promedio de 5 minutos el día, 30 la semana y 2 horas el
+  mes, y debajo el máximo, el promedio, el actual y **cuánto tiempo estuvo al tope del plan**. El
+  **plan del cliente** (Mbps) se pone en la ficha y se dibuja como una raya; cuando se conecte
+  ISPWatch saldrá de su plan facturado. El tráfico se lee ahora en cada sondeo (5 minutos, antes
+  15). Migración `0015` (`onu_rates`, 8 días; `onu_status.plan_mbps`). API:
+  `…/traffic` trae `rates` y `plan_mbps`; `PUT /v1/monitoring/onus/{olt}/{pon}/{onu}/plan`.
+
 - **Ficha del cliente** (`/clientes/:olt/:pon/:onu`): una página por ONU con **Renombrar**,
   **Reiniciar** y **Eliminar** a la vista (con confirmación) y pestañas **Resumen**, **Señal**
   (24 h, 7 o 30 días), **Consumo**, **Internet y Wi‑Fi**, **Equipos** (MAC), **Alarmas** y

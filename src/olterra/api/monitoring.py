@@ -38,7 +38,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
 from olterra.api.state import AppState
-from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus, OnuTrafficHour, PlanRun
+from olterra.db.models import (
+    Alarm,
+    Olt,
+    OnuRate,
+    OnuSample,
+    OnuStatus,
+    OnuTrafficHour,
+    PlanRun,
+)
 from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall, Driver
@@ -520,6 +528,7 @@ async def _store_readings(
     }
     seen = set()
     hourly: list[dict[str, Any]] = []
+    rates: list[OnuRate] = []
     for reading in readings:
         key = (reading.pon, reading.onu)
         seen.add(key)
@@ -538,8 +547,9 @@ async def _store_readings(
         elif status.online != reading.online:
             status.status_since = now
         if status.serial and reading.serial and status.serial != reading.serial:
-            # Otra ONU en esa posición: el nombre era del cliente anterior.
+            # Otra ONU en esa posición: el nombre y el plan eran del cliente anterior.
             status.customer_name = None
+            status.plan_mbps = None
         status.online = reading.online
         status.phase = reading.phase
         status.serial = reading.serial or status.serial
@@ -551,6 +561,18 @@ async def _store_readings(
         if reading.down_bytes is not None and reading.up_bytes is not None:
             counters = (reading.down_bytes, reading.up_bytes)
             hourly += _account_traffic(tenant_id, olt_id, status, key, counters, now)
+            if status.down_bps is not None and status.up_bps is not None:
+                rates.append(
+                    OnuRate(
+                        tenant_id=tenant_id,
+                        olt_id=olt_id,
+                        pon=reading.pon,
+                        onu=reading.onu,
+                        at=now,
+                        down_bps=status.down_bps,
+                        up_bps=status.up_bps,
+                    )
+                )
         if wants_sample(last.get(key), reading, now):
             session.add(
                 OnuSample(
@@ -571,6 +593,12 @@ async def _store_readings(
     await session.execute(
         delete(OnuSample).where(OnuSample.olt_id == olt_id, OnuSample.at < now - keep)
     )
+    if rates:
+        session.add_all(rates)
+        keep_rates = timedelta(days=state.settings.monitor_rate_retention_days)
+        await session.execute(
+            delete(OnuRate).where(OnuRate.olt_id == olt_id, OnuRate.at < now - keep_rates)
+        )
     if hourly:
         upsert = insert(OnuTrafficHour).values(hourly)
         await session.execute(

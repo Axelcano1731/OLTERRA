@@ -327,6 +327,25 @@ class OnuStatus(Base):
     down_bps: Mapped[int | None] = mapped_column(BigInteger)
     up_bps: Mapped[int | None] = mapped_column(BigInteger)
     traffic_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Velocidad del plan del cliente (migración 0015), puesta en la ficha.
+    plan_mbps: Mapped[int | None] = mapped_column(Integer)
+
+
+class OnuRate(Base):
+    """Bajada y subida promedio entre dos lecturas de tráfico (cada 5 minutos)."""
+
+    __tablename__ = "onu_rates"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    olt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("olts.id", ondelete="CASCADE"), primary_key=True
+    )
+    pon: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    onu: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    down_bps: Mapped[int] = mapped_column(BigInteger)
+    up_bps: Mapped[int] = mapped_column(BigInteger)
 
 
 class OnuTrafficHour(Base):

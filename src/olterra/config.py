@@ -73,9 +73,11 @@ class Settings(BaseSettings):
     monitor_every_minutes: float = 5.0
     # Días que se guarda el historial de potencia de las ONU.
     monitor_retention_days: int = 30
-    # Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (0 = no). No en todos los
-    # sondeos: en la HSGQ es un comando por ONU.
-    monitor_traffic_every_minutes: float = 15.0
+    # Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (0 = no). 5, como MRTG:
+    # con promedios más largos un plan al tope no se ve al tope. En la HSGQ es un comando por ONU.
+    monitor_traffic_every_minutes: float = 5.0
+    # Días que se guarda la velocidad cada 5 minutos (el mes sale de los promedios por hora).
+    monitor_rate_retention_days: int = 8
     # Días que se guarda el consumo por hora (dos meses: este y el anterior completos).
     monitor_traffic_retention_days: int = 62
     # Estilo de MapLibre del mapa FTTH. OpenFreeMap: gratis, sin llave, de OpenStreetMap. Si se

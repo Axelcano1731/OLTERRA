@@ -21,13 +21,15 @@ from olterra.api.schemas import (
     MonitoringSummary,
     OltHealth,
     OnuNameIn,
+    OnuPlanIn,
+    OnuRateOut,
     OnuSampleOut,
     OnuStatusOut,
     OnuTrafficHourOut,
     OnuTrafficOut,
 )
 from olterra.api.state import audit
-from olterra.db.models import Alarm, Olt, OnuSample, OnuStatus, OnuTrafficHour
+from olterra.db.models import Alarm, Olt, OnuRate, OnuSample, OnuStatus, OnuTrafficHour
 from olterra.drivers import get_driver
 from olterra.executor.plan import Priority
 
@@ -54,6 +56,7 @@ def _status_out(row: OnuStatus) -> OnuStatusOut:
         down_bps=row.down_bps,
         up_bps=row.up_bps,
         traffic_at=row.traffic_at,
+        plan_mbps=row.plan_mbps,
     )
 
 
@@ -233,14 +236,54 @@ async def onu_traffic(
                 .order_by(OnuTrafficHour.hour)
             )
         ).scalars()
+        rates = (
+            await session.execute(
+                select(OnuRate)
+                .where(
+                    OnuRate.olt_id == olt_id,
+                    OnuRate.pon == pon,
+                    OnuRate.onu == onu,
+                    OnuRate.at >= max(since, datetime.now(UTC) - timedelta(days=8)),
+                )
+                .order_by(OnuRate.at)
+            )
+        ).scalars()
         return OnuTrafficOut(
             supported=monitoring.reads_traffic(get_driver(olt.driver)),
             every_minutes=state.settings.monitor_traffic_every_minutes,
             down_bps=row.down_bps,
             up_bps=row.up_bps,
             traffic_at=row.traffic_at,
+            plan_mbps=row.plan_mbps,
             hours=[OnuTrafficHourOut.model_validate(h) for h in hours],
+            rates=[OnuRateOut.model_validate(r) for r in rates],
         )
+
+
+@router.put("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/plan", response_model=OnuStatusOut)
+async def set_plan(olt_id: UUID, pon: int, onu: int, body: OnuPlanIn, ctx: Tenant) -> OnuStatusOut:
+    """Velocidad del plan del cliente (Mbps), para la raya del plan en la gráfica de velocidad.
+    Se guarda en Olterra; no cambia nada en la OLT ni en el MikroTik. Vacío la quita."""
+    ctx.require("onu:write")
+    async with ctx.session() as session:
+        row = await session.get(OnuStatus, (ctx.tenant_id, olt_id, pon, onu))
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa ONU no está en el monitoreo")
+        before = {"plan_mbps": row.plan_mbps}
+        row.plan_mbps = body.plan_mbps
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="onu.plan",
+            target_type="onu",
+            target_id=f"{olt_id}:{pon}:{onu}",
+            before=before,
+            after={"plan_mbps": row.plan_mbps, "serial": row.serial},
+            source_ip=ctx.client_ip,
+        )
+        await session.flush()
+        return _status_out(row)
 
 
 @router.put("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/name", response_model=OnuStatusOut)

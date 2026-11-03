@@ -661,6 +661,7 @@ class OnuStatusOut(BaseModel):
     )
     up_bps: int | None = Field(None, description="Subida promedio, igual (bit/s)")
     traffic_at: datetime | None = Field(None, description="Cuándo se leyó el tráfico")
+    plan_mbps: int | None = Field(None, description="Velocidad del plan, puesta en la ficha")
 
 
 class OnuNameIn(BaseModel):
@@ -695,6 +696,18 @@ class OnuTrafficHourOut(BaseModel):
     peak_up_bps: int
 
 
+class OnuRateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    at: datetime
+    down_bps: int
+    up_bps: int
+
+
+class OnuPlanIn(BaseModel):
+    plan_mbps: int | None = Field(None, ge=1, le=10000, description="Vacío lo quita")
+
+
 class OnuTrafficOut(BaseModel):
     """Consumo de una ONU: lo que bajó y subió cada hora. ``supported`` es False si la marca de
     la OLT no da el tráfico por ONU (BCD)."""
@@ -704,7 +717,11 @@ class OnuTrafficOut(BaseModel):
     down_bps: int | None
     up_bps: int | None
     traffic_at: datetime | None
+    plan_mbps: int | None = None
     hours: list[OnuTrafficHourOut]
+    rates: list[OnuRateOut] = Field(
+        default_factory=list, description="Velocidad cada 5 minutos (hasta 8 días)"
+    )
 
 
 class AlarmOut(BaseModel):
