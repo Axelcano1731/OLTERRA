@@ -113,3 +113,31 @@ def test_pppoe_change_refuses_options_that_are_not_the_olt_s(route: str, tail: s
     )  # fmt: skip
     with pytest.raises(ParamError):
         get_driver("vsol-gpon").build_cli_steps([call])
+
+
+def test_brief_reads_onus_from_ten_on() -> None:
+    """Desde la ONU 10 la OLT pega el número al nombre (2026-11-04): antes se perdían el nombre
+    y el arriba/abajo de todas esas ONU."""
+    text = (
+        "GPON0/1:9 ANDRES_FUENTES      up                          GPON-ONUID\n"
+        "GPON0/1:10LARRY_ALVAREZ       up                          GPON-ONUID\n"
+        "GPON0/1:15MIREYA_MONTOYA      down                        GPON-ONUID\n"
+        "GPON0/2:12820_DE_JULIO        up                          GPON-ONUID\n"
+        "GPON0/2:3                     up                          GPON-ONUID\n"
+    )
+    brief = parsers.parse_interfaces_brief(text)
+    assert [(o.pon, o.onu, o.description, o.up) for o in brief.onus] == [
+        (1, 9, "ANDRES_FUENTES", True),
+        (1, 10, "LARRY_ALVAREZ", True),
+        (1, 15, "MIREYA_MONTOYA", False),
+        (2, 128, "20_DE_JULIO", True),
+        (2, 3, None, True),
+    ]
+
+
+def test_tocaima_capture_has_every_onu_with_its_name() -> None:
+    brief = parsers.parse_interfaces_brief(
+        (CAPTURE / "interfaces.brief.txt").read_text(encoding="utf-8")
+    )
+    big = [o for o in brief.onus if o.onu >= 10]
+    assert big and all(o.description for o in big)

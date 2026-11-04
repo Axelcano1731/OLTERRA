@@ -10,6 +10,9 @@
 
 ### Arreglado
 
+- **VSOL: las ONU 10 en adelante salían sin nombre.** En `show interface brief` la OLT pega el
+  número al nombre (`GPON0/1:10LARRY_ALVAREZ`) y Olterra esperaba un espacio: perdía el nombre del
+  cliente de esas ONU (salían como "ONU 1/10") y su arriba/abajo de esa lista.
 - Un PON sin ONU ya no deja el sondeo "parcial": la BCD responde "There is no ONT available" y la
   HSGQ "the total of ONTs are: 0", y ahora se toman como PON vacíos.
 

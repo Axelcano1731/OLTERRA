@@ -491,7 +491,15 @@ class InterfacesBrief:
 
 _BRIEF_PON = re.compile(r"^\s*GPON\d+/(\d+)\s+(?:up|down)\b", re.IGNORECASE)
 # La descripción larga empuja la columna de estado ("JUAN_PEREZ_GOMEZup"): se lee desde el final.
-_BRIEF_ONU = re.compile(r"^\s*GPON\d+/(\d+):(\d+)\s+(.*?)\s*(up|down)\s+GPON-ONUID\s*$")
+# Y desde la ONU 10 el número se pega al nombre ("GPON0/1:10LARRY_ALVAREZ", Tocaima 2026-11-04):
+# sin espacio obligatorio. Un número de más de 128 es el nombre que empieza con cifras.
+_BRIEF_ONU = re.compile(r"^\s*GPON\d+/(\d+):(\d+)\s*(.*?)\s*(up|down)\s+GPON-ONUID\s*$")
+
+
+def _split_onu(digits: str, name: str) -> tuple[int, str]:
+    while len(digits) > 1 and int(digits) > 128:
+        digits, name = digits[:-1], digits[-1] + name
+    return int(digits), name
 
 
 def parse_interfaces_brief(text: str) -> InterfacesBrief:
@@ -501,11 +509,12 @@ def parse_interfaces_brief(text: str) -> InterfacesBrief:
     for line in text.splitlines():
         onu = _BRIEF_ONU.match(line)
         if onu is not None:
+            number, name = _split_onu(onu.group(2), onu.group(3))
             onus.append(
                 OnuPort(
                     pon=int(onu.group(1)),
-                    onu=int(onu.group(2)),
-                    description=onu.group(3).strip() or None,
+                    onu=number,
+                    description=name.strip() or None,
                     up=onu.group(4) == "up",
                 )
             )
