@@ -50,6 +50,9 @@ class SessionProfile(BaseModel):
     # Algunas OLT solo hablan algoritmos SSH viejos (group1-sha1, ssh-rsa, cbc).
     legacy_ssh_algorithms: bool = False
     terminal_width: int = 512
+    # Un comando por canal SSH ("ssh equipo comando"), sin terminal interactiva: RouterOS, cuya
+    # consola detecta la terminal y pinta con colores. Sin enable, sin paginador, sin Telnet.
+    exec_commands: bool = False
 
 
 # Un paso CLI puede llevar ``{{secret:<campo>}}``: el ejecutor lo reemplaza con el campo de la

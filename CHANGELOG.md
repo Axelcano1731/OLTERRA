@@ -2,6 +2,19 @@
 
 ## [Sin publicar]
 
+### Agregado
+
+- **Sesiones PPPoE del MikroTik** (las 3 marcas): junto al sondeo de las OLT, cada 5 minutos
+  Olterra lee del MikroTik del ISP, con su usuario de solo lectura, las sesiones PPPoE activas, los
+  contadores de cada una y las colas. Cada ONU se une con su usuario PPPoE por el nombre del
+  cliente (sin tildes, espacios ni mayúsculas) o a mano en la ficha. En la ficha: **PPPoE
+  conectado · IP** arriba, la tarjeta **Sesión en el MikroTik** (usuario, IP, MAC, tiempo
+  conectado y plan de su cola) y el aviso **PPPoE activo con la ONU caída** (el cliente navega por
+  otro equipo). En la BCD, que no da el tráfico por ONU, la velocidad y el consumo salen de la
+  sesión; en todas, el plan sale de la cola si no se puso a mano. El ejecutor manda a RouterOS un
+  comando por canal SSH (sin terminal interactiva). Migración `0016` (`pppoe_sessions`,
+  `onu_status.pppoe_user`). API: `PUT /v1/monitoring/onus/{olt}/{pon}/{onu}/pppoe-user`.
+
 ### Cambiado
 
 - **Casi en vivo**: el estado y la potencia de cada ONU se leen cada minuto (antes 5); el tráfico
@@ -10,6 +23,9 @@
 
 ### Arreglado
 
+- **VSOL: las ONU 10 en adelante salían sin nombre.** En `show interface brief` la OLT pega el
+  número al nombre (`GPON0/1:10LARRY_ALVAREZ`) y Olterra esperaba un espacio: perdía el nombre del
+  cliente de esas ONU (salían como "ONU 1/10") y su arriba/abajo de esa lista.
 - Un PON sin ONU ya no deja el sondeo "parcial": la BCD responde "There is no ONT available" y la
   HSGQ "the total of ONTs are: 0", y ahora se toman como PON vacíos.
 

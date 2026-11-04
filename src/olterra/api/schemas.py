@@ -636,6 +636,25 @@ class AuditOut(BaseModel):
         return _ip_text(value)
 
 
+class PppoeSessionOut(BaseModel):
+    """La sesión PPPoE del cliente en el MikroTik, del último sondeo del router."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    mac: str | None
+    address: str | None
+    uptime: str | None
+    plan_down_bps: int | None
+    plan_up_bps: int | None
+    seen_at: datetime
+
+
+class OnuPppoeUserIn(BaseModel):
+    pppoe_user: str | None = Field(
+        None, pattern=r"^[A-Za-z0-9_.@\-]{1,64}$", description="Vacío vuelve a buscarlo por nombre"
+    )
+
+
 class OnuStatusOut(BaseModel):
     """Lo último que se sabe de una ONU (del monitoreo)."""
 
@@ -662,6 +681,11 @@ class OnuStatusOut(BaseModel):
     up_bps: int | None = Field(None, description="Subida promedio, igual (bit/s)")
     traffic_at: datetime | None = Field(None, description="Cuándo se leyó el tráfico")
     plan_mbps: int | None = Field(None, description="Velocidad del plan, puesta en la ficha")
+    pppoe_user: str | None = Field(None, description="Usuario PPPoE con que navega")
+    pppoe_user_source: str | None = Field(None, description="nombre (por el cliente) o manual")
+    pppoe: PppoeSessionOut | None = Field(
+        None, description="Su sesión en el MikroTik ahora (None: no hay sesión activa)"
+    )
 
 
 class OnuNameIn(BaseModel):
@@ -718,6 +742,8 @@ class OnuTrafficOut(BaseModel):
     up_bps: int | None
     traffic_at: datetime | None
     plan_mbps: int | None = None
+    plan_from_router: bool = Field(False, description="El plan salió de la cola del MikroTik")
+    source: str | None = Field(None, description="De dónde sale el tráfico: olt o mikrotik")
     hours: list[OnuTrafficHourOut]
     rates: list[OnuRateOut] = Field(
         default_factory=list, description="Velocidad cada 5 minutos (hasta 8 días)"

@@ -520,6 +520,21 @@ export interface OnuStatus {
   traffic_at?: string | null
   /** Velocidad del plan del cliente (Mbps), puesta en la ficha. */
   plan_mbps?: number | null
+  /** Usuario PPPoE con que navega: por el nombre del cliente o puesto a mano. */
+  pppoe_user?: string | null
+  pppoe_user_source?: 'nombre' | 'manual' | null
+  /** Su sesión en el MikroTik ahora (null: no hay sesión activa). */
+  pppoe?: PppoeSession | null
+}
+
+/** La sesión PPPoE del cliente en el MikroTik (último sondeo del router, cada 5 minutos). */
+export interface PppoeSession {
+  mac: string | null
+  address: string | null
+  uptime: string | null
+  plan_down_bps: number | null
+  plan_up_bps: number | null
+  seen_at: string
 }
 
 /** Bajada y subida promedio entre dos lecturas de tráfico (cada 5 minutos). */
@@ -546,6 +561,10 @@ export interface OnuTraffic {
   up_bps: number | null
   traffic_at: string | null
   plan_mbps: number | null
+  /** El plan salió de la cola del MikroTik (no se puso a mano). */
+  plan_from_router: boolean
+  /** De dónde sale el tráfico: la OLT o el MikroTik (BCD). */
+  source: 'olt' | 'mikrotik' | null
   hours: OnuTrafficHour[]
   /** Velocidad cada 5 minutos, hasta 8 días. */
   rates: OnuRate[]

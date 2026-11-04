@@ -25,7 +25,12 @@ from olterra.executor.plan import (
     StepResult,
 )
 from olterra.executor.snmp import SnmpClient, SnmpError
-from olterra.executor.ssh import SshConnectOptions, open_gateway, open_ssh_transport
+from olterra.executor.ssh import (
+    SshConnectOptions,
+    open_exec_session,
+    open_gateway,
+    open_ssh_transport,
+)
 from olterra.executor.telnet import open_telnet_transport
 from olterra.security.masking import redact
 
@@ -144,6 +149,18 @@ class PlanRunner:
         if plan.session is None or credential is None or not credential.username:
             raise CliError("Plan sin perfil de sesión o sin usuario")
         password = credential.password.get_secret_value() if credential.password else ""
+        if plan.session.exec_commands:  # RouterOS: un comando por canal, sin terminal
+            exec_session = await open_exec_session(
+                SshConnectOptions(
+                    host=plan.target.host,
+                    port=plan.target.ssh_port,
+                    username=credential.username,
+                    password=password,
+                    known_host_key=plan.target.ssh_host_key,
+                ),
+                plan.session.error_patterns,
+            )
+            return exec_session, exec_session  # type: ignore[return-value]
         telnet = plan.target.cli_protocol == "telnet"
         gateway = await self._open_gateway(plan, credential)
         options = SshConnectOptions(

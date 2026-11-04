@@ -68,6 +68,7 @@ Ver `.env.example`. Las importantes:
 | `OLTERRA_MONITOR_RETENTION_DAYS` | API | Días de historial de señal de las ONU (30) |
 | `OLTERRA_MONITOR_TRAFFIC_EVERY_MINUTES` | API | Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (5, como MRTG; `0` lo apaga). En la HSGQ es un comando por ONU en línea |
 | `OLTERRA_MONITOR_RATE_RETENTION_DAYS` | API | Días de velocidad cada 5 minutos (8) |
+| `OLTERRA_MONITOR_ROUTER_EVERY_MINUTES` | API | Cada cuántos minutos se leen las sesiones PPPoE y las colas del MikroTik de cada OLT (5; `0` lo apaga) |
 | `OLTERRA_MONITOR_TRAFFIC_RETENTION_DAYS` | API | Días de consumo por hora (62: este mes y el anterior completos) |
 | `OLTERRA_BACKUP_EVERY_HOURS` | API | Cada cuántas horas se respalda sola la configuración de cada OLT (24; `0` apaga el reloj) |
 | `OLTERRA_MASTER_KEY` | API, `olterra-admin` | Llave maestra de la bóveda (`olterra-admin generar-llave-maestra`) |

@@ -207,3 +207,88 @@ def test_traffic_end_to_end(env: Env) -> None:  # noqa: F811
 
     # Otro ISP no ve el consumo de este.
     assert env.client.get(url, headers=env.headers(env.key_b)).status_code == 404
+
+
+def test_pppoe_sessions_from_the_mikrotik(env: Env) -> None:  # noqa: F811
+    """Las sesiones PPPoE del MikroTik se unen con las ONU por nombre (o a mano) y, en la BCD,
+    que no da el tráfico por ONU, la velocidad y el consumo salen del router."""
+    from olterra.api import mikrotik
+    from olterra.db.models import TunnelRouter
+    from olterra.db.session import tenant_session
+    from olterra.drivers.routeros import PppoeSession
+
+    state = env.client.app.state.olterra  # type: ignore[attr-defined]
+    created = env.client.post("/v1/tunnel/routers", json={"name": "CORE"}, headers=env.headers())
+    router_id = UUID(created.json()["router"]["id"])
+    olt = create_olt(env, driver="bcd-gpon", router_id=str(router_id), real_ip="172.16.0.2")
+    tenant_id = UUID(env.client.get("/v1/me", headers=env.headers()).json()["tenant"]["id"])
+
+    async def seed(session: Any) -> None:
+        for onu, name in ((1, "HECTOR_CHAVES"), (2, "Casa_Ruiz")):
+            session.add(
+                OnuStatus(
+                    tenant_id=tenant_id,
+                    olt_id=UUID(olt["id"]),
+                    pon=1,
+                    onu=onu,
+                    online=True,
+                    description=name,
+                )
+            )
+
+    asyncio.run(_owner(env, seed))
+
+    def apply(down: int, up: int) -> None:
+        sessions = [
+            PppoeSession("hector.chaves", "E0:51:D8:11:22:33", "100.64.1.10", "3d4h", down, up,
+                         20_000_000, 5_000_000),
+            PppoeSession("ruiz2026", "70:B6:4F:64:59:85", "100.64.1.11", "1h", 10, 10, None, None),
+        ]  # fmt: skip
+
+        async def run() -> None:
+            async with tenant_session(state.sessions, tenant_id) as session:
+                router = await session.get(TunnelRouter, router_id)
+                await mikrotik.apply_sessions(session, state, tenant_id, router, sessions)
+
+        env.client.portal.call(run)  # type: ignore[union-attr]
+
+    apply(1_000_000_000, 100_000_000)  # primera lectura: solo los contadores
+    listed = {
+        o["onu"]: o
+        for o in env.client.get(
+            "/v1/monitoring/onus", params={"olt_id": olt["id"]}, headers=env.headers()
+        ).json()
+    }
+    # "HECTOR_CHAVES" en la OLT y "hector.chaves" en el MikroTik: es el mismo cliente.
+    assert listed[1]["pppoe_user"] == "hector.chaves" and listed[1]["pppoe_user_source"] == "nombre"
+    assert listed[1]["pppoe"]["address"] == "100.64.1.10"
+    assert listed[2]["pppoe_user"] is None  # "Casa_Ruiz" no se parece a "ruiz2026"
+
+    async def five_minutes_ago(session: Any) -> None:
+        await session.execute(
+            update(OnuStatus)
+            .where(OnuStatus.olt_id == UUID(olt["id"]))
+            .values(traffic_at=OnuStatus.traffic_at - timedelta(minutes=5))
+        )
+
+    asyncio.run(_owner(env, five_minutes_ago))
+    apply(1_000_000_000 + 600_000_000, 100_000_000 + 30_000_000)  # 16 Mbps de bajada
+    url = f"/v1/monitoring/onus/{olt['id']}/1/1/traffic"
+    traffic = env.client.get(url, headers=env.headers()).json()
+    assert traffic["supported"] is True and traffic["source"] == "mikrotik"
+    assert 15_500_000 < traffic["rates"][0]["down_bps"] < 16_100_000
+    assert sum(h["down_bytes"] for h in traffic["hours"]) == 600_000_000
+    assert traffic["plan_mbps"] == 20 and traffic["plan_from_router"] is True
+
+    # A mano: la ONU 2 navega con "ruiz2026". El sondeo ya no lo cambia.
+    manual = env.client.put(
+        f"/v1/monitoring/onus/{olt['id']}/1/2/pppoe-user",
+        json={"pppoe_user": "ruiz2026"},
+        headers=env.headers(),
+    ).json()
+    assert manual["pppoe_user_source"] == "manual" and manual["pppoe"]["uptime"] == "1h"
+    apply(1_700_000_000, 140_000_000)
+    again = env.client.get(f"/v1/monitoring/onus/{olt['id']}/1/2", headers=env.headers()).json()
+    assert again["status"]["pppoe_user"] == "ruiz2026"
+    # Otro ISP no ve las sesiones de este.
+    assert env.client.get(url, headers=env.headers(env.key_b)).status_code == 404

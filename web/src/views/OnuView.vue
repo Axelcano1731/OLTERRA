@@ -26,6 +26,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import LoadingBlock from '@/components/LoadingBlock.vue'
 import OnuActionsBar from '@/components/onu/OnuActionsBar.vue'
 import OnuDevicesTab from '@/components/onu/OnuDevicesTab.vue'
+import OnuPppoeCard from '@/components/onu/OnuPppoeCard.vue'
 import OnuServiceTab from '@/components/onu/OnuServiceTab.vue'
 import OnuTechTab from '@/components/onu/OnuTechTab.vue'
 import OnuTrafficTab from '@/components/onu/OnuTrafficTab.vue'
@@ -145,6 +146,17 @@ const recentAlarms = computed(() => (history.data.value?.alarms ?? []).slice(0, 
           <StatusPill v-if="status.online" :tone="signalLevel(status.rx_dbm).tone">
             Señal {{ signalLevel(status.rx_dbm).label.toLowerCase() }} ·
             {{ formatDbm(status.rx_dbm) }}
+          </StatusPill>
+          <StatusPill v-if="status.pppoe && status.online" tone="success">
+            PPPoE conectado<template v-if="status.pppoe.address">
+              · {{ status.pppoe.address }}</template
+            >
+          </StatusPill>
+          <StatusPill v-else-if="status.pppoe" tone="warning"
+            >PPPoE activo con la ONU caída</StatusPill
+          >
+          <StatusPill v-else-if="status.pppoe_user && status.online" tone="warning">
+            Sin sesión PPPoE
           </StatusPill>
           <StatusPill v-if="openAlarms.length" tone="warning">
             {{ openAlarms.length }} {{ openAlarms.length === 1 ? 'alarma' : 'alarmas' }}
@@ -344,7 +356,10 @@ const recentAlarms = computed(() => (history.data.value?.alarms ?? []).slice(0, 
       </section>
 
       <!-- Internet y Wi‑Fi -->
-      <OnuServiceTab v-else-if="tab === 'servicio' && driver" :status="status" :driver="driver" />
+      <div v-else-if="tab === 'servicio' && driver" class="space-y-4">
+        <OnuPppoeCard :status="status" @changed="renamed" />
+        <OnuServiceTab :status="status" :driver="driver" />
+      </div>
 
       <!-- Equipos -->
       <section v-else-if="tab === 'equipos'" class="card p-5">

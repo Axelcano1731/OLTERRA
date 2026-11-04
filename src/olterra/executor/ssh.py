@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 from dataclasses import dataclass
 from typing import Any
 
 import asyncssh
 
-from olterra.executor.cli import CliError
+from olterra.executor.cli import CliError, CliTimeout
 
 
 @dataclass
@@ -146,6 +147,57 @@ async def open_gateway(options: SshConnectOptions) -> asyncssh.SSHClientConnecti
         raise CliError(
             f"No se pudo entrar {router} ({options.host}:{options.port}): {reason}"
         ) from exc
+
+
+class ExecSession:
+    """Un comando por canal SSH. Misma forma que ``CliSession`` para el runner (``run``,
+    ``find_error``, ``close``)."""
+
+    def __init__(self, conn: asyncssh.SSHClientConnection, error_patterns: tuple[str, ...]) -> None:
+        self._conn = conn
+        self._errors = [re.compile(p, re.MULTILINE) for p in error_patterns]
+
+    @property
+    def host_key(self) -> str | None:
+        key = self._conn.get_server_host_key()
+        return key.export_public_key("openssh").decode("ascii").strip() if key else None
+
+    async def run(self, command: str, *, timeout: float, replies: Any = ()) -> str:
+        try:
+            result = await asyncio.wait_for(
+                self._conn.run(command, check=False, encoding="utf-8", errors="replace"), timeout
+            )
+        except TimeoutError as exc:
+            raise CliTimeout(f"El equipo no terminó «{command[:40]}» en {timeout:g} s", "") from exc
+        return str(result.stdout or "") + str(result.stderr or "")
+
+    def find_error(self, output: str) -> str | None:
+        for pattern in self._errors:
+            match = pattern.search(output)
+            if match:
+                start = output.rfind("\n", 0, match.start()) + 1
+                end = output.find("\n", match.end())
+                return output[start : end if end != -1 else None].strip()
+        return None
+
+    async def close(self) -> None:
+        self._conn.close()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._conn.wait_closed(), 5)
+
+
+async def open_exec_session(
+    options: SshConnectOptions, error_patterns: tuple[str, ...]
+) -> ExecSession:
+    try:
+        conn = await asyncssh.connect(**_connect_kwargs(options))
+    except asyncssh.HostKeyNotVerifiable as exc:
+        raise CliError("La llave SSH del equipo no coincide con la registrada") from exc
+    except asyncssh.PermissionDenied as exc:
+        raise CliError("El equipo rechazó usuario o clave SSH") from exc
+    except (OSError, asyncssh.Error, TimeoutError) as exc:
+        raise connect_error("SSH", options, exc) from exc
+    return ExecSession(conn, error_patterns)
 
 
 async def open_ssh_transport(options: SshConnectOptions) -> AsyncsshTransport:

@@ -525,3 +525,19 @@ la ficha (la OLT no lo sabe: el límite lo pone el MikroTik).
   de 3 horas (la OLT no respondió), esa diferencia no se reparte.
 - La BCD no lo entrega por ONU (sus contadores por puerto Ethernet de la ONU salen en cero): la
   ficha lo dice.
+
+### A.22 El MikroTik como fuente: sesiones PPPoE y colas (2026-11-04)
+
+Olterra se vende sola (sin ISPWatch), así que lo que la OLT no sabe lo lee del MikroTik del ISP
+con el mismo usuario `olterra` de la puerta (A.20), que solo puede leer. Cada 5 minutos, con el
+sondeo de una OLT, si su router no se leyó: sesiones PPPoE activas, contadores de cada interfaz
+`<pppoe-…>` y colas simples. Un comando por canal SSH (`SessionProfile.exec_commands`): la consola
+interactiva de RouterOS detecta la terminal y pinta con colores.
+
+- La ONU se une con su usuario PPPoE por el nombre del cliente (normalizado) o a mano en la
+  ficha; con ISPWatch conectado podrá venir de ahí.
+- En las OLT que no dan el tráfico por ONU (BCD), los contadores de la sesión hacen de contadores
+  de la ONU (mismas tablas, A.21); el plan sale de la cola si no se puso a mano.
+- Una sesión activa con la ONU caída se avisa: el cliente navega por otro equipo.
+- El plan va a nombre de una OLT del router (el historial y el ejecutor lo exigen) y no cambia el
+  estado de esa OLT.
