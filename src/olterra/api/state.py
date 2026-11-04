@@ -82,7 +82,8 @@ class AppState:
             )
             run.status = result.status
             run.finished_at = datetime.now(UTC)
-            status = olt_status_after(result)
+            # El sondeo del MikroTik va a nombre de una OLT, pero no dice nada de ella.
+            status = olt_status_after(result) if run.requested_by != "olterra:mikrotik" else None
             if status is not None and olt is not None:
                 olt.status = status
                 if status == "online":

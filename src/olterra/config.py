@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     # Cada cuántos minutos el sondeo lee también el tráfico de cada ONU (0 = no). 5, como MRTG:
     # con promedios más largos un plan al tope no se ve al tope. En la HSGQ es un comando por ONU.
     monitor_traffic_every_minutes: float = 5.0
+    # Cada cuántos minutos se leen las sesiones PPPoE y las colas del MikroTik de cada OLT (0 = no).
+    monitor_router_every_minutes: float = 5.0
     # Días que se guarda la velocidad cada 5 minutos (el mes sale de los promedios por hora).
     monitor_rate_retention_days: int = 8
     # Días que se guarda el consumo por hora (dos meses: este y el anterior completos).

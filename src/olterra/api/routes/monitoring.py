@@ -6,7 +6,7 @@ La lógica (sondeo, reglas, historial) está en ``api/monitoring.py``.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -22,14 +22,24 @@ from olterra.api.schemas import (
     OltHealth,
     OnuNameIn,
     OnuPlanIn,
+    OnuPppoeUserIn,
     OnuRateOut,
     OnuSampleOut,
     OnuStatusOut,
     OnuTrafficHourOut,
     OnuTrafficOut,
+    PppoeSessionOut,
 )
 from olterra.api.state import audit
-from olterra.db.models import Alarm, Olt, OnuRate, OnuSample, OnuStatus, OnuTrafficHour
+from olterra.db.models import (
+    Alarm,
+    Olt,
+    OnuRate,
+    OnuSample,
+    OnuStatus,
+    OnuTrafficHour,
+    PppoeSessionRow,
+)
 from olterra.drivers import get_driver
 from olterra.executor.plan import Priority
 
@@ -38,7 +48,13 @@ router = APIRouter(tags=["Monitoreo"])
 LOW = monitoring.RX_LOW_WARNING
 
 
-def _status_out(row: OnuStatus) -> OnuStatusOut:
+async def _sessions(session: Any) -> dict[str, PppoeSessionRow]:
+    """Las sesiones PPPoE activas del ISP por usuario (las del último sondeo de cada router)."""
+    return {s.pppoe_user: s for s in (await session.execute(select(PppoeSessionRow))).scalars()}
+
+
+def _status_out(row: OnuStatus, sessions: dict[str, PppoeSessionRow] | None = None) -> OnuStatusOut:
+    live = (sessions or {}).get(row.pppoe_user or "")
     return OnuStatusOut(
         olt_id=row.olt_id,
         pon=row.pon,
@@ -57,6 +73,9 @@ def _status_out(row: OnuStatus) -> OnuStatusOut:
         up_bps=row.up_bps,
         traffic_at=row.traffic_at,
         plan_mbps=row.plan_mbps,
+        pppoe_user=row.pppoe_user,
+        pppoe_user_source=row.pppoe_user_source,
+        pppoe=PppoeSessionOut.model_validate(live) if live is not None else None,
     )
 
 
@@ -151,7 +170,8 @@ async def list_onus(
             )
         )
     async with ctx.session() as session:
-        return [_status_out(row) for row in (await session.execute(query)).scalars()]
+        sessions = await _sessions(session)
+        return [_status_out(row, sessions) for row in (await session.execute(query)).scalars()]
 
 
 class OnuHistory(BaseModel):
@@ -201,7 +221,7 @@ async def onu_history(
             )
         ).scalars()
         return OnuHistory(
-            status=_status_out(row),
+            status=_status_out(row, await _sessions(session)),
             samples=[OnuSampleOut.model_validate(s) for s in samples],
             alarms=[AlarmOut.model_validate(a) for a in alarms],
         )
@@ -248,16 +268,51 @@ async def onu_traffic(
                 .order_by(OnuRate.at)
             )
         ).scalars()
+        from_olt = monitoring.reads_traffic(get_driver(olt.driver))
+        live = (await _sessions(session)).get(row.pppoe_user or "")
+        from_router = live is not None
+        plan_bps = live.plan_down_bps if live is not None else None
         return OnuTrafficOut(
-            supported=monitoring.reads_traffic(get_driver(olt.driver)),
+            supported=from_olt or from_router,
+            source="olt" if from_olt else ("mikrotik" if from_router else None),
+            plan_from_router=row.plan_mbps is None and plan_bps is not None,
             every_minutes=state.settings.monitor_traffic_every_minutes,
             down_bps=row.down_bps,
             up_bps=row.up_bps,
             traffic_at=row.traffic_at,
-            plan_mbps=row.plan_mbps,
+            plan_mbps=row.plan_mbps or (round(plan_bps / 1e6) if plan_bps else None),
             hours=[OnuTrafficHourOut.model_validate(h) for h in hours],
             rates=[OnuRateOut.model_validate(r) for r in rates],
         )
+
+
+@router.put("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/pppoe-user", response_model=OnuStatusOut)
+async def set_pppoe_user(
+    olt_id: UUID, pon: int, onu: int, body: OnuPppoeUserIn, ctx: Tenant
+) -> OnuStatusOut:
+    """Con qué usuario PPPoE navega esa ONU (para ver su sesión del MikroTik). Vacío lo deja
+    otra vez en automático: el sondeo lo busca por el nombre del cliente."""
+    ctx.require("onu:write")
+    async with ctx.session() as session:
+        row = await session.get(OnuStatus, (ctx.tenant_id, olt_id, pon, onu))
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa ONU no está en el monitoreo")
+        before = {"pppoe_user": row.pppoe_user}
+        row.pppoe_user = body.pppoe_user
+        row.pppoe_user_source = "manual" if body.pppoe_user else None
+        await audit(
+            session,
+            tenant_id=ctx.tenant_id,
+            actor=ctx.actor,
+            action="onu.pppoe_user",
+            target_type="onu",
+            target_id=f"{olt_id}:{pon}:{onu}",
+            before=before,
+            after={"pppoe_user": row.pppoe_user, "serial": row.serial},
+            source_ip=ctx.client_ip,
+        )
+        await session.flush()
+        return _status_out(row, await _sessions(session))
 
 
 @router.put("/v1/monitoring/onus/{olt_id}/{pon}/{onu}/plan", response_model=OnuStatusOut)

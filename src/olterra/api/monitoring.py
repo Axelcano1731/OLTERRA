@@ -36,6 +36,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from olterra.api import mikrotik
 from olterra.api.routes.olts import executor_key, olt_access, publish_plan, record_plan
 from olterra.api.state import AppState
 from olterra.db.models import (
@@ -50,7 +51,7 @@ from olterra.db.models import (
 from olterra.db.session import tenant_session
 from olterra.drivers import get_driver
 from olterra.drivers.base import CommandCall, Driver
-from olterra.executor.plan import PlanResult, Priority
+from olterra.executor.plan import Plan, PlanResult, Priority
 from olterra.orchestrator import build_read_plan
 
 log = logging.getLogger(__name__)
@@ -337,6 +338,7 @@ def reads_traffic(driver: Driver) -> bool:
 async def start_poll(state: AppState, tenant_id: UUID, olt_id: UUID, priority: Priority) -> bool:
     """Pide un sondeo de la OLT. False si no se pudo ni pedir (sin IP, sin credencial…)."""
     plan = None
+    router_plan: Plan | None = None
     async with tenant_session(state.sessions, tenant_id) as session:
         olt = await session.get(Olt, olt_id)
         if olt is None:
@@ -380,6 +382,16 @@ async def start_poll(state: AppState, tenant_id: UUID, olt_id: UUID, priority: P
             )
             await record_plan(session, tenant_id, ACTOR, olt, plan, calls)
             olt.monitor_plan_id = plan.plan_id
+            via = target.via
+            router_plan = await mikrotik.maybe_start(
+                session,
+                state,
+                tenant_id,
+                olt,
+                via,
+                credential.gateway_password,
+                executor_key(state),
+            )
         except HTTPException as exc:
             log.info("Sin sondeo para la OLT %s: %s", olt_id, exc.detail)
             olt.monitor_plan_id = None
@@ -388,6 +400,11 @@ async def start_poll(state: AppState, tenant_id: UUID, olt_id: UUID, priority: P
             log.exception("No se pudo preparar el sondeo de la OLT %s", olt_id)
             olt.monitor_plan_id = None
             return False
+    if router_plan is not None:
+        try:
+            await publish_plan(state, router_plan)
+        except HTTPException:
+            log.info("No se pudo encolar el sondeo del MikroTik de la OLT %s", olt_id)
     try:
         await publish_plan(state, plan)
     except HTTPException:
@@ -600,22 +617,7 @@ async def _store_readings(
             delete(OnuRate).where(OnuRate.olt_id == olt_id, OnuRate.at < now - keep_rates)
         )
     if hourly:
-        upsert = insert(OnuTrafficHour).values(hourly)
-        await session.execute(
-            upsert.on_conflict_do_update(
-                index_elements=["tenant_id", "olt_id", "pon", "onu", "hour"],
-                set_={
-                    "down_bytes": OnuTrafficHour.down_bytes + upsert.excluded.down_bytes,
-                    "up_bytes": OnuTrafficHour.up_bytes + upsert.excluded.up_bytes,
-                    "peak_down_bps": func.greatest(
-                        OnuTrafficHour.peak_down_bps, upsert.excluded.peak_down_bps
-                    ),
-                    "peak_up_bps": func.greatest(
-                        OnuTrafficHour.peak_up_bps, upsert.excluded.peak_up_bps
-                    ),
-                },
-            )
-        )
+        await save_hourly(session, hourly)
         keep_traffic = timedelta(days=state.settings.monitor_traffic_retention_days)
         await session.execute(
             delete(OnuTrafficHour).where(
@@ -623,6 +625,26 @@ async def _store_readings(
             )
         )
     return {key: status.customer_name for key, status in current.items() if status.customer_name}
+
+
+async def save_hourly(session: AsyncSession, hourly: list[dict[str, Any]]) -> None:
+    """Suma lo de esta lectura a la hora que toca (una fila por ONU y hora)."""
+    upsert = insert(OnuTrafficHour).values(hourly)
+    await session.execute(
+        upsert.on_conflict_do_update(
+            index_elements=["tenant_id", "olt_id", "pon", "onu", "hour"],
+            set_={
+                "down_bytes": OnuTrafficHour.down_bytes + upsert.excluded.down_bytes,
+                "up_bytes": OnuTrafficHour.up_bytes + upsert.excluded.up_bytes,
+                "peak_down_bps": func.greatest(
+                    OnuTrafficHour.peak_down_bps, upsert.excluded.peak_down_bps
+                ),
+                "peak_up_bps": func.greatest(
+                    OnuTrafficHour.peak_up_bps, upsert.excluded.peak_up_bps
+                ),
+            },
+        )
+    )
 
 
 def _account_traffic(

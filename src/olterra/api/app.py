@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from olterra import __version__
-from olterra.api import backups, jobs, monitoring
+from olterra.api import backups, jobs, mikrotik, monitoring
 from olterra.api.deps import State
 from olterra.api.routes import (
     audit_log,
@@ -101,6 +101,7 @@ def create_app(
         state.result_hooks.append(lambda result: jobs.on_result(state, result))
         state.result_hooks.append(lambda result: backups.on_result(state, result))
         state.result_hooks.append(lambda result: monitoring.on_result(state, result))
+        state.result_hooks.append(lambda result: mikrotik.on_result(state, result))
         nats_bus: NatsBus | None = None
         if bus is None and connect_nats:
             try:

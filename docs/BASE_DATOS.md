@@ -53,6 +53,7 @@ esquema donde corre (`current_schema()`), no a `public`. Ver DESPLIEGUE.md, 3.1.
 | `audit_log` | Bitácora: quién, qué, cuándo, desde dónde, antes y después. Se lee en `GET /v1/audit` (permiso `audit:read`) | **solo leer y anexar** |
 | `onu_status` | Monitoreo: lo último de cada ONU (fase, en línea, señal, cliente, desde cuándo). Una fila por ONU; la reescribe cada sondeo, salvo `customer_name` (el nombre puesto en el panel), que se borra si en esa posición aparece otra ONU | leer, crear, cambiar, borrar |
 | `onu_samples` | Historial de señal: una muestra por ONU como máximo cada hora (antes si cambió 1 dB o la ONU cayó o volvió); se borra a los `OLTERRA_MONITOR_RETENTION_DAYS` (30) | leer, crear, borrar |
+| `pppoe_sessions` | Las sesiones PPPoE activas de cada MikroTik (usuario, MAC, IP, tiempo conectado, contadores y el plan de su cola), del último sondeo del router; se reescribe en cada sondeo | leer, crear, cambiar, borrar |
 | `onu_rates` | Velocidad: la bajada y la subida promedio (bit/s) de cada lectura de tráfico, una fila cada 5 minutos por ONU, para la gráfica tipo MRTG; se borra a los `OLTERRA_MONITOR_RATE_RETENTION_DAYS` (8). El mes sale de `onu_traffic` | leer, crear, borrar |
 | `onu_traffic` | Consumo: lo que bajó y subió cada ONU en cada hora y el pico del promedio de una lectura (15 min) en esa hora. Una fila por ONU y hora (`INSERT … ON CONFLICT` suma); se borra a los `OLTERRA_MONITOR_TRAFFIC_RETENTION_DAYS` (62). Los últimos contadores de la OLT y el promedio entre las dos últimas lecturas van en `onu_status` (`down_bytes`, `up_bytes`, `down_bps`, `up_bps`, `traffic_at`) | leer, crear, cambiar, borrar |
 | `alarms` | Alarmas del monitoreo, abiertas y cerradas. `pon`/`onu` = 0 para toda la OLT o el PON; un índice único parcial deja una sola abierta por cosa y tipo | leer, crear, cambiar |
@@ -103,6 +104,7 @@ después con el tenant fijado y bajo RLS. Solo `olterra_app` las puede ejecutar.
 | `0011` | `olts.cli_protocol` (`ssh` por defecto o `telnet`) y `olts.telnet_port` (23): OLT que no aceptan a los usuarios de la CLI por SSH |
 | `0012` | `tunnel_routers.gateway_credential_id` y `ssh_port`: el MikroTik como puerta hacia sus OLT |
 | `0013` | La API crea usuarios (`GRANT INSERT ON users`), cambia `tenants.name` y guarda `onu_status.customer_name` |
+| `0016` | Sesiones PPPoE: `pppoe_sessions` (las activas de cada MikroTik con contadores y plan de su cola; RLS + FORCE, FK compuesta a `tunnel_routers`), `onu_status.pppoe_user` y `pppoe_user_source` (`nombre` o `manual`) y `tunnel_routers.monitor_requested_at`/`monitor_plan_id` |
 | `0015` | Velocidad: `onu_rates` (bajada y subida promedio de cada lectura, cada 5 minutos; RLS + FORCE, FK compuesta; 8 días) y `onu_status.plan_mbps` (el plan del cliente, puesto en la ficha) |
 | `0014` | Consumo: `onu_traffic` (RLS + FORCE, FK compuesta), los contadores y el promedio en `onu_status` y `olts.traffic_requested_at` (cuándo se pidió la última lectura de tráfico) |
 

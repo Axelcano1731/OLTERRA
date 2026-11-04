@@ -264,6 +264,13 @@ export const setOnuPlan = (oltId: string, pon: number, onu: number, planMbps: nu
     json: { plan_mbps: planMbps },
   })
 
+/** Con qué usuario PPPoE navega la ONU; null vuelve a buscarlo por el nombre del cliente. */
+export const setOnuPppoeUser = (oltId: string, pon: number, onu: number, user: string | null) =>
+  api<OnuStatus>(`/v1/monitoring/onus/${encodeURIComponent(oltId)}/${pon}/${onu}/pppoe-user`, {
+    method: 'PUT',
+    json: { pppoe_user: user },
+  })
+
 export const listUsers = () => api<IspUser[]>('/v1/users')
 export const createUser = (username: string, displayName: string, role: string) =>
   api<IspUserWithPassword>('/v1/users', {

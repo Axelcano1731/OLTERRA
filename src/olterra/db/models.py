@@ -121,7 +121,31 @@ class TunnelRouter(Base):
         UUID(as_uuid=True), ForeignKey("credentials.id", ondelete="SET NULL")
     )
     ssh_port: Mapped[int] = mapped_column(Integer, server_default="22")
+    # Último sondeo del router (migración 0016): sesiones PPPoE, contadores y colas.
+    monitor_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    monitor_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = _created()
+
+
+class PppoeSessionRow(Base):
+    """Una sesión PPPoE activa del MikroTik, como la vio el último sondeo del router."""
+
+    __tablename__ = "pppoe_sessions"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    router_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tunnel_routers.id", ondelete="CASCADE"), primary_key=True
+    )
+    pppoe_user: Mapped[str] = mapped_column(Text, primary_key=True)
+    mac: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    uptime: Mapped[str | None] = mapped_column(Text)
+    down_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    up_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    plan_down_bps: Mapped[int | None] = mapped_column(BigInteger)
+    plan_up_bps: Mapped[int | None] = mapped_column(BigInteger)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Olt(Base):
@@ -329,6 +353,10 @@ class OnuStatus(Base):
     traffic_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Velocidad del plan del cliente (migración 0015), puesta en la ficha.
     plan_mbps: Mapped[int | None] = mapped_column(Integer)
+    # Usuario PPPoE con que navega (migración 0016): por nombre ("nombre") o desde la ficha
+    # ("manual", que el sondeo no pisa).
+    pppoe_user: Mapped[str | None] = mapped_column(Text)
+    pppoe_user_source: Mapped[str | None] = mapped_column(Text)
 
 
 class OnuRate(Base):

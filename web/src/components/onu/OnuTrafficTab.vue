@@ -143,9 +143,9 @@ function percent(value: number): string {
     tone="info"
     :title="`La OLT ${oltBrand(driver)} no entrega el consumo por ONU`"
   >
-    Esta marca solo da los contadores del PON entero (o del puerto Ethernet de la ONU, que en estas
-    ONU sale en cero). El consumo de este cliente se ve en el MikroTik o en el sistema de
-    facturación.
+    Esta marca solo da los contadores del PON entero. Olterra lo saca entonces de la sesión PPPoE
+    del cliente en el MikroTik: en <b>Internet y Wi‑Fi</b> pon su usuario PPPoE si Olterra no lo
+    encontró por el nombre, y en unos minutos aparece aquí.
   </AlertBox>
   <div v-else-if="traffic" class="space-y-5">
     <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -188,7 +188,13 @@ function percent(value: number): string {
         </p>
         <p v-if="planError" class="text-xs text-danger">{{ planError }}</p>
         <p v-else class="text-xs text-muted">
-          {{ plan ? 'la raya de la gráfica' : 'para ver si llega al tope' }}
+          {{
+            plan
+              ? traffic.plan_from_router && plan === traffic.plan_mbps
+                ? 'de la cola del MikroTik'
+                : 'la raya de la gráfica'
+              : 'para ver si llega al tope'
+          }}
         </p>
       </div>
     </section>
@@ -291,9 +297,11 @@ function percent(value: number): string {
           </div>
         </dl>
         <p class="mt-3 text-xs text-muted">
-          Lo que pasa por la ONU según la OLT, leído cada {{ traffic.every_minutes }} minutos (como
-          MRTG): un cliente que siempre llega a la raya del plan está usando todo su canal. Los
-          huecos son ratos en que la OLT no respondió o la ONU estuvo caída.
+          Lo que pasa por la ONU según
+          {{ traffic.source === 'mikrotik' ? 'su sesión PPPoE en el MikroTik' : 'la OLT' }}, leído
+          cada {{ traffic.every_minutes }} minutos (como MRTG): un cliente que siempre llega a la
+          raya del plan está usando todo su canal. Los huecos son ratos en que la OLT no respondió o
+          la ONU estuvo caída.
         </p>
       </template>
       <template v-else>
